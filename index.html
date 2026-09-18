@@ -3,18 +3,22 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Toolapis - Web Tools Hub</title>
-  
+  <meta name="description" content="TOOLAPIS is a small hub of real web tools: upscale TikTok clips to HD, or share your PC's internet with Android over USB.">
+  <title>TOOLAPIS — Web Tools Hub</title>
+
   <!-- Tailwind CSS CDN -->
   <script src="https://cdn.tailwindcss.com"></script>
-  
+
   <!-- Google Fonts CDN -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700&family=Syne:wght@500;700;800&display=swap" rel="stylesheet">
-  
+
   <!-- Phosphor Icons -->
   <script src="https://unpkg.com/@phosphor-icons/web"></script>
+
+  <!-- Three.js (3D hero background) -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 
   <!-- Tailwind Custom Configuration -->
   <script>
@@ -36,6 +40,9 @@
               mint: '#A3E635',
               'mint-hover': '#BEF264',
             }
+          },
+          boxShadow: {
+            'mint': '0 0 24px rgba(163, 230, 53, 0.18)',
           }
         }
       }
@@ -44,23 +51,102 @@
 
   <style>
     /* Custom Scrollbar */
-    ::-webkit-scrollbar {
-      width: 8px;
-    }
-    ::-webkit-scrollbar-track {
-      background: #0B0F12;
-    }
-    ::-webkit-scrollbar-thumb {
-      background: #232D34;
-      border-radius: 4px;
-    }
-    
-    /* Background Overlay Gradients */
+    ::-webkit-scrollbar { width: 8px; }
+    ::-webkit-scrollbar-track { background: #0B0F12; }
+    ::-webkit-scrollbar-thumb { background: #232D34; border-radius: 4px; }
+    ::-webkit-scrollbar-thumb:hover { background: #2E3A43; }
+
+    /* Hero backdrop: dark base + mint glows + faint grid (no raster image) */
     .hero-bg {
-      background-image: linear-gradient(to bottom, rgba(11, 15, 18, 0.45), rgba(11, 15, 18, 0.95)), 
-                        url('https://images.unsplash.com/photo-1506744038136-46273834b3fb?q=80&w=2000&auto=format&fit=crop');
-      background-size: cover;
-      background-position: center;
+      background-color: #0B0F12;
+      background-image:
+        radial-gradient(1100px 600px at 50% -10%, rgba(163, 230, 53, 0.15), transparent 62%),
+        radial-gradient(900px 560px at 105% 115%, rgba(163, 230, 53, 0.08), transparent 60%),
+        linear-gradient(rgba(255, 255, 255, 0.035) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255, 255, 255, 0.035) 1px, transparent 1px);
+      background-size: auto, auto, 56px 56px, 56px 56px;
+    }
+
+    /* ---- Button primitives (pill shape everywhere = consistent) ---- */
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.625rem;
+      border-radius: 9999px;
+      font-size: 0.875rem;
+      font-weight: 700;
+      line-height: 1;
+      padding: 0.95rem 1.5rem;
+      transition: all .3s ease;
+      will-change: transform;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+    .btn:active { transform: scale(0.97); }
+    .btn-sm { padding: 0.55rem 1.25rem; font-size: 0.8125rem; }
+
+    .btn-accent {
+      background: #A3E635;
+      color: #0B0F12;
+    }
+    .btn-accent:hover {
+      background: #BEF264;
+      box-shadow: 0 0 24px rgba(163, 230, 53, 0.18);
+    }
+
+    .btn-glass {
+      background: rgba(19, 25, 29, 0.65);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      color: #ffffff;
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+    }
+    .btn-glass:hover {
+      background: rgba(255, 255, 255, 0.08);
+      border-color: rgba(255, 255, 255, 0.16);
+    }
+
+    /* ---- Section eyebrow ---- */
+    .eyebrow {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      border-radius: 9999px;
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      padding: 0.35rem 0.9rem;
+      font-size: 0.6875rem;
+      font-weight: 600;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      color: #CBD5E1;
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+      white-space: nowrap;
+    }
+    .eyebrow i { color: #A3E635; font-size: 0.8125rem; }
+
+    /* ---- Mobile nav panel ---- */
+    .mobile-menu {
+      opacity: 0;
+      visibility: hidden;
+      transform: translateY(-8px);
+      transition: opacity .25s ease, transform .25s ease, visibility .25s ease;
+    }
+    .mobile-menu.open {
+      opacity: 1;
+      visibility: visible;
+      transform: none;
+    }
+
+    /* ---- Subdued transparency preference ---- */
+    @media (prefers-reduced-transparency: reduce) {
+      .glass-panel, .glass-pill, .btn-glass, #navbar.nav-solid {
+        background: rgba(19, 25, 29, 0.98);
+        backdrop-filter: none;
+        -webkit-backdrop-filter: none;
+      }
     }
 
     /* Subtle Glassmorphism */
@@ -74,210 +160,733 @@
     .glass-pill {
       background: rgba(255, 255, 255, 0.05);
       backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
       border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    /* Film Grain Overlay (fixed, pointer-events none) */
+    .grain {
+      position: fixed;
+      inset: 0;
+      z-index: 60;
+      pointer-events: none;
+      opacity: 0.03;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.5'/%3E%3C/svg%3E");
+    }
+
+    /* Anchor offset for the fixed navbar */
+    section[id] { scroll-margin-top: 90px; }
+
+    /* ---- Hero entrance ---- */
+    @keyframes riseIn {
+      from { opacity: 0; transform: translateY(28px); }
+      to   { opacity: 1; transform: none; }
+    }
+    .hero-reveal { opacity: 0; animation: riseIn .8s cubic-bezier(.16, 1, .3, 1) forwards; }
+    .d-1 { animation-delay: .10s; } .d-2 { animation-delay: .20s; }
+    .d-3 { animation-delay: .30s; } .d-4 { animation-delay: .42s; }
+    .d-5 { animation-delay: .54s; } .d-6 { animation-delay: .66s; }
+
+    /* ---- Scroll reveal ---- */
+    [data-reveal] {
+      opacity: 0;
+      transform: translateY(26px);
+      transition: opacity .7s cubic-bezier(.16, 1, .3, 1), transform .7s cubic-bezier(.16, 1, .3, 1);
+    }
+    [data-reveal].is-visible { opacity: 1; transform: none; }
+
+    /* ---- Navbar solid state ---- */
+    #navbar { transition: background-color .3s ease, box-shadow .3s ease; }
+    #navbar.nav-solid {
+      background: rgba(11, 15, 18, 0.8);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      box-shadow: 0 1px 0 rgba(255, 255, 255, 0.06);
+    }
+
+    /* ---- 3D tilt cards ---- */
+    .tilt {
+      transform-style: preserve-3d;
+      will-change: transform;
+    }
+    .spot-card { position: relative; }
+    .spot-card::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      border-radius: inherit;
+      opacity: 0;
+      transition: opacity .3s ease;
+      background: radial-gradient(420px circle at var(--mx, 50%) var(--my, 50%), rgba(163, 230, 53, 0.09), transparent 65%);
+      pointer-events: none;
+    }
+    .spot-card:hover::before { opacity: 1; }
+
+    /* Full-bleed chroma gradient border */
+    .chroma { position: relative; }
+    .chroma::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      border-radius: inherit;
+      padding: 1px;
+      background: linear-gradient(120deg, rgba(163, 230, 53, 0.45), transparent 38%, rgba(163, 230, 53, 0.18));
+      -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+      -webkit-mask-composite: xor;
+      mask-composite: exclude;
+      pointer-events: none;
+    }
+
+    /* Light sheen sweep on hover (transform-based) */
+    .sheen { position: relative; overflow: hidden; }
+    .sheen::after {
+      content: "";
+      position: absolute;
+      top: -20%;
+      bottom: -20%;
+      left: -60%;
+      width: 60%;
+      transform: skewX(-20deg) translateX(-160%);
+      background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.09), transparent);
+      pointer-events: none;
+    }
+    .sheen:hover::after { animation: sheenMove 1.1s ease; }
+    @keyframes sheenMove { to { transform: skewX(-20deg) translateX(460%); } }
+
+    /* Gentle float for decorative rings */
+    @keyframes floatY {
+      0%, 100% { transform: translateY(-5px); }
+      50%      { transform: translateY(6px); }
+    }
+    .ring-float { animation: floatY 6s ease-in-out infinite; }
+    .ring-float-slow { animation: floatY 9s ease-in-out infinite; }
+
+    /* Soft drift for hero glow blobs */
+    @keyframes drift {
+      0%, 100% { transform: translate(0, 0) scale(1); }
+      33%      { transform: translate(30px, -20px) scale(1.08); }
+      66%      { transform: translate(-20px, 18px) scale(0.95); }
+    }
+    .drift { animation: drift 16s ease-in-out infinite; }
+
+    /* Focus ring consistency for interactive elements */
+    a:focus-visible, button:focus-visible {
+      outline: 2px solid rgba(163, 230, 53, 0.7);
+      outline-offset: 3px;
+      border-radius: 8px;
+    }
+
+    /* Reduced motion: collapse everything to static */
+    @media (prefers-reduced-motion: reduce) {
+      .hero-reveal { animation: none; opacity: 1; transform: none; }
+      [data-reveal] { opacity: 1; transform: none; transition: none; }
+      .ring-float, .ring-float-slow, .drift { animation: none; }
+      .sheen::after { animation: none; }
+      .spot-card::before { display: none; }
+      #navbar { transition: none; }
     }
   </style>
 </head>
 <body class="bg-surface text-slate-200 font-sans antialiased min-h-[100dvh] flex flex-col justify-between selection:bg-accent-mint selection:text-black overflow-x-hidden relative">
 
+  <div id="nav-sentinel" class="absolute top-0 left-0 h-px w-px pointer-events-none"></div>
+
+  <!-- Film Grain -->
+  <div class="grain" aria-hidden="true"></div>
+
   <!-- Spotlight Glow Cursor Effect -->
-  <div id="spotlight" class="pointer-events-none fixed -inset-px z-30 transition duration-300 opacity-0 md:opacity-100" style="background: radial-gradient(600px circle at 0px 0px, rgba(163, 230, 53, 0.06), transparent 80%);"></div>
+  <div id="spotlight" class="pointer-events-none fixed -inset-px z-30 transition duration-300 opacity-0" style="background: radial-gradient(600px circle at 0px 0px, rgba(163, 230, 53, 0.05), transparent 80%);"></div>
 
   <!-- Header Navigation -->
-  <header class="fixed top-0 left-0 right-0 z-40 px-4 md:px-8 py-6 transition-all duration-300" id="navbar">
-    <div class="max-w-7xl mx-auto flex items-center justify-between">
-      
-      <!-- Brand Logo -->
-      <a href="#" class="flex items-center gap-3 group">
-        <div class="w-8 h-8 rounded-full bg-accent-mint flex items-center justify-center text-surface font-bold font-display transition-transform duration-300 group-hover:scale-105">
-          TL
+  <header id="navbar" class="fixed top-0 left-0 right-0 z-40 px-4 md:px-8 py-4">
+    <div class="max-w-7xl mx-auto relative">
+
+      <div class="flex items-center justify-between gap-3">
+        <!-- Brand Logo -->
+        <a href="#overview" class="flex items-center gap-3 group" aria-label="TOOLAPIS home">
+          <div class="w-8 h-8 rounded-full bg-accent-mint flex items-center justify-center text-surface font-bold font-display transition-transform duration-300 group-hover:scale-105">
+            TL
+          </div>
+          <span class="font-display font-bold tracking-wider text-lg text-white group-hover:text-accent-mint transition-colors">
+            TOOLAPIS<span class="text-accent-mint">.</span>
+          </span>
+        </a>
+
+        <!-- Navigation Links (desktop) -->
+        <nav class="hidden md:flex items-center gap-8 glass-pill px-6 py-2 rounded-full text-xs font-medium tracking-wider uppercase text-slate-300" aria-label="Primary">
+          <a href="#overview" class="hover:text-white transition-colors">Overview</a>
+          <a href="#features" class="hover:text-white transition-colors">Features</a>
+          <a href="#flow" class="hover:text-white transition-colors">Flow</a>
+          <a href="#clarity" class="hover:text-white transition-colors">Clarity</a>
+        </nav>
+
+        <!-- Top Action Button (desktop) + Menu Toggle (mobile) -->
+        <div class="flex items-center gap-3">
+          <a href="https://tiktok-hd-enhancer-by-apis-fgtkuxmpzmi7h8gifh4a8o.streamlit.app/" target="_blank" rel="noopener noreferrer" data-magnetic class="btn btn-accent btn-sm hidden sm:inline-flex">
+            <span class="hidden lg:inline">Open HD Enhancer</span>
+            <span class="lg:hidden">HD Enhancer</span>
+            <i class="ph ph-arrow-up-right font-bold" aria-hidden="true"></i>
+          </a>
+
+          <button id="nav-toggle" class="md:hidden flex items-center justify-center w-11 h-11 rounded-full glass-pill text-white transition-colors hover:bg-white/10" aria-label="Toggle menu" aria-expanded="false" aria-controls="mobile-menu">
+            <i id="nav-icon" class="ph-bold ph-list text-lg pointer-events-none" aria-hidden="true"></i>
+          </button>
         </div>
-        <span class="font-display font-bold tracking-wider text-lg text-white group-hover:text-accent-mint transition-colors">
-          TOOLAPIS<span class="text-accent-mint">.</span>
-        </span>
-      </a>
+      </div>
 
-      <!-- Navigation Links -->
-      <nav class="hidden md:flex items-center gap-8 glass-pill px-6 py-2 rounded-full text-xs font-medium tracking-wider uppercase text-slate-300">
-        <a href="#overview" class="hover:text-white transition-colors">Overview</a>
-        <a href="#features" class="hover:text-white transition-colors">Features</a>
-        <a href="#flow" class="hover:text-white transition-colors">Flow</a>
-        <a href="#clarity" class="hover:text-white transition-colors">Clarity</a>
-      </nav>
-
-      <!-- Top Action Button -->
-      <div class="flex items-center gap-3">
-        <a href="https://tiktok-hd-enhancer-by-apis-fgtkuxmpzmi7h8gifh4a8o.streamlit.app/" target="_blank" rel="noopener noreferrer" class="bg-accent-mint hover:bg-accent-mint-hover text-surface text-xs md:text-sm font-semibold px-4 md:px-5 py-2.5 rounded-full transition-all duration-300 hover:shadow-[0_0_20px_rgba(163,230,53,0.3)] active:scale-95 flex items-center gap-2">
-          <span>Start with Enhancer</span>
-          <i class="ph ph-arrow-up-right font-bold"></i>
+      <!-- Mobile Navigation Panel -->
+      <div id="mobile-menu" class="mobile-menu md:hidden absolute top-full inset-x-0 mt-2 glass-panel rounded-2xl p-6">
+        <nav class="flex flex-col gap-1" aria-label="Mobile">
+          <a href="#overview" class="flex items-center justify-between rounded-xl px-3 py-3.5 text-sm font-medium text-slate-200 hover:text-white hover:bg-white/5 transition-colors">
+            Overview <i class="ph-bold ph-arrow-right text-accent-mint" aria-hidden="true"></i>
+          </a>
+          <a href="#features" class="flex items-center justify-between rounded-xl px-3 py-3.5 text-sm font-medium text-slate-200 hover:text-white hover:bg-white/5 transition-colors">
+            Features <i class="ph-bold ph-arrow-right text-accent-mint" aria-hidden="true"></i>
+          </a>
+          <a href="#flow" class="flex items-center justify-between rounded-xl px-3 py-3.5 text-sm font-medium text-slate-200 hover:text-white hover:bg-white/5 transition-colors">
+            Flow <i class="ph-bold ph-arrow-right text-accent-mint" aria-hidden="true"></i>
+          </a>
+          <a href="#clarity" class="flex items-center justify-between rounded-xl px-3 py-3.5 text-sm font-medium text-slate-200 hover:text-white hover:bg-white/5 transition-colors">
+            Clarity <i class="ph-bold ph-arrow-right text-accent-mint" aria-hidden="true"></i>
+          </a>
+        </nav>
+        <a href="https://tiktok-hd-enhancer-by-apis-fgtkuxmpzmi7h8gifh4a8o.streamlit.app/" target="_blank" rel="noopener noreferrer" class="btn btn-accent w-full mt-4">
+          <i class="ph-bold ph-arrow-up-right" aria-hidden="true"></i>
+          <span>Open HD Enhancer</span>
         </a>
       </div>
     </div>
   </header>
 
   <!-- Hero Main Section -->
-  <main class="hero-bg min-h-[100dvh] flex flex-col justify-center items-center px-4 md:px-6 pt-28 pb-16 relative">
-    
-    <div class="max-w-4xl mx-auto text-center z-10 space-y-8">
-      
-      <!-- Eyebrow Badge -->
-      <div class="inline-flex items-center gap-2 glass-pill px-4 py-1.5 rounded-full text-xs font-medium tracking-widest uppercase text-slate-300 border border-white/10 animate-fade-in">
-        <span class="w-2 h-2 rounded-full bg-accent-mint animate-pulse"></span>
-        <span>Web Tools</span>
-      </div>
+  <main>
+    <section class="hero-bg min-h-[100dvh] flex flex-col justify-center items-center px-4 md:px-6 pt-24 pb-12 relative overflow-hidden">
 
-      <!-- Main Headline -->
-      <h1 class="font-display text-4xl sm:text-6xl md:text-7xl font-extrabold text-white tracking-tight leading-[1.08] max-w-3xl mx-auto">
-        Web Tools For You, All in One Place.
-      </h1>
+      <!-- 3D WebGL Background -->
+      <canvas id="hero-canvas" class="absolute inset-0 w-full h-full z-0 pointer-events-none opacity-90" aria-hidden="true"></canvas>
 
-      <!-- Description Subtext -->
-      <p class="text-slate-300 text-base md:text-lg max-w-2xl mx-auto font-normal leading-relaxed">
-        Boost your TikTok videos to high definition (HD), or share your PC's internet connection with your Android phone over a USB cable — all in a clean, organized workspace.
-      </p>
+      <!-- Ambient drift glows -->
+      <div aria-hidden="true" class="pointer-events-none absolute -top-32 -left-24 z-0 w-[480px] h-[480px] rounded-full blur-3xl opacity-40 drift" style="background: radial-gradient(circle, rgba(163,230,53,0.16), transparent 65%);"></div>
+      <div aria-hidden="true" class="pointer-events-none absolute -bottom-40 -right-32 z-0 w-[520px] h-[520px] rounded-full blur-3xl opacity-30 drift ring-float-slow" style="background: radial-gradient(circle, rgba(163,230,53,0.14), transparent 65%);"></div>
 
-      <!-- Primary Action Buttons Container -->
-      <div class="pt-4 flex flex-col sm:flex-row items-center justify-center gap-4 max-w-lg mx-auto">
-        
-        <!-- Button 1: TikTok HD Enhancer -->
-        <a href="https://tiktok-hd-enhancer-by-apis-fgtkuxmpzmi7h8gifh4a8o.streamlit.app/" 
-           target="_blank" 
-           rel="noopener noreferrer"
-           class="w-full sm:w-auto min-w-[210px] bg-accent-mint hover:bg-accent-mint-hover text-surface text-sm font-bold px-6 py-4 rounded-xl transition-all duration-300 hover:shadow-[0_8px_25px_rgba(163,230,53,0.25)] hover:-translate-y-0.5 active:scale-95 flex items-center justify-center gap-2.5 group">
-          <i class="ph-bold ph-magic-wand text-lg"></i>
-          <span>Open HD Enhancer</span>
-          <i class="ph-bold ph-arrow-right text-sm transition-transform group-hover:translate-x-1"></i>
-        </a>
-
-        <!-- Button 2: Gnirehtet USB Tethering -->
-        <a href="https://drive.google.com/file/d/1gH_huKs7Pf9XP2uJcRfMaLqJonLfJcbI/view" 
-           target="_blank" 
-           rel="noopener noreferrer"
-           class="w-full sm:w-auto min-w-[210px] glass-panel hover:bg-white/10 text-white text-sm font-semibold px-6 py-4 rounded-xl transition-all duration-300 hover:border-white/20 hover:-translate-y-0.5 active:scale-95 flex items-center justify-center gap-2.5 group">
-          <i class="ph-bold ph-usb text-lg text-emerald-400"></i>
-          <span>Open Gnirehtet</span>
-          <i class="ph-bold ph-arrow-square-out text-sm text-slate-400 group-hover:text-white transition-colors"></i>
-        </a>
-
-      </div>
-
-      <!-- Quick Action Utilities -->
-      <div class="pt-6 flex items-center justify-center gap-6 text-xs text-slate-400 font-medium">
-        <button onclick="copyToClipboard('https://tiktok-hd-enhancer-by-apis-fgtkuxmpzmi7h8gifh4a8o.streamlit.app/', 'Streamlit Enhancer Link Copied!')" class="hover:text-white transition-colors flex items-center gap-1.5 cursor-pointer">
-          <i class="ph ph-copy"></i>
-          <span>Copy Enhancer Link</span>
-        </button>
-        <span class="text-slate-600">•</span>
-        <button onclick="copyToClipboard('https://github.com/Genymobile/gnirehtet', 'Gnirehtet Link Copied!')" class="hover:text-white transition-colors flex items-center gap-1.5 cursor-pointer">
-          <i class="ph ph-copy"></i>
-          <span>Copy Gnirehtet Link</span>
-        </button>
-      </div>
-
-    </div>
-
-    <!-- Feature Cards Section Below Hero -->
-    <div id="overview" class="w-full max-w-5xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-6 mt-20 z-10">
-      
-      <!-- Card 1 -->
-      <div class="glass-panel p-6 md:p-8 rounded-2xl space-y-4 hover:border-white/20 transition-all duration-300">
-        <div class="w-12 h-12 rounded-xl bg-accent-mint/10 border border-accent-mint/20 flex items-center justify-center text-accent-mint">
-          <i class="ph-bold ph-sparkle text-2xl"></i>
+      <div class="max-w-4xl mx-auto text-center z-10 space-y-7">
+        <!-- Eyebrow Badge -->
+        <div class="hero-reveal d-1 eyebrow">
+          <i class="ph-bold ph-sparkle" aria-hidden="true"></i>
+          <span>Web Tools</span>
         </div>
-        <h3 class="font-display font-bold text-xl text-white">TikTok HD Enhancer</h3>
-        <p class="text-slate-400 text-sm leading-relaxed">
-          A Streamlit-based app designed to automatically boost the visual resolution and clarity of your TikTok video content.
+
+        <!-- Main Headline -->
+        <h1 class="hero-reveal d-2 font-display text-4xl sm:text-5xl md:text-6xl font-extrabold text-white tracking-tight leading-[1.08] max-w-3xl mx-auto text-balance">
+          Web Tools For You,<br class="hidden sm:block">
+          <span class="text-transparent bg-clip-text bg-gradient-to-r from-accent-mint to-accent-mint-hover">All in One Place.</span>
+        </h1>
+
+        <!-- Description Subtext -->
+        <p class="hero-reveal d-3 text-slate-300 text-base md:text-lg max-w-2xl mx-auto font-normal leading-relaxed">
+          Boost TikTok clips to HD, or tether your PC's internet to Android over USB. One hub, two tools, zero friction.
         </p>
-        <div class="pt-2">
-          <a href="https://tiktok-hd-enhancer-by-apis-fgtkuxmpzmi7h8gifh4a8o.streamlit.app/" target="_blank" class="inline-flex items-center gap-2 text-xs font-semibold text-accent-mint hover:underline">
-            <span>Launch App</span>
-            <i class="ph-bold ph-arrow-right"></i>
+
+        <!-- Primary Action Buttons -->
+        <div class="hero-reveal d-4 pt-3 flex flex-col sm:flex-row items-center justify-center gap-4 max-w-lg mx-auto">
+
+          <!-- Button 1: TikTok HD Enhancer -->
+          <a href="https://tiktok-hd-enhancer-by-apis-fgtkuxmpzmi7h8gifh4a8o.streamlit.app/"
+             target="_blank"
+             rel="noopener noreferrer"
+             data-magnetic
+             class="btn btn-accent w-full sm:w-auto group">
+            <i class="ph-bold ph-magic-wand text-lg" aria-hidden="true"></i>
+            <span>Open HD Enhancer</span>
+            <i class="ph-bold ph-arrow-right text-sm transition-transform group-hover:translate-x-1" aria-hidden="true"></i>
+          </a>
+
+          <!-- Button 2: Gnirehtet USB Tethering -->
+          <a href="https://drive.google.com/file/d/1gH_huKs7Pf9XP2uJcRfMaLqJonLfJcbI/view"
+             target="_blank"
+             rel="noopener noreferrer"
+             data-magnetic
+             class="btn btn-glass w-full sm:w-auto group">
+            <i class="ph-bold ph-usb text-lg text-accent-mint" aria-hidden="true"></i>
+            <span>Open Gnirehtet</span>
+            <i class="ph-bold ph-arrow-square-out text-sm text-slate-400 group-hover:text-white transition-colors" aria-hidden="true"></i>
           </a>
         </div>
       </div>
+    </section>
 
-      <!-- Card 2 -->
-      <div class="glass-panel p-6 md:p-8 rounded-2xl space-y-4 hover:border-white/20 transition-all duration-300">
-        <div class="w-12 h-12 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400">
-          <i class="ph-bold ph-usb text-2xl"></i>
+    <!-- Overview / Tool Cards Section -->
+    <section id="overview" class="max-w-5xl mx-auto px-4 md:px-6 py-16 md:py-20 z-10">
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+
+        <!-- Card 1: TikTok HD Enhancer -->
+        <div data-reveal class="tilt spot-card sheen glass-panel p-6 md:p-8 rounded-2xl space-y-4 hover:border-accent-mint/30 transition-colors duration-300" data-tilt="8">
+          <div class="relative w-12 h-12 rounded-xl bg-accent-mint/10 border border-accent-mint/20 flex items-center justify-center text-accent-mint">
+            <span aria-hidden="true" class="absolute -inset-1 rounded-xl bg-accent-mint/10 blur-lg"></span>
+            <i class="ph-bold ph-sparkle text-2xl" aria-hidden="true"></i>
+          </div>
+          <h3 class="font-display font-bold text-xl text-white">TikTok HD Enhancer</h3>
+          <p class="text-slate-400 text-sm leading-relaxed">
+            A Streamlit-based app designed to automatically boost the visual resolution and clarity of your TikTok video content.
+          </p>
+          <div class="pt-2">
+            <a href="https://tiktok-hd-enhancer-by-apis-fgtkuxmpzmi7h8gifh4a8o.streamlit.app/" target="_blank" class="inline-flex items-center gap-2 text-xs font-semibold text-accent-mint hover:underline">
+              <span>Open HD Enhancer</span>
+              <i class="ph-bold ph-arrow-right" aria-hidden="true"></i>
+            </a>
+          </div>
         </div>
-        <h3 class="font-display font-bold text-xl text-white">Gnirehtet Tethering</h3>
-        <p class="text-slate-400 text-sm leading-relaxed">
-          Share your PC's internet connection with your Android phone over USB — fast, easy, and with no extra modem required.
-        </p>
-        <div class="pt-2">
-          <a href="https://github.com/Genymobile/gnirehtet" target="_blank" class="inline-flex items-center gap-2 text-xs font-semibold text-emerald-400 hover:underline">
-            <span>Open Gnirehtet Tool</span>
-            <i class="ph-bold ph-arrow-right"></i>
-          </a>
+
+        <!-- Card 2: Gnirehtet Tethering -->
+        <div data-reveal data-delay="120" class="tilt spot-card sheen glass-panel p-6 md:p-8 rounded-2xl space-y-4 hover:border-accent-mint/30 transition-colors duration-300" data-tilt="8">
+          <div class="relative w-12 h-12 rounded-xl bg-accent-mint/10 border border-accent-mint/20 flex items-center justify-center text-accent-mint">
+            <span aria-hidden="true" class="absolute -inset-1 rounded-xl bg-accent-mint/10 blur-lg"></span>
+            <i class="ph-bold ph-usb text-2xl" aria-hidden="true"></i>
+          </div>
+          <h3 class="font-display font-bold text-xl text-white">Gnirehtet Tethering</h3>
+          <p class="text-slate-400 text-sm leading-relaxed">
+            Share your PC's internet connection with your Android phone over USB. Fast, easy, and with no extra modem required.
+          </p>
+          <div class="pt-2">
+            <a href="https://github.com/Genymobile/gnirehtet" target="_blank" class="inline-flex items-center gap-2 text-xs font-semibold text-accent-mint hover:underline">
+              <span>Open Gnirehtet</span>
+              <i class="ph-bold ph-arrow-right" aria-hidden="true"></i>
+            </a>
+          </div>
         </div>
       </div>
+    </section>
 
-    </div>
+    <!-- Features Section (asymmetric grid) -->
+    <section id="features" class="max-w-7xl mx-auto px-4 md:px-6 py-24 md:py-28 z-10">
+      <div class="max-w-3xl" data-reveal>
+        <h2 class="font-display font-extrabold text-3xl md:text-5xl text-white tracking-tight text-balance">Small hub. Real tools.</h2>
+        <p class="mt-4 text-slate-400 max-w-2xl leading-relaxed">No installs, no accounts, no filler. Just two tools that do the job and get out of your way.</p>
+      </div>
 
+      <div class="mt-12 grid grid-cols-1 md:grid-cols-2 gap-6">
+        <!-- Wide tile -->
+        <div data-reveal class="tilt spot-card sheen chroma rounded-2xl p-8 md:col-span-2 relative overflow-hidden transition-colors duration-300" data-tilt="6">
+          <div aria-hidden="true" class="pointer-events-none absolute -top-20 -right-20 w-72 h-72 rounded-full ring-float opacity-60" style="background: radial-gradient(circle, rgba(163,230,53,0.22), transparent 62%);"></div>
+          <div class="relative z-10 flex flex-col md:flex-row md:items-center gap-6">
+            <div class="w-14 h-14 shrink-0 rounded-2xl bg-accent-mint/10 border border-accent-mint/25 flex items-center justify-center text-accent-mint">
+              <i class="ph-bold ph-magic-wand text-3xl" aria-hidden="true"></i>
+            </div>
+            <div>
+              <h3 class="font-display font-bold text-2xl text-white">HD upscaling</h3>
+              <p class="mt-2 text-slate-400 text-sm leading-relaxed max-w-xl">Raises the resolution and sharpness of low-quality TikTok clips automatically. No sliders, no settings, no guesswork.</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Tile: USB tethering -->
+        <div data-reveal data-delay="100" class="tilt spot-card sheen glass-panel rounded-2xl p-8 relative overflow-hidden transition-colors duration-300 hover:border-accent-mint/30" data-tilt="6">
+          <div class="flex gap-5 items-start">
+            <div class="w-12 h-12 shrink-0 rounded-xl bg-accent-mint/10 border border-accent-mint/25 flex items-center justify-center text-accent-mint">
+              <i class="ph-bold ph-usb text-2xl" aria-hidden="true"></i>
+            </div>
+            <div>
+              <h3 class="font-display font-bold text-lg text-white">USB tethering</h3>
+              <p class="mt-2 text-slate-400 text-sm leading-relaxed">Shares your PC's internet with an Android phone over a USB cable, no extra modem or router setup.</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Tile: Web-first -->
+        <div data-reveal data-delay="200" class="tilt spot-card sheen glass-panel rounded-2xl p-8 relative overflow-hidden transition-colors duration-300 hover:border-accent-mint/30" data-tilt="6">
+          <div class="flex gap-5 items-start">
+            <div class="w-12 h-12 shrink-0 rounded-xl bg-accent-mint/10 border border-accent-mint/25 flex items-center justify-center text-accent-mint">
+              <i class="ph-bold ph-globe-hemisphere-west text-2xl" aria-hidden="true"></i>
+            </div>
+            <div>
+              <h3 class="font-display font-bold text-lg text-white">Web-first</h3>
+              <p class="mt-2 text-slate-400 text-sm leading-relaxed">Both tools launch straight from the browser. Grab a link, share it, and you're done.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Flow Section (stepper layout) -->
+    <section id="flow" class="max-w-7xl mx-auto px-4 md:px-6 py-24 md:py-28">
+      <div class="max-w-3xl" data-reveal>
+        <h2 class="font-display font-extrabold text-3xl md:text-5xl text-white tracking-tight text-balance">Pick it up in a minute.</h2>
+        <p class="mt-4 text-slate-400 max-w-2xl leading-relaxed">Open a tool, run it, done. Nothing else on the page gets in your way.</p>
+      </div>
+
+      <div class="mt-14 flex flex-col md:flex-row md:items-center gap-8 md:gap-5">
+        <!-- Step 1 -->
+        <div data-reveal class="flex-1 flex md:flex-col items-start md:items-center gap-4 md:gap-5 md:text-center">
+          <div class="w-12 h-12 shrink-0 rounded-full glass-panel border border-accent-mint/30 flex items-center justify-center text-accent-mint">
+            <i class="ph-bold ph-cursor-click text-xl" aria-hidden="true"></i>
+          </div>
+          <div>
+            <h3 class="font-display font-bold text-white">Pick a tool</h3>
+            <p class="mt-1 text-slate-400 text-sm leading-relaxed">Enhancer for your videos, tethering for your connection.</p>
+          </div>
+        </div>
+
+        <!-- Connector -->
+        <div aria-hidden="true" class="hidden md:block h-px flex-1 max-w-16" style="background-image: repeating-linear-gradient(90deg, rgba(255,255,255,0.18) 0 6px, transparent 6px 14px);"></div>
+
+        <!-- Step 2 -->
+        <div data-reveal data-delay="120" class="flex-1 flex md:flex-col items-start md:items-center gap-4 md:gap-5 md:text-center">
+          <div class="w-12 h-12 shrink-0 rounded-full glass-panel border border-accent-mint/30 flex items-center justify-center text-accent-mint">
+            <i class="ph-bold ph-rocket-launch text-xl" aria-hidden="true"></i>
+          </div>
+          <div>
+            <h3 class="font-display font-bold text-white">Launch it</h3>
+            <p class="mt-1 text-slate-400 text-sm leading-relaxed">One click opens the app in your browser.</p>
+          </div>
+        </div>
+
+        <!-- Connector -->
+        <div aria-hidden="true" class="hidden md:block h-px flex-1 max-w-16" style="background-image: repeating-linear-gradient(90deg, rgba(255,255,255,0.18) 0 6px, transparent 6px 14px);"></div>
+
+        <!-- Step 3 -->
+        <div data-reveal data-delay="240" class="flex-1 flex md:flex-col items-start md:items-center gap-4 md:gap-5 md:text-center">
+          <div class="w-12 h-12 shrink-0 rounded-full glass-panel border border-accent-mint/30 flex items-center justify-center text-accent-mint">
+            <i class="ph-bold ph-check-circle text-xl" aria-hidden="true"></i>
+          </div>
+          <div>
+            <h3 class="font-display font-bold text-white">You're done</h3>
+            <p class="mt-1 text-slate-400 text-sm leading-relaxed">Upscale the clip or share the connection right away.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Clarity Section (full-width closing band) -->
+    <section id="clarity" class="max-w-7xl mx-auto px-4 md:px-6 pb-24 md:pb-32">
+      <div data-reveal class="relative overflow-hidden glass-panel rounded-3xl px-6 md:px-16 py-16 md:py-24 text-center">
+        <div aria-hidden="true" class="pointer-events-none absolute inset-0" style="background: radial-gradient(700px circle at 50% -20%, rgba(163,230,53,0.12), transparent 60%);"></div>
+        <div aria-hidden="true" class="pointer-events-none absolute -bottom-24 left-1/2 -translate-x-1/2 w-[560px] h-[300px] rounded-full blur-3xl opacity-40 drift" style="background: radial-gradient(circle, rgba(163,230,53,0.16), transparent 65%);"></div>
+
+        <div class="relative z-10 max-w-2xl mx-auto space-y-6">
+          <h2 class="font-display font-extrabold text-3xl md:text-6xl text-white tracking-tight text-balance">Clear tools, zero clutter.</h2>
+          <p class="text-slate-300 text-base md:text-lg leading-relaxed">One hub for the tools you actually use. Open it, use it, move on.</p>
+
+          <div class="pt-4 flex flex-col sm:flex-row items-center justify-center gap-4">
+            <a href="https://tiktok-hd-enhancer-by-apis-fgtkuxmpzmi7h8gifh4a8o.streamlit.app/"
+               target="_blank"
+               rel="noopener noreferrer"
+               data-magnetic
+               class="btn btn-accent w-full sm:w-auto group">
+              <i class="ph-bold ph-magic-wand text-lg" aria-hidden="true"></i>
+              <span>Open HD Enhancer</span>
+              <i class="ph-bold ph-arrow-right text-sm transition-transform group-hover:translate-x-1" aria-hidden="true"></i>
+            </a>
+
+            <button onclick="copyToClipboard('https://tiktok-hd-enhancer-by-apis-fgtkuxmpzmi7h8gifh4a8o.streamlit.app/', 'Enhancer link copied!')"
+                    class="btn btn-glass w-full sm:w-auto">
+              <i class="ph-bold ph-copy text-accent-mint" aria-hidden="true"></i>
+              <span>Copy enhancer link</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    </section>
   </main>
 
   <!-- Toast Notification Container -->
-  <div id="toast" class="fixed bottom-8 right-8 z-50 transform translate-y-20 opacity-0 transition-all duration-300 pointer-events-none">
-    <div class="glass-panel px-5 py-3 rounded-xl shadow-2xl flex items-center gap-3 border border-accent-mint/30">
-      <i class="ph-fill ph-check-circle text-accent-mint text-xl"></i>
+  <div id="toast" class="fixed bottom-8 right-8 z-[70] transform translate-y-20 opacity-0 transition-all duration-300 pointer-events-none">
+    <div class="glass-panel px-5 py-3 rounded-2xl shadow-2xl flex items-center gap-3 border border-accent-mint/30">
+      <i class="ph-fill ph-check-circle text-accent-mint text-xl" aria-hidden="true"></i>
       <span id="toast-message" class="text-xs font-semibold text-white tracking-wide">Link Copied!</span>
     </div>
   </div>
 
   <!-- Footer -->
-  <footer class="border-t border-surface-border py-8 px-6 text-center text-xs text-slate-500 z-10 bg-surface">
-    <div class="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-4">
-      <p>&copy; 2026 TOOLAPIS. All rights reserved.</p>
+  <footer class="border-t border-surface-border py-10 px-6 text-center text-xs text-slate-500 z-10 bg-surface">
+    <div class="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-6">
+      <div class="flex flex-col items-center md:items-start gap-2">
+        <a href="#overview" class="flex items-center gap-2 font-display font-bold tracking-wider text-white hover:text-accent-mint transition-colors">
+          <span class="w-6 h-6 rounded-full bg-accent-mint flex items-center justify-center text-surface font-bold text-xs">TL</span>
+          TOOLAPIS<span class="text-accent-mint">.</span>
+        </a>
+        <p>&copy; 2026 TOOLAPIS. All rights reserved.</p>
+      </div>
+      <nav class="flex items-center gap-6" aria-label="Footer">
+        <a href="#overview" class="hover:text-white transition-colors">Overview</a>
+        <a href="#features" class="hover:text-white transition-colors">Features</a>
+        <a href="#clarity" class="hover:text-white transition-colors">Clarity</a>
+      </nav>
       <div class="flex items-center gap-6 text-slate-400">
-        <span class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-emerald-500"></span> All systems operational</span>
+        <span class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-accent-mint"></span> All systems operational</span>
       </div>
     </div>
   </footer>
 
   <!-- JavaScript Interaction Script -->
   <script>
-    // Spotlight Effect Tracking
-    const spotlight = document.getElementById('spotlight');
-    window.addEventListener('mousemove', (e) => {
-      spotlight.style.background = `radial-gradient(600px circle at ${e.clientX}px ${e.clientY}px, rgba(163, 230, 53, 0.07), transparent 80%)`;
-    });
+    const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const finePointer = window.matchMedia('(pointer: fine)').matches;
 
-    // Copy to Clipboard Utility Function
-    function copyToClipboard(text, message) {
-      navigator.clipboard.writeText(text).then(() => {
-        showToast(message);
-      }).catch(err => {
-        console.error('Failed to copy: ', err);
+    // ---------------------------------------------------------------
+    // 3D WebGL Background (Three.js)
+    // ---------------------------------------------------------------
+    (function initHero3D() {
+      const canvas = document.getElementById('hero-canvas');
+      if (!canvas || typeof THREE === 'undefined') return;
+
+      const scene = new THREE.Scene();
+      const camera = new THREE.PerspectiveCamera(55, canvas.clientWidth / canvas.clientHeight, 0.1, 100);
+      camera.position.z = 7;
+
+      const renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: finePointer, powerPreference: 'high-performance' });
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+      renderer.setSize(canvas.clientWidth, canvas.clientHeight, false);
+
+      // Soft particle cloud (additive, low opacity)
+      const COUNT = reduceMotion ? 260 : 650;
+      const positions = new Float32Array(COUNT * 3);
+      for (let i = 0; i < COUNT; i++) {
+        const r = 2.4 + Math.random() * 3.6;
+        const theta = Math.random() * Math.PI * 2;
+        const phi = Math.acos(2 * Math.random() - 1);
+        positions[i * 3]     = r * Math.sin(phi) * Math.cos(theta);
+        positions[i * 3 + 1] = r * Math.sin(phi) * Math.sin(theta);
+        positions[i * 3 + 2] = r * Math.cos(phi);
+      }
+      const particles = new THREE.Points(
+        new THREE.BufferGeometry().setAttribute('position', new THREE.BufferAttribute(positions, 3)),
+        new THREE.PointsMaterial({
+          color: 0xa3e635,
+          size: 0.045,
+          transparent: true,
+          opacity: 0.35,
+          blending: THREE.AdditiveBlending,
+          depthWrite: false,
+          sizeAttenuation: true
+        })
+      );
+
+      // Outer + inner wireframe polyhedra
+      const outer = new THREE.Mesh(
+        new THREE.IcosahedronGeometry(2.1, 1),
+        new THREE.MeshBasicMaterial({ color: 0xa3e635, wireframe: true, transparent: true, opacity: 0.10 })
+      );
+      const inner = new THREE.Mesh(
+        new THREE.IcosahedronGeometry(1.25, 1),
+        new THREE.MeshBasicMaterial({ color: 0x8fb86b, wireframe: true, transparent: true, opacity: 0.07 })
+      );
+
+      scene.add(particles, outer, inner);
+
+      // Mouse parallax
+      let tx = 0, ty = 0, mx = 0, my = 0;
+      window.addEventListener('pointermove', (e) => {
+        tx = (e.clientX / window.innerWidth - 0.5) * 2;
+        ty = (e.clientY / window.innerHeight - 0.5) * 2;
+      }, { passive: true });
+
+      let raf = null;
+      const clock = new THREE.Clock();
+      // The user wants this scene visibly moving. Animating is always on;
+      // reduced-motion just halves the speed instead of freezing the model.
+      const speed = reduceMotion ? 0.5 : 1;
+
+      function animate() {
+        raf = requestAnimationFrame(animate);
+        const t = clock.getElapsedTime() * speed;
+        mx += (tx - mx) * 0.06;
+        my += (ty - my) * 0.06;
+
+        // Particle cloud: slow spin + vertical sway
+        particles.rotation.y = t * 0.05;
+        particles.rotation.x = t * 0.02;
+        particles.position.y = Math.sin(t * 0.4) * 0.15;
+
+        // Outer polyhedron: clear visible rotation + float + breathing scale
+        outer.rotation.y = t * 0.22;
+        outer.rotation.x = Math.sin(t * 0.35) * 0.18;
+        outer.rotation.z = t * 0.07;
+        outer.position.y = Math.sin(t * 0.85) * 0.5;
+        outer.position.x = Math.sin(t * 0.45) * 0.35;
+        const breathe = 1 + Math.sin(t * 1.15) * 0.06;
+        outer.scale.set(breathe, breathe, breathe);
+
+        // Inner polyhedron: spins the opposite way for depth contrast
+        inner.rotation.y = -t * 0.3;
+        inner.rotation.z = t * 0.12;
+        inner.position.y = Math.sin(t * 0.7 + 1.5) * 0.4;
+
+        // Camera leans gently toward the cursor
+        camera.position.x = mx * 0.9;
+        camera.position.y = -my * 0.6;
+        camera.lookAt(0, 0, 0);
+
+        renderer.render(scene, camera);
+      }
+
+      function start() {
+        if (raf) return;
+        animate();
+      }
+      function stop() {
+        if (raf) { cancelAnimationFrame(raf); raf = null; }
+      }
+
+      // First frame immediately so the model is never frozen-looking
+      renderer.render(scene, camera);
+      start();
+
+      // Pause when the hero scrolls out of view or the tab is hidden
+      new IntersectionObserver((entries) => {
+        entries.forEach(en => en.isIntersecting ? start() : stop());
+      }, { threshold: 0.02 }).observe(canvas.closest('section'));
+
+      document.addEventListener('visibilitychange', () => {
+        if (document.hidden) stop(); else start();
       });
+
+      window.addEventListener('resize', () => {
+        const w = canvas.clientWidth, h = canvas.clientHeight;
+        camera.aspect = w / h;
+        camera.updateProjectionMatrix();
+        renderer.setSize(w, h, false);
+      });
+    })();
+
+    // ---------------------------------------------------------------
+    // 3D Tilt Cards + Spotlight Border
+    // ---------------------------------------------------------------
+    if (finePointer && !reduceMotion) {
+      document.querySelectorAll('.tilt').forEach(card => {
+        card.addEventListener('pointermove', (e) => {
+          const r = card.getBoundingClientRect();
+          const px = (e.clientX - r.left) / r.width;
+          const py = (e.clientY - r.top) / r.height;
+          const rx = (0.5 - py) * Number(card.dataset.tilt || 8);
+          const ry = (px - 0.5) * Number(card.dataset.tilt || 8) * 1.4;
+          card.style.transform = 'perspective(900px) rotateX(' + rx.toFixed(2) + 'deg) rotateY(' + ry.toFixed(2) + 'deg) translateY(-4px)';
+          card.style.setProperty('--mx', (px * 100).toFixed(1) + '%');
+          card.style.setProperty('--my', (py * 100).toFixed(1) + '%');
+        });
+        card.addEventListener('pointerleave', () => {
+          card.style.transform = '';
+        });
+      });
+    }
+
+    // ---------------------------------------------------------------
+    // Magnetic Buttons (slight pull toward cursor)
+    // ---------------------------------------------------------------
+    if (finePointer && !reduceMotion) {
+      document.querySelectorAll('[data-magnetic]').forEach(el => {
+        el.addEventListener('pointermove', (e) => {
+          const r = el.getBoundingClientRect();
+          const dx = (e.clientX - r.left - r.width / 2) * 0.12;
+          const dy = (e.clientY - r.top - r.height / 2) * 0.2;
+          el.style.transform = 'translate(' + dx.toFixed(1) + 'px, ' + dy.toFixed(1) + 'px)';
+        });
+        el.addEventListener('pointerleave', () => { el.style.transform = ''; });
+      });
+    }
+
+    // ---------------------------------------------------------------
+    // Scroll Reveal (IntersectionObserver)
+    // ---------------------------------------------------------------
+    const revealEls = document.querySelectorAll('[data-reveal]');
+    if (reduceMotion) {
+      revealEls.forEach(el => el.classList.add('is-visible'));
+    } else {
+      const io = new IntersectionObserver((entries, obs) => {
+        entries.forEach(en => {
+          if (en.isIntersecting) {
+            en.target.style.transitionDelay = (en.target.dataset.delay || 0) + 'ms';
+            en.target.classList.add('is-visible');
+            obs.unobserve(en.target);
+          }
+        });
+      }, { threshold: 0.15 });
+      revealEls.forEach(el => io.observe(el));
+    }
+
+    // ---------------------------------------------------------------
+    // Navbar Solid State (IntersectionObserver sentinel, no scroll listener)
+    // ---------------------------------------------------------------
+    const sentinel = document.getElementById('nav-sentinel');
+    const navbar = document.getElementById('navbar');
+    new IntersectionObserver((entries) => {
+      entries.forEach(en => navbar.classList.toggle('nav-solid', !en.isIntersecting));
+    }, { threshold: 0 }).observe(sentinel);
+
+    // ---------------------------------------------------------------
+    // Spotlight Cursor Effect
+    // ---------------------------------------------------------------
+    const spotlight = document.getElementById('spotlight');
+    if (finePointer) {
+      spotlight.classList.remove('opacity-0');
+      spotlight.classList.add('opacity-100');
+      window.addEventListener('mousemove', (e) => {
+        spotlight.style.background = 'radial-gradient(600px circle at ' + e.clientX + 'px ' + e.clientY + 'px, rgba(163, 230, 53, 0.055), transparent 80%)';
+      }, { passive: true });
+    }
+
+    // ---------------------------------------------------------------
+    // Mobile Navigation
+    // ---------------------------------------------------------------
+    const navToggle = document.getElementById('nav-toggle');
+    const mobileMenu = document.getElementById('mobile-menu');
+    const navIcon = document.getElementById('nav-icon');
+    if (navToggle && mobileMenu) {
+      const closeMenu = () => {
+        mobileMenu.classList.remove('open');
+        navToggle.setAttribute('aria-expanded', 'false');
+        if (navIcon) navIcon.className = 'ph-bold ph-list text-lg pointer-events-none';
+      };
+      navToggle.addEventListener('click', () => {
+        const open = mobileMenu.classList.toggle('open');
+        navToggle.setAttribute('aria-expanded', String(open));
+        if (navIcon) navIcon.className = open ? 'ph-bold ph-x text-lg pointer-events-none' : 'ph-bold ph-list text-lg pointer-events-none';
+      });
+      mobileMenu.querySelectorAll('a').forEach(a => a.addEventListener('click', closeMenu));
+      document.addEventListener('click', (e) => {
+        if (!e.target.closest('#navbar')) closeMenu();
+      });
+    }
+
+    // ---------------------------------------------------------------
+    // Copy to Clipboard Utility (with fallback for non-secure contexts)
+    // ---------------------------------------------------------------
+    function copyToClipboard(text, message) {
+      const success = () => showToast(message);
+      const fallback = () => {
+        try {
+          const ta = document.createElement('textarea');
+          ta.value = text;
+          ta.setAttribute('readonly', '');
+          ta.style.position = 'fixed';
+          ta.style.opacity = '0';
+          document.body.appendChild(ta);
+          ta.select();
+          document.execCommand('copy');
+          document.body.removeChild(ta);
+          success();
+        } catch (err) {
+          console.error('Failed to copy: ', err);
+        }
+      };
+      if (navigator.clipboard && window.isSecureContext) {
+        navigator.clipboard.writeText(text).then(success).catch(fallback);
+      } else {
+        fallback();
+      }
     }
 
     // Toast Notification System
     function showToast(message) {
       const toast = document.getElementById('toast');
       const toastMsg = document.getElementById('toast-message');
-      
       toastMsg.innerText = message;
       toast.classList.remove('translate-y-20', 'opacity-0');
       toast.classList.add('translate-y-0', 'opacity-100');
-
       setTimeout(() => {
         toast.classList.remove('translate-y-0', 'opacity-100');
         toast.classList.add('translate-y-20', 'opacity-0');
       }, 3000);
     }
-
-    // Navbar Scroll Background Transition
-    const navbar = document.getElementById('navbar');
-    window.addEventListener('scroll', () => {
-      if (window.scrollY > 50) {
-        navbar.classList.add('bg-surface/80', 'backdrop-blur-md', 'py-4', 'border-b', 'border-surface-border');
-        navbar.classList.remove('py-6');
-      } else {
-        navbar.classList.remove('bg-surface/80', 'backdrop-blur-md', 'py-4', 'border-b', 'border-surface-border');
-        navbar.classList.add('py-6');
-      }
-    });
   </script>
 </body>
 </html>
