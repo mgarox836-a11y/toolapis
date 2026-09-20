@@ -3,7 +3,17 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="description" content="TOOLAPIS is a small hub of real web tools: upscale TikTok clips to HD, or share your PC's internet with Android over USB.">
+  <meta name="description" content="TOOLAPIS is a small hub of real web tools: upscale TikTok clips to HD, share your PC's internet with Android over USB, or jump into the social media hub.">
+  <meta name="theme-color" content="#0B0F12">
+  <meta name="color-scheme" content="dark">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='16' fill='%23A3E635'/%3E%3Ctext x='16' y='21.5' font-family='Arial,sans-serif' font-size='12.5' font-weight='800' text-anchor='middle' fill='%230B0F12'%3ETL%3C/text%3E%3C/svg%3E">
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="TOOLAPIS — Web Tools Hub">
+  <meta property="og:description" content="Upscale TikTok clips to HD, tether your PC's internet to Android over USB, or open the social hub. One place, zero friction.">
+  <meta property="og:url" content="https://github.com/mgarox836-a11y/toolapis">
+  <meta name="twitter:card" content="summary">
+  <meta name="twitter:title" content="TOOLAPIS — Web Tools Hub">
+  <meta name="twitter:description" content="Upscale TikTok clips to HD, tether your PC's internet to Android over USB, or open the social hub.">
   <title>TOOLAPIS — Web Tools Hub</title>
 
   <!-- Tailwind CSS CDN -->
@@ -14,11 +24,13 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700&family=Syne:wght@500;700;800&display=swap" rel="stylesheet">
 
-  <!-- Phosphor Icons -->
-  <script src="https://unpkg.com/@phosphor-icons/web"></script>
+  <!-- Phosphor Icons (deferred, non-blocking) -->
+  <link rel="preconnect" href="https://unpkg.com">
+  <script defer src="https://unpkg.com/@phosphor-icons/web"></script>
 
-  <!-- Three.js (3D hero background) -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <!-- Three.js (3D hero background, deferred, non-blocking) -->
+  <link rel="preconnect" href="https://cdnjs.cloudflare.com">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 
   <!-- Tailwind Custom Configuration -->
   <script>
@@ -106,6 +118,29 @@
       background: rgba(255, 255, 255, 0.08);
       border-color: rgba(255, 255, 255, 0.16);
     }
+
+    /* ---- Social media icon button ---- */
+    .social-btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 2.5rem;
+      height: 2.5rem;
+      border-radius: 9999px;
+      background: rgba(19, 25, 29, 0.65);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      color: #CBD5E1;
+      transition: all .3s ease;
+      will-change: transform;
+      cursor: pointer;
+    }
+    .social-btn:hover {
+      background: rgba(163, 230, 53, 0.12);
+      border-color: rgba(163, 230, 53, 0.35);
+      color: #A3E635;
+      box-shadow: 0 0 18px rgba(163, 230, 53, 0.15);
+    }
+    .social-btn:active { transform: scale(0.95); }
 
     /* ---- Section eyebrow ---- */
     .eyebrow {
@@ -276,6 +311,56 @@
       border-radius: 8px;
     }
 
+    /* ---- Skip link (keyboard accessibility) ---- */
+    .skip-link {
+      position: fixed;
+      top: -100%;
+      left: 1rem;
+      z-index: 90;
+      background: #A3E635;
+      color: #0B0F12;
+      font-weight: 700;
+      font-size: 0.8125rem;
+      padding: 0.7rem 1.2rem;
+      border-radius: 9999px;
+      transition: top .25s ease;
+      box-shadow: 0 8px 24px rgba(0,0,0,.4);
+    }
+    .skip-link:focus { top: 1rem; }
+
+    /* ---- Active nav link indicator ---- */
+    .nav-link { position: relative; }
+    .nav-link.active { color: #ffffff; }
+    .nav-link.active::after {
+      content: "";
+      position: absolute;
+      left: 50%;
+      transform: translateX(-50%);
+      bottom: -7px;
+      width: 4px;
+      height: 4px;
+      border-radius: 9999px;
+      background: #A3E635;
+      box-shadow: 0 0 8px rgba(163, 230, 53, 0.8);
+    }
+
+    /* ---- Back-to-top floating action ---- */
+    .back-to-top {
+      position: fixed;
+      right: 1.25rem;
+      bottom: 1.25rem;
+      z-index: 55;
+      opacity: 0;
+      visibility: hidden;
+      transform: translateY(12px);
+      transition: opacity .3s ease, transform .3s ease, visibility .3s ease;
+    }
+    .back-to-top.visible {
+      opacity: 1;
+      visibility: visible;
+      transform: none;
+    }
+
     /* Reduced motion: collapse everything to static */
     @media (prefers-reduced-motion: reduce) {
       .hero-reveal { animation: none; opacity: 1; transform: none; }
@@ -288,6 +373,8 @@
   </style>
 </head>
 <body class="bg-surface text-slate-200 font-sans antialiased min-h-[100dvh] flex flex-col justify-between selection:bg-accent-mint selection:text-black overflow-x-hidden relative">
+
+  <a href="#main-content" class="skip-link">Skip to content</a>
 
   <div id="nav-sentinel" class="absolute top-0 left-0 h-px w-px pointer-events-none"></div>
 
@@ -314,14 +401,17 @@
 
         <!-- Navigation Links (desktop) -->
         <nav class="hidden md:flex items-center gap-8 glass-pill px-6 py-2 rounded-full text-xs font-medium tracking-wider uppercase text-slate-300" aria-label="Primary">
-          <a href="#overview" class="hover:text-white transition-colors">Overview</a>
-          <a href="#features" class="hover:text-white transition-colors">Features</a>
-          <a href="#flow" class="hover:text-white transition-colors">Flow</a>
-          <a href="#clarity" class="hover:text-white transition-colors">Clarity</a>
+          <a href="#overview" class="nav-link hover:text-white transition-colors">Overview</a>
+          <a href="#features" class="nav-link hover:text-white transition-colors">Features</a>
+          <a href="#flow" class="nav-link hover:text-white transition-colors">Flow</a>
+          <a href="#clarity" class="nav-link hover:text-white transition-colors">Clarity</a>
         </nav>
 
         <!-- Top Action Button (desktop) + Menu Toggle (mobile) -->
         <div class="flex items-center gap-3">
+          <a href="https://newsocapis.vercel.app" target="_blank" rel="noopener noreferrer" data-magnetic class="social-btn hidden sm:inline-flex" aria-label="Open Social Media hub">
+            <i class="ph-bold ph-share-network text-lg" aria-hidden="true"></i>
+          </a>
           <a href="https://tiktok-hd-enhancer-by-apis-fgtkuxmpzmi7h8gifh4a8o.streamlit.app/" target="_blank" rel="noopener noreferrer" data-magnetic class="btn btn-accent btn-sm hidden sm:inline-flex">
             <span class="hidden lg:inline">Open HD Enhancer</span>
             <span class="lg:hidden">HD Enhancer</span>
@@ -335,7 +425,7 @@
       </div>
 
       <!-- Mobile Navigation Panel -->
-      <div id="mobile-menu" class="mobile-menu md:hidden absolute top-full inset-x-0 mt-2 glass-panel rounded-2xl p-6">
+      <div id="mobile-menu" class="mobile-menu pointer-events-none md:hidden absolute top-full inset-x-0 mt-2 glass-panel rounded-2xl p-6">
         <nav class="flex flex-col gap-1" aria-label="Mobile">
           <a href="#overview" class="flex items-center justify-between rounded-xl px-3 py-3.5 text-sm font-medium text-slate-200 hover:text-white hover:bg-white/5 transition-colors">
             Overview <i class="ph-bold ph-arrow-right text-accent-mint" aria-hidden="true"></i>
@@ -354,12 +444,16 @@
           <i class="ph-bold ph-arrow-up-right" aria-hidden="true"></i>
           <span>Open HD Enhancer</span>
         </a>
+        <a href="https://newsocapis.vercel.app" target="_blank" rel="noopener noreferrer" class="btn btn-glass w-full mt-3">
+          <i class="ph-bold ph-share-network text-accent-mint" aria-hidden="true"></i>
+          <span>Social Media</span>
+        </a>
       </div>
     </div>
   </header>
 
   <!-- Hero Main Section -->
-  <main>
+  <main id="main-content">
     <section class="hero-bg min-h-[100dvh] flex flex-col justify-center items-center px-4 md:px-6 pt-24 pb-12 relative overflow-hidden">
 
       <!-- 3D WebGL Background -->
@@ -384,7 +478,7 @@
 
         <!-- Description Subtext -->
         <p class="hero-reveal d-3 text-slate-300 text-base md:text-lg max-w-2xl mx-auto font-normal leading-relaxed">
-          Boost TikTok clips to HD, or tether your PC's internet to Android over USB. One hub, two tools, zero friction.
+          Boost TikTok clips to HD, tether your PC's internet to Android over USB, or jump into the social media hub. One hub, three tools, zero friction.
         </p>
 
         <!-- Primary Action Buttons -->
@@ -411,13 +505,24 @@
             <span>Open Gnirehtet</span>
             <i class="ph-bold ph-arrow-square-out text-sm text-slate-400 group-hover:text-white transition-colors" aria-hidden="true"></i>
           </a>
+
+          <!-- Button 3: Social Media -->
+          <a href="https://newsocapis.vercel.app"
+             target="_blank"
+             rel="noopener noreferrer"
+             data-magnetic
+             class="btn btn-glass w-full sm:w-auto group">
+            <i class="ph-bold ph-share-network text-lg text-accent-mint" aria-hidden="true"></i>
+            <span>Social Media</span>
+            <i class="ph-bold ph-arrow-square-out text-sm text-slate-400 group-hover:text-white transition-colors" aria-hidden="true"></i>
+          </a>
         </div>
       </div>
     </section>
 
     <!-- Overview / Tool Cards Section -->
-    <section id="overview" class="max-w-5xl mx-auto px-4 md:px-6 py-16 md:py-20 z-10">
-      <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+    <section id="overview" class="max-w-6xl mx-auto px-4 md:px-6 py-16 md:py-20 z-10">
+      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
 
         <!-- Card 1: TikTok HD Enhancer -->
         <div data-reveal class="tilt spot-card sheen glass-panel p-6 md:p-8 rounded-2xl space-y-4 hover:border-accent-mint/30 transition-colors duration-300" data-tilt="8">
@@ -454,6 +559,24 @@
             </a>
           </div>
         </div>
+
+        <!-- Card 3: Social Media Hub -->
+        <div data-reveal data-delay="240" class="tilt spot-card sheen glass-panel p-6 md:p-8 rounded-2xl space-y-4 hover:border-accent-mint/30 transition-colors duration-300" data-tilt="8">
+          <div class="relative w-12 h-12 rounded-xl bg-accent-mint/10 border border-accent-mint/20 flex items-center justify-center text-accent-mint">
+            <span aria-hidden="true" class="absolute -inset-1 rounded-xl bg-accent-mint/10 blur-lg"></span>
+            <i class="ph-bold ph-share-network text-2xl" aria-hidden="true"></i>
+          </div>
+          <h3 class="font-display font-bold text-xl text-white">Social Media Hub</h3>
+          <p class="text-slate-400 text-sm leading-relaxed">
+            A dedicated hub that brings your social media tools and links together in one clean, easy-to-use place.
+          </p>
+          <div class="pt-2">
+            <a href="https://newsocapis.vercel.app" target="_blank" class="inline-flex items-center gap-2 text-xs font-semibold text-accent-mint hover:underline">
+              <span>Open Social Media</span>
+              <i class="ph-bold ph-arrow-right" aria-hidden="true"></i>
+            </a>
+          </div>
+        </div>
       </div>
     </section>
 
@@ -461,7 +584,7 @@
     <section id="features" class="max-w-7xl mx-auto px-4 md:px-6 py-24 md:py-28 z-10">
       <div class="max-w-3xl" data-reveal>
         <h2 class="font-display font-extrabold text-3xl md:text-5xl text-white tracking-tight text-balance">Small hub. Real tools.</h2>
-        <p class="mt-4 text-slate-400 max-w-2xl leading-relaxed">No installs, no accounts, no filler. Just two tools that do the job and get out of your way.</p>
+        <p class="mt-4 text-slate-400 max-w-2xl leading-relaxed">No installs, no accounts, no filler. Just a few tools that do the job and get out of your way.</p>
       </div>
 
       <div class="mt-12 grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -500,7 +623,7 @@
             </div>
             <div>
               <h3 class="font-display font-bold text-lg text-white">Web-first</h3>
-              <p class="mt-2 text-slate-400 text-sm leading-relaxed">Both tools launch straight from the browser. Grab a link, share it, and you're done.</p>
+              <p class="mt-2 text-slate-400 text-sm leading-relaxed">Every tool launches straight from the browser. Grab a link, share it, and you're done.</p>
             </div>
           </div>
         </div>
@@ -522,7 +645,7 @@
           </div>
           <div>
             <h3 class="font-display font-bold text-white">Pick a tool</h3>
-            <p class="mt-1 text-slate-400 text-sm leading-relaxed">Enhancer for your videos, tethering for your connection.</p>
+            <p class="mt-1 text-slate-400 text-sm leading-relaxed">Enhancer for your videos, tethering for your connection, social hub for everything else.</p>
           </div>
         </div>
 
@@ -582,14 +705,29 @@
               <i class="ph-bold ph-copy text-accent-mint" aria-hidden="true"></i>
               <span>Copy enhancer link</span>
             </button>
+
+            <a href="https://newsocapis.vercel.app"
+               target="_blank"
+               rel="noopener noreferrer"
+               data-magnetic
+               class="btn btn-glass w-full sm:w-auto group">
+              <i class="ph-bold ph-share-network text-lg text-accent-mint" aria-hidden="true"></i>
+              <span>Social Media</span>
+              <i class="ph-bold ph-arrow-square-out text-sm text-slate-400 group-hover:text-white transition-colors" aria-hidden="true"></i>
+            </a>
           </div>
         </div>
       </div>
     </section>
   </main>
 
+  <!-- Back to Top -->
+  <button id="back-to-top" class="back-to-top w-11 h-11 rounded-full glass-panel flex items-center justify-center text-accent-mint transition-colors hover:bg-white/10" aria-label="Back to top">
+    <i class="ph-bold ph-arrow-up text-lg" aria-hidden="true"></i>
+  </button>
+
   <!-- Toast Notification Container -->
-  <div id="toast" class="fixed bottom-8 right-8 z-[70] transform translate-y-20 opacity-0 transition-all duration-300 pointer-events-none">
+  <div id="toast" class="fixed bottom-8 right-8 z-[70] transform translate-y-20 opacity-0 transition-all duration-300 pointer-events-none" role="status" aria-live="polite">
     <div class="glass-panel px-5 py-3 rounded-2xl shadow-2xl flex items-center gap-3 border border-accent-mint/30">
       <i class="ph-fill ph-check-circle text-accent-mint text-xl" aria-hidden="true"></i>
       <span id="toast-message" class="text-xs font-semibold text-white tracking-wide">Link Copied!</span>
@@ -609,9 +747,13 @@
       <nav class="flex items-center gap-6" aria-label="Footer">
         <a href="#overview" class="hover:text-white transition-colors">Overview</a>
         <a href="#features" class="hover:text-white transition-colors">Features</a>
+        <a href="#flow" class="hover:text-white transition-colors">Flow</a>
         <a href="#clarity" class="hover:text-white transition-colors">Clarity</a>
       </nav>
-      <div class="flex items-center gap-6 text-slate-400">
+      <div class="flex items-center gap-5">
+        <a href="https://newsocapis.vercel.app" target="_blank" rel="noopener noreferrer" class="social-btn" aria-label="Open Social Media hub">
+          <i class="ph-bold ph-share-network text-lg" aria-hidden="true"></i>
+        </a>
         <span class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-accent-mint"></span> All systems operational</span>
       </div>
     </div>
@@ -682,13 +824,16 @@
 
       let raf = null;
       const clock = new THREE.Clock();
-      // The user wants this scene visibly moving. Animating is always on;
-      // reduced-motion just halves the speed instead of freezing the model.
-      const speed = reduceMotion ? 0.5 : 1;
+
+      // Reduced motion: render a single static frame instead of animating.
+      if (reduceMotion) {
+        renderer.render(scene, camera);
+        return;
+      }
 
       function animate() {
         raf = requestAnimationFrame(animate);
-        const t = clock.getElapsedTime() * speed;
+        const t = clock.getElapsedTime();
         mx += (tx - mx) * 0.06;
         my += (ty - my) * 0.06;
 
@@ -804,13 +949,40 @@
     }
 
     // ---------------------------------------------------------------
-    // Navbar Solid State (IntersectionObserver sentinel, no scroll listener)
+    // Navbar Solid State + Back-to-top visibility
     // ---------------------------------------------------------------
     const sentinel = document.getElementById('nav-sentinel');
     const navbar = document.getElementById('navbar');
+    const backToTop = document.getElementById('back-to-top');
+    const backHandler = backToTop
+      ? () => window.scrollTo({ top: 0, behavior: reduceMotion ? 'auto' : 'smooth' })
+      : () => {};
+    if (backToTop) backToTop.addEventListener('click', backHandler);
     new IntersectionObserver((entries) => {
-      entries.forEach(en => navbar.classList.toggle('nav-solid', !en.isIntersecting));
+      entries.forEach(en => {
+        const scrolled = !en.isIntersecting;
+        navbar.classList.toggle('nav-solid', scrolled);
+        if (backToTop) backToTop.classList.toggle('visible', scrolled);
+      });
     }, { threshold: 0 }).observe(sentinel);
+
+    // ---------------------------------------------------------------
+    // Scrollspy: highlight current section in the nav
+    // ---------------------------------------------------------------
+    const navLinks = Array.from(document.querySelectorAll('.nav-link'));
+    const sections = ['overview', 'features', 'flow', 'clarity']
+      .map(id => document.getElementById(id))
+      .filter(Boolean);
+    if (navLinks.length && sections.length && 'IntersectionObserver' in window) {
+      const spy = new IntersectionObserver((entries) => {
+        entries.forEach(en => {
+          if (!en.isIntersecting) return;
+          const id = '#' + en.target.id;
+          navLinks.forEach(link => link.classList.toggle('active', link.getAttribute('href') === id));
+        });
+      }, { rootMargin: '-40% 0px -55% 0px' });
+      sections.forEach(sec => spy.observe(sec));
+    }
 
     // ---------------------------------------------------------------
     // Spotlight Cursor Effect
@@ -833,17 +1005,31 @@
     if (navToggle && mobileMenu) {
       const closeMenu = () => {
         mobileMenu.classList.remove('open');
+        mobileMenu.classList.remove('pointer-events-auto');
+        mobileMenu.classList.add('pointer-events-none');
         navToggle.setAttribute('aria-expanded', 'false');
         if (navIcon) navIcon.className = 'ph-bold ph-list text-lg pointer-events-none';
       };
+      const openMenu = () => {
+        mobileMenu.classList.add('open');
+        mobileMenu.classList.remove('pointer-events-none');
+        mobileMenu.classList.add('pointer-events-auto');
+        navToggle.setAttribute('aria-expanded', 'true');
+        if (navIcon) navIcon.className = 'ph-bold ph-x text-lg pointer-events-none';
+      };
       navToggle.addEventListener('click', () => {
-        const open = mobileMenu.classList.toggle('open');
-        navToggle.setAttribute('aria-expanded', String(open));
-        if (navIcon) navIcon.className = open ? 'ph-bold ph-x text-lg pointer-events-none' : 'ph-bold ph-list text-lg pointer-events-none';
+        const isOpen = mobileMenu.classList.contains('open');
+        isOpen ? closeMenu() : openMenu();
       });
       mobileMenu.querySelectorAll('a').forEach(a => a.addEventListener('click', closeMenu));
       document.addEventListener('click', (e) => {
         if (!e.target.closest('#navbar')) closeMenu();
+      });
+      document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && mobileMenu.classList.contains('open')) {
+          closeMenu();
+          navToggle.focus();
+        }
       });
     }
 
@@ -876,15 +1062,18 @@
     }
 
     // Toast Notification System
+    let toastTimer = null;
     function showToast(message) {
       const toast = document.getElementById('toast');
       const toastMsg = document.getElementById('toast-message');
       toastMsg.innerText = message;
       toast.classList.remove('translate-y-20', 'opacity-0');
       toast.classList.add('translate-y-0', 'opacity-100');
-      setTimeout(() => {
+      if (toastTimer) clearTimeout(toastTimer);
+      toastTimer = setTimeout(() => {
         toast.classList.remove('translate-y-0', 'opacity-100');
         toast.classList.add('translate-y-20', 'opacity-0');
+        toastTimer = null;
       }, 3000);
     }
   </script>
