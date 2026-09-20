@@ -114,7 +114,7 @@
           : 130;
         let i = 0;
         Array.from(group.children).forEach((el) => {
-          if (el.matches('[data-reveal], .reveal') && !el.dataset.delay) {
+          if (el.matches('.reveal') && !el.dataset.delay) {
             el.dataset.delay = String(i * step);
             i += 1;
           }
@@ -124,22 +124,29 @@
     autoStagger();
 
     // ---------------------------------------------------------------
-    // Scroll Reveal (IntersectionObserver)
+    // Scroll Reveal (IntersectionObserver): .reveal + .active
     // ---------------------------------------------------------------
-    const revealEls = document.querySelectorAll('[data-reveal], .reveal');
+    const revealEls = document.querySelectorAll('.reveal');
+    const revealTarget = (el) => {
+      if (el.dataset.delay) el.style.transitionDelay = el.dataset.delay + 'ms';
+      el.classList.add('is-visible', 'active');
+    };
     if (reduceMotion || !('IntersectionObserver' in window)) {
-      revealEls.forEach(el => el.classList.add('is-visible'));
+      revealEls.forEach(revealTarget);
     } else {
       const io = new IntersectionObserver((entries, obs) => {
         entries.forEach(en => {
           if (en.isIntersecting) {
-            en.target.style.transitionDelay = (en.target.dataset.delay || 0) + 'ms';
-            en.target.classList.add('is-visible');
+            revealTarget(en.target);
             obs.unobserve(en.target);
           }
         });
       }, { threshold: 0.15 });
-      revealEls.forEach(el => io.observe(el));
+      revealEls.forEach(el => {
+        io.observe(el);
+        const r = el.getBoundingClientRect();
+        if (r.top <= window.innerHeight - 60 && r.bottom > 0) revealTarget(el);
+      });
     }
 
     // ---------------------------------------------------------------
@@ -376,7 +383,7 @@
       // Scroll reveal: headings fade up + underline draws in,
       // tool-card icons pop in with a light stagger, footer rises softly
       const motionTargets = Array.from(document.querySelectorAll('main h2')).map(el => ({ el, kind: 'heading' }));
-      document.querySelectorAll('[data-reveal] > div:first-child').forEach(el => {
+      document.querySelectorAll('.reveal > div:first-child').forEach(el => {
         if (/\bw-12\b|\bw-14\b|\bw-16\b/.test(el.className)) motionTargets.push({ el, kind: 'icon' });
       });
       const footer = document.querySelector('footer');
