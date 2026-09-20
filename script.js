@@ -26,14 +26,12 @@
 
     document.documentElement.classList.add('js');
 
-    // Motion preference override: localStorage "toolapis-motion"
-    //   "on"  -> force animations even if the OS requests reduced motion
-    //   "off" -> always reduce
-    //   unset -> respect the OS setting (prefers-reduced-motion)
+    // Motion preference: animations always run by default, regardless of
+    // the OS "prefers-reduced-motion" setting. localStorage "toolapis-motion":
+    //   "off" -> disable animations explicitly
+    //   unset/"on" -> animations stay ON
     const motionPref = (() => { try { return localStorage.getItem('toolapis-motion') || ''; } catch (err) { return ''; } })();
-    const reduceMotion = motionPref === 'on'
-      ? false
-      : (motionPref === 'off' || window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+    const reduceMotion = motionPref === 'off';
     document.documentElement.classList.toggle('reduced-motion', reduceMotion);
     const finePointer = window.matchMedia('(pointer: fine)').matches;
 

@@ -368,8 +368,8 @@
     }
 
     /* Reduced motion: collapse everything to static.
-       Class-based (set by script.js) so users can override the OS setting
-       via localStorage "toolapis-motion" ("on" re-enables animations). */
+       Class-based (set by script.js). Animations run always unless the
+       user disables them explicitly via localStorage "toolapis-motion" = "off". */
     html.reduced-motion [data-reveal], html.reduced-motion .reveal { opacity: 1; transform: none; transition: none; }
     html.reduced-motion .ring-float, html.reduced-motion .ring-float-slow, html.reduced-motion .drift { animation: none; }
     html.reduced-motion .sheen::after { animation: none; }
