@@ -30,6 +30,45 @@
     const finePointer = window.matchMedia('(pointer: fine)').matches;
 
     // ---------------------------------------------------------------
+    // Page transition: fade-in on load, fade-out 400ms before nav
+    // ---------------------------------------------------------------
+    const pageTransition = document.getElementById('page-transition');
+    if (pageTransition) {
+      pageTransition.style.transition = 'none';
+      pageTransition.classList.add('active');
+      void pageTransition.offsetHeight;
+      pageTransition.style.transition = '';
+      const hideTransition = () => pageTransition.classList.remove('active');
+      if (document.readyState === 'loading' || document.readyState === 'interactive') {
+        document.addEventListener('DOMContentLoaded', hideTransition, { once: true });
+      } else {
+        requestAnimationFrame(hideTransition);
+      }
+
+      let transitionLocked = false;
+      document.addEventListener('click', (e) => {
+        if (transitionLocked || e.defaultPrevented) return;
+        if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+        const link = e.target.closest('a');
+        if (!link) return;
+        const href = link.getAttribute('href');
+        if (!href || href.charAt(0) === '#') return;
+        if (link.target === '_blank' || link.hasAttribute('download')) return;
+        let url;
+        try { url = new URL(href, window.location.href); }
+        catch (err) { return; }
+        if (url.protocol !== 'http:' && url.protocol !== 'https:') return;
+        if (url.origin === window.location.origin &&
+            url.pathname === window.location.pathname &&
+            url.search === window.location.search) return;
+        e.preventDefault();
+        transitionLocked = true;
+        pageTransition.classList.add('active');
+        window.setTimeout(() => { window.location.href = link.href; }, reduceMotion ? 0 : 400);
+      });
+    }
+
+    // ---------------------------------------------------------------
     // 3D Tilt Cards + Spotlight Border
     // ---------------------------------------------------------------
     if (finePointer && !reduceMotion) {
@@ -68,7 +107,7 @@
     // ---------------------------------------------------------------
     // Scroll Reveal (IntersectionObserver)
     // ---------------------------------------------------------------
-    const revealEls = document.querySelectorAll('[data-reveal]');
+    const revealEls = document.querySelectorAll('[data-reveal], .reveal');
     if (reduceMotion || !('IntersectionObserver' in window)) {
       revealEls.forEach(el => el.classList.add('is-visible'));
     } else {
