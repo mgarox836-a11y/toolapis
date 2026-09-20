@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<html lang="en" class="dark scroll-smooth">
+<html lang="en" class="dark">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="description" content="TOOLAPIS is a small hub of real web tools: upscale TikTok clips to HD, share your PC's internet with Android over USB, or jump into the social media hub.">
-  <meta name="theme-color" content="#0B0F12">
+  <meta name="theme-color" content="#02060F">
   <meta name="color-scheme" content="dark">
-  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='16' fill='%23A3E635'/%3E%3Ctext x='16' y='21.5' font-family='Arial,sans-serif' font-size='12.5' font-weight='800' text-anchor='middle' fill='%230B0F12'%3ETL%3C/text%3E%3C/svg%3E">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='16' fill='%23FFD9A6'/%3E%3Ctext x='16' y='21.5' font-family='Arial,sans-serif' font-size='12.5' font-weight='800' text-anchor='middle' fill='%2302060F'%3ETL%3C/text%3E%3C/svg%3E">
   <meta property="og:type" content="website">
   <meta property="og:title" content="TOOLAPIS — Web Tools Hub">
   <meta property="og:description" content="Upscale TikTok clips to HD, tether your PC's internet to Android over USB, or open the social hub. One place, zero friction.">
@@ -16,431 +16,301 @@
   <meta name="twitter:description" content="Upscale TikTok clips to HD, tether your PC's internet to Android over USB, or open the social hub.">
   <title>TOOLAPIS — Web Tools Hub</title>
 
-  <!-- Tailwind CSS CDN -->
-  <script src="https://cdn.tailwindcss.com"></script>
-  <!-- Custom Styles -->
-  <link rel="stylesheet" href="style.css">
-
-  <!-- Google Fonts CDN -->
+  <!-- Sora variable (100–800) — no local assets/fonts/sora-variable.ttf present -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600;9..40,700&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Sora:wght@100..800&display=swap" rel="stylesheet">
 
-  <!-- Phosphor Icons (deferred, non-blocking) -->
-  <link rel="preconnect" href="https://unpkg.com">
-  <script defer src="https://unpkg.com/@phosphor-icons/web"></script>
-
-  <!-- Motion Vanilla (animations, deferred, non-blocking; loads before script.js) -->
-  <link rel="preconnect" href="https://cdn.jsdelivr.net">
-  <script defer src="https://cdn.jsdelivr.net/npm/motion@12.9.2/dist/motion.js"></script>
-
+  <link rel="stylesheet" href="style.css">
 </head>
-<body class="bg-surface text-slate-200 font-sans antialiased min-h-[100dvh] flex flex-col justify-between selection:bg-accent-mint selection:text-black overflow-x-hidden relative">
+<body>
 
-  <a href="#main-content" class="skip-link">Skip to content</a>
+  <a class="skip-link" href="#main-content">Skip to content</a>
+  <div id="nav-sentinel" class="ptr-none" aria-hidden="true"></div>
 
-  <div id="nav-sentinel" class="absolute top-0 left-0 h-px w-px pointer-events-none"></div>
-
-  <!-- Film Grain -->
   <div class="grain" aria-hidden="true"></div>
-
-  <!-- Spotlight Glow Cursor Effect -->
-  <div id="spotlight" class="pointer-events-none fixed -inset-px z-30 transition duration-300 opacity-0" aria-hidden="true" style="background: radial-gradient(600px circle at 0px 0px, rgba(163, 230, 53, 0.05), transparent 80%);"></div>
-
-  <!-- Scroll Progress -->
+  <div id="spotlight" aria-hidden="true" style="background: radial-gradient(600px circle at 0px 0px, rgba(255,214,166,0.05), transparent 80%);"></div>
   <div id="scroll-progress" aria-hidden="true"></div>
 
-  <!-- Page Transition Overlay -->
   <div id="page-transition" aria-hidden="true">
     <span class="pt-logo">TOOLAPIS<span>.</span></span>
     <span class="pt-dot" aria-hidden="true"></span>
   </div>
 
-  <!-- Header Navigation -->
-  <header id="navbar" class="fixed top-0 left-0 right-0 z-40 px-4 md:px-8 py-4">
-    <div class="max-w-7xl mx-auto relative">
+  <!-- ============ TOP BAR (document-level, fixed, glassy after hero) ============ -->
+  <header class="bar" id="navbar">
+    <a class="brand" href="#" aria-label="TOOLAPIS home">
+      <svg viewBox="0 0 23 17" aria-hidden="true">
+        <path d="M8.15 0.9 L4.55 0.9 L0.5 9.3 L4.1 9.3 Z"/>
+        <path d="M17.0 0 L13.4 0 L6.15 16.4 L9.75 16.4 Z"/>
+        <path d="M22.9 0 L19.3 0 L15.0 7.6 L18.6 7.6 Z"/>
+        <path d="M22.6 6.9 L19.0 6.9 L14.05 16.4 L17.65 16.4 Z"/>
+      </svg>
+      <span id="word">TOOLAPIS</span>
+    </a>
 
-      <div class="flex items-center justify-between gap-3">
-        <!-- Brand Logo -->
-        <a href="#overview" class="flex items-center gap-3 group" aria-label="TOOLAPIS home">
-          <div class="w-8 h-8 rounded-full bg-accent-mint flex items-center justify-center text-surface font-bold font-display transition-transform duration-300 group-hover:scale-105">
-            TL
-          </div>
-          <span class="font-display font-bold tracking-wider text-lg text-white group-hover:text-accent-mint transition-colors">
-            TOOLAPIS<span class="text-accent-mint">.</span>
-          </span>
-        </a>
+    <input class="navtoggle" type="checkbox" id="nav-open">
+    <label class="scrim" for="nav-open" aria-hidden="true"></label>
+    <label class="burger" for="nav-open" aria-label="Menu">
+      <svg viewBox="0 0 22 14" aria-hidden="true">
+        <path class="b1" d="M1 1 H21"/>
+        <path class="b2" d="M1 7 H21"/>
+        <path class="b3" d="M1 13 H21"/>
+      </svg>
+    </label>
 
-        <!-- Navigation Links (desktop) -->
-        <nav class="hidden md:flex items-center gap-8 glass-pill px-6 py-2 rounded-full text-xs font-medium tracking-wider uppercase text-slate-300" aria-label="Primary">
-          <a href="#overview" class="nav-link hover:text-white transition-colors">Overview</a>
-          <a href="#features" class="nav-link hover:text-white transition-colors">Features</a>
-          <a href="#flow" class="nav-link hover:text-white transition-colors">Flow</a>
-          <a href="#clarity" class="nav-link hover:text-white transition-colors">Clarity</a>
-        </nav>
-
-        <!-- Top Action Button (desktop) + Menu Toggle (mobile) -->
-        <div class="flex items-center gap-3">
-          <a href="https://newsocapis.vercel.app" target="_blank" rel="noopener noreferrer" data-magnetic class="social-btn hidden sm:inline-flex" aria-label="Open Social Media hub">
-            <i class="ph-bold ph-share-network text-lg" aria-hidden="true"></i>
-          </a>
-          <a href="https://tiktok-hd-enhancer-by-apis-fgtkuxmpzmi7h8gifh4a8o.streamlit.app/" target="_blank" rel="noopener noreferrer" data-magnetic class="btn btn-accent btn-sm hidden sm:inline-flex">
-            <span class="hidden lg:inline">Open HD Enhancer</span>
-            <span class="lg:hidden">HD Enhancer</span>
-            <i class="ph ph-arrow-up-right font-bold" aria-hidden="true"></i>
-          </a>
-
-          <button id="nav-toggle" class="md:hidden flex items-center justify-center w-11 h-11 rounded-full glass-pill text-white transition-colors hover:bg-white/10" aria-label="Toggle menu" aria-expanded="false" aria-controls="mobile-menu">
-            <i id="nav-icon" class="ph-bold ph-list text-lg pointer-events-none" aria-hidden="true"></i>
-          </button>
-        </div>
-      </div>
-
-      <!-- Mobile Navigation Panel -->
-      <div id="mobile-menu" class="mobile-menu pointer-events-none md:hidden absolute top-full inset-x-0 mt-2 glass-panel rounded-2xl p-6">
-        <nav class="flex flex-col gap-1" aria-label="Mobile">
-          <a href="#overview" class="flex items-center justify-between rounded-xl px-3 py-3.5 text-sm font-medium text-slate-200 hover:text-white hover:bg-white/5 transition-colors">
-            Overview <i class="ph-bold ph-arrow-right text-accent-mint" aria-hidden="true"></i>
-          </a>
-          <a href="#features" class="flex items-center justify-between rounded-xl px-3 py-3.5 text-sm font-medium text-slate-200 hover:text-white hover:bg-white/5 transition-colors">
-            Features <i class="ph-bold ph-arrow-right text-accent-mint" aria-hidden="true"></i>
-          </a>
-          <a href="#flow" class="flex items-center justify-between rounded-xl px-3 py-3.5 text-sm font-medium text-slate-200 hover:text-white hover:bg-white/5 transition-colors">
-            Flow <i class="ph-bold ph-arrow-right text-accent-mint" aria-hidden="true"></i>
-          </a>
-          <a href="#clarity" class="flex items-center justify-between rounded-xl px-3 py-3.5 text-sm font-medium text-slate-200 hover:text-white hover:bg-white/5 transition-colors">
-            Clarity <i class="ph-bold ph-arrow-right text-accent-mint" aria-hidden="true"></i>
-          </a>
-        </nav>
-        <a href="https://tiktok-hd-enhancer-by-apis-fgtkuxmpzmi7h8gifh4a8o.streamlit.app/" target="_blank" rel="noopener noreferrer" class="btn btn-accent w-full mt-4">
-          <i class="ph-bold ph-arrow-up-right" aria-hidden="true"></i>
-          <span>Open HD Enhancer</span>
-        </a>
-        <a href="https://newsocapis.vercel.app" target="_blank" rel="noopener noreferrer" class="btn btn-glass w-full mt-3">
-          <i class="ph-bold ph-share-network text-accent-mint" aria-hidden="true"></i>
-          <span>Social Media</span>
-        </a>
-      </div>
+    <div class="navpanel">
+      <nav class="menu" aria-label="Primary">
+        <a href="#overview"><span id="about">About</span></a>
+        <a href="#features"><span id="product">Product</span></a>
+        <a href="#flow"><span id="solutions">Solutions</span>
+          <svg class="caret" viewBox="0 0 9 6" aria-hidden="true"><path d="M0.7 1.1 L4.5 4.6 L8.3 1.1"/></svg></a>
+      </nav>
+      <a class="login" href="#clarity"><span id="login">Clarity</span>
+        <svg class="navarrow" viewBox="0 0 10 9" aria-hidden="true"><path d="M0 4.5 H9.1 M5.4 0.9 L9.2 4.5 L5.4 8.1"/></svg></a>
+      <a class="pill" href="https://tiktok-hd-enhancer-by-apis-fgtkuxmpzmi7h8gifh4a8o.streamlit.app/" target="_blank" rel="noopener noreferrer"><span id="contact">Open HD Enhancer</span></a>
     </div>
   </header>
 
-  <!-- Hero Main Section -->
-  <main id="main-content">
-    <section id="hero" class="hero-bg min-h-[100dvh] flex items-center px-4 md:px-8 pt-28 pb-16 relative overflow-hidden">
+  <!-- ============ HERO — one viewport, video confined here ============ -->
+  <section class="hero-wrap">
+    <video class="art" autoplay muted loop playsinline preload="auto" aria-hidden="true"
+           poster="https://d2ol7oe51mr4n9.cloudfront.net/user_38xzZboKViGWJOttwIXH07lWA1P/130837c4-0244-4f37-9c61-8d801d93fd29.jpg"
+           src="https://d8j0ntlcm91z4.cloudfront.net/user_38xzZboKViGWJOttwIXH07lWA1P/hf_20260912_104303_0c6d60b2-9353-408e-9449-585108a22fb5.mp4"></video>
+    <div class="veil" aria-hidden="true"></div>
 
-      <!-- Ambient drift glows (parallax field) -->
-      <div id="glow-field" class="absolute inset-0 z-0 pointer-events-none">
-        <div aria-hidden="true" class="pointer-events-none absolute -top-32 -left-24 z-0 w-[480px] h-[480px] rounded-full blur-3xl opacity-40 drift" style="background: radial-gradient(circle, rgba(163,230,53,0.16), transparent 65%);"></div>
-        <div aria-hidden="true" class="pointer-events-none absolute -bottom-40 -right-32 z-0 w-[520px] h-[520px] rounded-full blur-3xl opacity-30 drift" style="background: radial-gradient(circle, rgba(163,230,53,0.14), transparent 65%);"></div>
-      </div>
+    <main class="hero" id="main-content">
+      <h1 class="title"><span id="h1a">Web Tools For You,</span>
+        <span id="h1b">All in One Place.</span></h1>
+      <p class="sub"><span id="sub1">Upscale TikTok clips to HD, tether your Android over USB,</span>
+        <span id="sub2">and jump into the social hub — one place, zero friction.</span></p>
+      <a class="cta" href="https://tiktok-hd-enhancer-by-apis-fgtkuxmpzmi7h8gifh4a8o.streamlit.app/" target="_blank" rel="noopener noreferrer">
+        <span id="cta">Open HD Enhancer</span>
+        <svg class="arrow" viewBox="0 0 16 11" aria-hidden="true"><path d="M0 5.5 H14.6 M10.3 1.2 L14.9 5.5 L10.3 9.8"/></svg></a>
+      <ul class="feats">
+        <li><svg class="chev" viewBox="0 0 11 20" aria-hidden="true"><path d="M1.15 1.15 L9.6 10 L1.15 18.85"/></svg><span id="f1">HD upscaling</span></li>
+        <li><svg class="chev" viewBox="0 0 11 20" aria-hidden="true"><path d="M1.15 1.15 L9.6 10 L1.15 18.85"/></svg><span id="f2">USB tethering</span></li>
+        <li><svg class="chev" viewBox="0 0 11 20" aria-hidden="true"><path d="M1.15 1.15 L9.6 10 L1.15 18.85"/></svg><span id="f3">Web-first</span></li>
+        <li><svg class="chev" viewBox="0 0 11 20" aria-hidden="true"><path d="M1.15 1.15 L9.6 10 L1.15 18.85"/></svg><span id="f4">Social hub</span></li>
+      </ul>
+      <span class="rule" aria-hidden="true"></span>
+    </main>
 
-      <!-- Hero layout grid: centered copy -->
-      <div class="hero-grid max-w-7xl mx-auto w-full">
+    <a class="scroll-cue" href="#overview" aria-label="Scroll to tools"><span class="j" aria-hidden="true"></span><span class="l">Scroll</span></a>
 
-        <!-- Copy column -->
-        <div class="hero-copy text-center space-y-7 max-w-2xl mx-auto">
-          <!-- Eyebrow Badge -->
-          <div class="reveal eyebrow" data-delay="0">
-            <i class="ph-bold ph-sparkle" aria-hidden="true"></i>
-            <span>Web Tools</span>
-          </div>
+    <footer class="foot">
+      <span id="foot1">Three tools, one hub, zero friction.</span>
+      <span id="foot2">&copy; 2026</span>
+    </footer>
+  </section>
 
-          <!-- Main Headline -->
-          <h1 class="reveal font-display text-4xl sm:text-5xl md:text-6xl font-bold text-white tracking-tight leading-[1.08] max-w-3xl mx-auto text-balance" data-delay="150">
-            Web Tools For You,<br class="hidden sm:block">
-            <span class="text-transparent bg-clip-text bg-gradient-to-r from-accent-mint to-accent-mint-hover text-shimmer">All in One Place.</span>
-          </h1>
+  <!-- ============ SECTIONS BELOW THE HERO ============ -->
+  <div class="page">
 
-          <!-- Description Subtext -->
-          <p class="reveal text-slate-300 text-base md:text-lg max-w-2xl mx-auto font-normal leading-relaxed" data-delay="300">
-            Boost TikTok clips to HD, tether your PC's internet to Android over USB, or jump into the social media hub. One hub, three tools, zero friction.
-          </p>
+    <!-- Overview / Tool Cards -->
+    <section id="overview" class="sec">
+      <div class="wrap">
+        <div class="sec-head reveal">
+          <span class="eyebrow">
+            <svg viewBox="0 0 16 16" width="13" height="13" aria-hidden="true"><path d="M11 1.5 L12.4 4.6 L15.5 6 L12.4 7.4 L11 10.5 L9.6 7.4 L6.5 6 L9.6 4.6 Z"/></svg>
+            Web Tools
+          </span>
+          <h2>One hub, three tools.</h2>
+        </div>
 
-          <!-- Primary Action Buttons -->
-          <div class="reveal pt-3 flex flex-col sm:flex-row items-center justify-center gap-4" data-delay="450">
-
-            <!-- Button 1: TikTok HD Enhancer -->
-            <a href="https://tiktok-hd-enhancer-by-apis-fgtkuxmpzmi7h8gifh4a8o.streamlit.app/"
-               target="_blank"
-               rel="noopener noreferrer"
-               data-magnetic
-               class="btn btn-accent w-full sm:w-auto group">
-              <i class="ph-bold ph-magic-wand text-lg" aria-hidden="true"></i>
+        <div class="reveal-group grid grid-3" style="margin-top:2.5rem;">
+          <!-- Card 1: TikTok HD Enhancer -->
+          <div class="card glass tilt spot-card sheen reveal" data-tilt="8">
+            <div class="iconbox">
+              <svg viewBox="0 0 16 16" width="20" height="20" aria-hidden="true"><path d="M11 1.5 L12.4 4.6 L15.5 6 L12.4 7.4 L11 10.5 L9.6 7.4 L6.5 6 L9.6 4.6 Z"/></svg>
+            </div>
+            <h3>TikTok HD Enhancer</h3>
+            <p>A Streamlit-based app designed to automatically boost the visual resolution and clarity of your TikTok video content.</p>
+            <a class="link" href="https://tiktok-hd-enhancer-by-apis-fgtkuxmpzmi7h8gifh4a8o.streamlit.app/" target="_blank" rel="noopener noreferrer">
               <span>Open HD Enhancer</span>
-              <i class="ph-bold ph-arrow-right text-sm transition-transform group-hover:translate-x-1" aria-hidden="true"></i>
+              <svg viewBox="0 0 16 12" width="14" height="11" aria-hidden="true"><path d="M1 6 H13 M8 1.5 L13 6 L8 10.5"/></svg>
             </a>
+          </div>
 
-            <!-- Button 2: Gnirehtet USB Tethering -->
-            <a href="https://drive.google.com/file/d/1gH_huKs7Pf9XP2uJcRfMaLqJonLfJcbI/view"
-               target="_blank"
-               rel="noopener noreferrer"
-               data-magnetic
-               class="btn btn-glass w-full sm:w-auto group">
-              <i class="ph-bold ph-usb text-lg text-accent-mint" aria-hidden="true"></i>
+          <!-- Card 2: Gnirehtet Tethering -->
+          <div class="card glass tilt spot-card sheen reveal" data-tilt="8">
+            <div class="iconbox">
+              <svg viewBox="0 0 16 16" width="20" height="20" aria-hidden="true"><path d="M6.5 1.5 H9.5 L9 8 H7 Z"/><path d="M8 8 V12"/><path d="M5 11.5 H11"/></svg>
+            </div>
+            <h3>Gnirehtet Tethering</h3>
+            <p>Share your PC's internet connection with your Android phone over USB. Fast, easy, and with no extra modem required.</p>
+            <a class="link" href="https://drive.google.com/file/d/1gH_huKs7Pf9XP2uJcRfMaLqJonLfJcbI/view" target="_blank" rel="noopener noreferrer">
               <span>Open Gnirehtet</span>
-              <i class="ph-bold ph-arrow-square-out text-sm text-slate-400 group-hover:text-white transition-colors" aria-hidden="true"></i>
-            </a>
-
-            <!-- Button 3: Social Media -->
-            <a href="https://newsocapis.vercel.app"
-               target="_blank"
-               rel="noopener noreferrer"
-               data-magnetic
-               class="btn btn-glass w-full sm:w-auto group">
-              <i class="ph-bold ph-share-network text-lg text-accent-mint" aria-hidden="true"></i>
-              <span>Social Media</span>
-              <i class="ph-bold ph-arrow-square-out text-sm text-slate-400 group-hover:text-white transition-colors" aria-hidden="true"></i>
+              <svg viewBox="0 0 16 12" width="14" height="11" aria-hidden="true"><path d="M1 6 H13 M8 1.5 L13 6 L8 10.5"/></svg>
             </a>
           </div>
-        </div>
-      </div>
 
-      <!-- Scroll cue -->
-      <a href="#overview" class="hero-scroll" aria-label="Scroll to tools">
-        <span class="hero-scroll-line" aria-hidden="true"></span>
-      </a>
-    </section>
-
-    <!-- Overview / Tool Cards Section -->
-    <section id="overview" class="max-w-6xl mx-auto px-4 md:px-6 py-16 md:py-20 z-10">
-      <div class="reveal-group grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-
-        <!-- Card 1: TikTok HD Enhancer -->
-        <div class="reveal tilt spot-card sheen glass-panel p-6 md:p-8 rounded-2xl space-y-4 hover:border-accent-mint/30 transition-colors duration-300" data-tilt="8">
-          <div class="relative w-12 h-12 rounded-xl bg-accent-mint/10 border border-accent-mint/20 flex items-center justify-center text-accent-mint">
-            <span aria-hidden="true" class="absolute -inset-1 rounded-xl bg-accent-mint/10 blur-lg"></span>
-            <i class="ph-bold ph-sparkle text-2xl" aria-hidden="true"></i>
-          </div>
-          <h3 class="font-display font-bold text-xl text-white">TikTok HD Enhancer</h3>
-          <p class="text-slate-400 text-sm leading-relaxed">
-            A Streamlit-based app designed to automatically boost the visual resolution and clarity of your TikTok video content.
-          </p>
-          <div class="pt-2">
-            <a href="https://tiktok-hd-enhancer-by-apis-fgtkuxmpzmi7h8gifh4a8o.streamlit.app/" target="_blank" class="inline-flex items-center gap-2 text-xs font-semibold text-accent-mint hover:underline">
-              <span>Open HD Enhancer</span>
-              <i class="ph-bold ph-arrow-right" aria-hidden="true"></i>
-            </a>
-          </div>
-        </div>
-
-        <!-- Card 2: Gnirehtet Tethering -->
-        <div class="reveal tilt spot-card sheen glass-panel p-6 md:p-8 rounded-2xl space-y-4 hover:border-accent-mint/30 transition-colors duration-300" data-tilt="8">
-          <div class="relative w-12 h-12 rounded-xl bg-accent-mint/10 border border-accent-mint/20 flex items-center justify-center text-accent-mint">
-            <span aria-hidden="true" class="absolute -inset-1 rounded-xl bg-accent-mint/10 blur-lg"></span>
-            <i class="ph-bold ph-usb text-2xl" aria-hidden="true"></i>
-          </div>
-          <h3 class="font-display font-bold text-xl text-white">Gnirehtet Tethering</h3>
-          <p class="text-slate-400 text-sm leading-relaxed">
-            Share your PC's internet connection with your Android phone over USB. Fast, easy, and with no extra modem required.
-          </p>
-          <div class="pt-2">
-            <a href="https://github.com/Genymobile/gnirehtet" target="_blank" class="inline-flex items-center gap-2 text-xs font-semibold text-accent-mint hover:underline">
-              <span>Open Gnirehtet</span>
-              <i class="ph-bold ph-arrow-right" aria-hidden="true"></i>
-            </a>
-          </div>
-        </div>
-
-        <!-- Card 3: Social Media Hub -->
-        <div class="reveal tilt spot-card sheen glass-panel p-6 md:p-8 rounded-2xl space-y-4 hover:border-accent-mint/30 transition-colors duration-300" data-tilt="8">
-          <div class="relative w-12 h-12 rounded-xl bg-accent-mint/10 border border-accent-mint/20 flex items-center justify-center text-accent-mint">
-            <span aria-hidden="true" class="absolute -inset-1 rounded-xl bg-accent-mint/10 blur-lg"></span>
-            <i class="ph-bold ph-share-network text-2xl" aria-hidden="true"></i>
-          </div>
-          <h3 class="font-display font-bold text-xl text-white">Social Media Hub</h3>
-          <p class="text-slate-400 text-sm leading-relaxed">
-            A dedicated hub that brings your social media tools and links together in one clean, easy-to-use place.
-          </p>
-          <div class="pt-2">
-            <a href="https://newsocapis.vercel.app" target="_blank" class="inline-flex items-center gap-2 text-xs font-semibold text-accent-mint hover:underline">
+          <!-- Card 3: Social Media Hub -->
+          <div class="card glass tilt spot-card sheen reveal" data-tilt="8">
+            <div class="iconbox">
+              <svg viewBox="0 0 16 16" width="20" height="20" aria-hidden="true"><circle cx="4" cy="4" r="1.6"/><circle cx="12" cy="3" r="1.6"/><circle cx="12" cy="13" r="1.6"/><path d="M5.4 4.8 L10.6 3.2 M5.4 11.2 L10.6 12.8 M12 4.6 V11.4"/></svg>
+            </div>
+            <h3>Social Media Hub</h3>
+            <p>A dedicated hub that brings your social media tools and links together in one clean, easy-to-use place.</p>
+            <a class="link" href="https://newsocapis.vercel.app" target="_blank" rel="noopener noreferrer">
               <span>Open Social Media</span>
-              <i class="ph-bold ph-arrow-right" aria-hidden="true"></i>
+              <svg viewBox="0 0 16 12" width="14" height="11" aria-hidden="true"><path d="M1 6 H13 M8 1.5 L13 6 L8 10.5"/></svg>
             </a>
           </div>
         </div>
       </div>
     </section>
 
-    <!-- Features Section (asymmetric grid) -->
-    <section id="features" class="max-w-7xl mx-auto px-4 md:px-6 py-24 md:py-28 z-10">
-      <div class="max-w-3xl reveal">
-        <h2 class="font-display font-bold text-3xl md:text-5xl text-white tracking-tight text-balance">Small hub. Real tools.</h2>
-        <p class="mt-4 text-slate-400 max-w-2xl leading-relaxed">No installs, no accounts, no filler. Just a few tools that do the job and get out of your way.</p>
+    <!-- Features -->
+    <section id="features" class="sec">
+      <div class="wrap">
+        <div class="sec-head reveal">
+          <span class="eyebrow">
+            <svg viewBox="0 0 16 16" width="13" height="13" aria-hidden="true"><path d="M11 1.5 L12.4 4.6 L15.5 6 L12.4 7.4 L11 10.5 L9.6 7.4 L6.5 6 L9.6 4.6 Z"/></svg>
+            Capabilities
+          </span>
+          <h2>Small hub. Real tools.</h2>
+          <p class="lead">No installs, no accounts, no filler. Just a few tools that do the job and get out of your way.</p>
+        </div>
+
+        <div class="reveal-group grid grid-2" style="margin-top:2.75rem;">
+          <div class="card glass tilt spot-card sheen reveal" data-tilt="6" style="grid-column:1 / -1;display:flex;flex-direction:row;align-items:center;gap:1.5rem;flex-wrap:wrap;justify-content:space-between;">
+            <div class="iconbox">
+              <svg viewBox="0 0 16 16" width="20" height="20" aria-hidden="true"><path d="M3 13 L11 5"/><path d="M5 8 a2.2 2.2 0 0 1 2.8 -2.9 a2.2 2.2 0 0 1 2.8 2.9 a2.2 2.2 0 0 1 2.8 2.4 a2.2 2.2 0 0 1 -2.4 2.8 h -5 a2.6 2.6 0 0 1 0 -5.2 Z"/></svg>
+            </div>
+            <div style="flex:1;min-width:16rem;">
+              <h3>HD upscaling</h3>
+              <p style="margin-top:.5rem;">Raises the resolution and sharpness of low-quality TikTok clips automatically. No sliders, no settings, no guesswork.</p>
+            </div>
+          </div>
+
+          <div class="card glass tilt spot-card sheen reveal" data-tilt="6">
+            <div class="iconbox">
+              <svg viewBox="0 0 16 16" width="20" height="20" aria-hidden="true"><path d="M6.5 1.5 H9.5 L9 8 H7 Z"/><path d="M8 8 V12"/><path d="M5 11.5 H11"/></svg>
+            </div>
+            <h3>USB tethering</h3>
+            <p style="margin-top:.5rem;">Shares your PC's internet with an Android phone over a USB cable, no extra modem or router setup.</p>
+          </div>
+
+          <div class="card glass tilt spot-card sheen reveal" data-tilt="6">
+            <div class="iconbox">
+              <svg viewBox="0 0 16 16" width="20" height="20" aria-hidden="true"><circle cx="8" cy="8" r="5"/><path d="M8 3 a6.5 9 0 0 1 0 10 a6.5 9 0 0 1 0 -10 M3 8 h10"/></svg>
+            </div>
+            <h3>Web-first</h3>
+            <p style="margin-top:.5rem;">Every tool launches straight from the browser. Grab a link, share it, and you're done.</p>
+          </div>
+        </div>
       </div>
+    </section>
 
-      <div class="reveal-group mt-12 grid grid-cols-1 md:grid-cols-2 gap-6">
-        <!-- Wide tile -->
-        <div class="reveal tilt spot-card sheen chroma rounded-2xl p-8 md:col-span-2 relative overflow-hidden transition-colors duration-300" data-tilt="6">
-          <div aria-hidden="true" class="pointer-events-none absolute -top-20 -right-20 w-72 h-72 rounded-full ring-float opacity-60" style="background: radial-gradient(circle, rgba(163,230,53,0.22), transparent 62%);"></div>
-          <div class="relative z-10 flex flex-col md:flex-row md:items-center gap-6">
-            <div class="w-14 h-14 shrink-0 rounded-2xl bg-accent-mint/10 border border-accent-mint/25 flex items-center justify-center text-accent-mint">
-              <i class="ph-bold ph-magic-wand text-3xl" aria-hidden="true"></i>
-            </div>
-            <div>
-              <h3 class="font-display font-bold text-2xl text-white">HD upscaling</h3>
-              <p class="mt-2 text-slate-400 text-sm leading-relaxed max-w-xl">Raises the resolution and sharpness of low-quality TikTok clips automatically. No sliders, no settings, no guesswork.</p>
-            </div>
-          </div>
+    <!-- Flow -->
+    <section id="flow" class="sec">
+      <div class="wrap">
+        <div class="sec-head reveal">
+          <span class="eyebrow">
+            <svg viewBox="0 0 16 16" width="13" height="13" aria-hidden="true"><path d="M11 1.5 L12.4 4.6 L15.5 6 L12.4 7.4 L11 10.5 L9.6 7.4 L6.5 6 L9.6 4.6 Z"/></svg>
+            How it works
+          </span>
+          <h2>Pick it up in a minute.</h2>
+          <p class="lead">Open a tool, run it, done. Nothing else on the page gets in your way.</p>
         </div>
 
-        <!-- Tile: USB tethering -->
-        <div class="reveal tilt spot-card sheen glass-panel rounded-2xl p-8 relative overflow-hidden transition-colors duration-300 hover:border-accent-mint/30" data-tilt="6">
-          <div class="flex gap-5 items-start">
-            <div class="w-12 h-12 shrink-0 rounded-xl bg-accent-mint/10 border border-accent-mint/25 flex items-center justify-center text-accent-mint">
-              <i class="ph-bold ph-usb text-2xl" aria-hidden="true"></i>
+        <div class="flow">
+          <div class="step reveal">
+            <div class="iconbox">
+              <svg viewBox="0 0 16 16" width="20" height="20" aria-hidden="true"><path d="M5 3 L11.5 12 L9.3 11.4 L7.9 14 L6 11.7 L3.5 12.6 Z"/></svg>
             </div>
             <div>
-              <h3 class="font-display font-bold text-lg text-white">USB tethering</h3>
-              <p class="mt-2 text-slate-400 text-sm leading-relaxed">Shares your PC's internet with an Android phone over a USB cable, no extra modem or router setup.</p>
+              <h3>Pick a tool</h3>
+              <p style="margin-top:.4rem;">Enhancer for your videos, tethering for your connection, social hub for everything else.</p>
             </div>
           </div>
-        </div>
 
-        <!-- Tile: Web-first -->
-        <div class="reveal tilt spot-card sheen glass-panel rounded-2xl p-8 relative overflow-hidden transition-colors duration-300 hover:border-accent-mint/30" data-tilt="6">
-          <div class="flex gap-5 items-start">
-            <div class="w-12 h-12 shrink-0 rounded-xl bg-accent-mint/10 border border-accent-mint/25 flex items-center justify-center text-accent-mint">
-              <i class="ph-bold ph-globe-hemisphere-west text-2xl" aria-hidden="true"></i>
+          <div class="connector" aria-hidden="true"></div>
+
+          <div class="step reveal">
+            <div class="iconbox">
+              <svg viewBox="0 0 16 16" width="20" height="20" aria-hidden="true"><path d="M8 2.5 C11 3.5 12.8 6 12.8 8.5 C12.8 10 12 11 11.2 11.6 C10.4 12.2 9.4 12.4 8.6 12.1 C6 11 4.2 9 3.5 6.5 C3.2 5.4 3.5 4.4 4.3 3.9 C5 3.4 6.1 3.4 7.2 3.8 Z"/><circle cx="9.3" cy="7" r="1.1"/><path d="M5.8 13.5 C7 12 8 12 9 13.5 C8 14.5 7 14.5 5.8 13.5 Z"/></svg>
             </div>
             <div>
-              <h3 class="font-display font-bold text-lg text-white">Web-first</h3>
-              <p class="mt-2 text-slate-400 text-sm leading-relaxed">Every tool launches straight from the browser. Grab a link, share it, and you're done.</p>
+              <h3>Launch it</h3>
+              <p style="margin-top:.4rem;">One click opens the app in your browser.</p>
+            </div>
+          </div>
+
+          <div class="connector" aria-hidden="true"></div>
+
+          <div class="step reveal">
+            <div class="iconbox">
+              <svg viewBox="0 0 16 16" width="20" height="20" aria-hidden="true"><circle cx="8" cy="8" r="6.5"/><path d="M5 8.2 L7.3 10.4 L11 5.7"/></svg>
+            </div>
+            <div>
+              <h3>You're done</h3>
+              <p style="margin-top:.4rem;">Upscale the clip or share the connection right away.</p>
             </div>
           </div>
         </div>
       </div>
     </section>
 
-    <!-- Flow Section (stepper layout) -->
-    <section id="flow" class="max-w-7xl mx-auto px-4 md:px-6 py-24 md:py-28">
-      <div class="max-w-3xl reveal">
-        <h2 class="font-display font-bold text-3xl md:text-5xl text-white tracking-tight text-balance">Pick it up in a minute.</h2>
-        <p class="mt-4 text-slate-400 max-w-2xl leading-relaxed">Open a tool, run it, done. Nothing else on the page gets in your way.</p>
-      </div>
-
-      <div class="reveal-group mt-14 flex flex-col md:flex-row md:items-center gap-8 md:gap-5">
-        <!-- Step 1 -->
-        <div class="reveal flex-1 flex md:flex-col items-start md:items-center gap-4 md:gap-5 md:text-center">
-          <div class="w-12 h-12 shrink-0 rounded-full glass-panel border border-accent-mint/30 flex items-center justify-center text-accent-mint">
-            <i class="ph-bold ph-cursor-click text-xl" aria-hidden="true"></i>
-          </div>
-          <div>
-            <h3 class="font-display font-bold text-white">Pick a tool</h3>
-            <p class="mt-1 text-slate-400 text-sm leading-relaxed">Enhancer for your videos, tethering for your connection, social hub for everything else.</p>
-          </div>
-        </div>
-
-        <!-- Connector -->
-        <div aria-hidden="true" class="reveal hidden md:block h-px flex-1 max-w-16 flow-dash" style="background-image: repeating-linear-gradient(90deg, rgba(255,255,255,0.18) 0 6px, transparent 6px 14px);"></div>
-
-        <!-- Step 2 -->
-        <div class="reveal flex-1 flex md:flex-col items-start md:items-center gap-4 md:gap-5 md:text-center">
-          <div class="w-12 h-12 shrink-0 rounded-full glass-panel border border-accent-mint/30 flex items-center justify-center text-accent-mint">
-            <i class="ph-bold ph-rocket-launch text-xl" aria-hidden="true"></i>
-          </div>
-          <div>
-            <h3 class="font-display font-bold text-white">Launch it</h3>
-            <p class="mt-1 text-slate-400 text-sm leading-relaxed">One click opens the app in your browser.</p>
-          </div>
-        </div>
-
-        <!-- Connector -->
-        <div aria-hidden="true" class="reveal hidden md:block h-px flex-1 max-w-16 flow-dash" style="background-image: repeating-linear-gradient(90deg, rgba(255,255,255,0.18) 0 6px, transparent 6px 14px);"></div>
-
-        <!-- Step 3 -->
-        <div class="reveal flex-1 flex md:flex-col items-start md:items-center gap-4 md:gap-5 md:text-center">
-          <div class="w-12 h-12 shrink-0 rounded-full glass-panel border border-accent-mint/30 flex items-center justify-center text-accent-mint">
-            <i class="ph-bold ph-check-circle text-xl" aria-hidden="true"></i>
-          </div>
-          <div>
-            <h3 class="font-display font-bold text-white">You're done</h3>
-            <p class="mt-1 text-slate-400 text-sm leading-relaxed">Upscale the clip or share the connection right away.</p>
+    <!-- Clarity / closing band -->
+    <section id="clarity" class="sec">
+      <div class="wrap">
+        <div class="panel glass reveal">
+          <div class="inner">
+            <h2>Clear tools, zero clutter.</h2>
+            <p>One hub for the tools you actually use. Open it, use it, move on.</p>
+            <div style="display:flex;flex-wrap:wrap;justify-content:center;gap:.75rem;margin-top:.5rem;">
+              <a href="https://tiktok-hd-enhancer-by-apis-fgtkuxmpzmi7h8gifh4a8o.streamlit.app/" target="_blank" rel="noopener noreferrer" data-magnetic class="btn btn-gold">
+                <span>Open HD Enhancer</span>
+                <svg viewBox="0 0 16 12" width="15" height="12" aria-hidden="true"><path d="M1 6 H13 M8 1.5 L13 6 L8 10.5"/></svg>
+              </a>
+              <button type="button" class="btn btn-glass" onclick="copyToClipboard('https://tiktok-hd-enhancer-by-apis-fgtkuxmpzmi7h8gifh4a8o.streamlit.app/', 'Enhancer link copied!')">
+                <svg viewBox="0 0 16 16" width="15" height="15" aria-hidden="true"><rect x="6" y="6" width="7" height="7" rx="1"/><path d="M10 6 V4.5 H3 V10.5 H4.5"/></svg>
+                <span>Copy enhancer link</span>
+              </button>
+              <a href="https://newsocapis.vercel.app" target="_blank" rel="noopener noreferrer" data-magnetic class="btn btn-glass">
+                <svg viewBox="0 0 16 16" width="15" height="15" aria-hidden="true"><circle cx="4" cy="4" r="1.6"/><circle cx="12" cy="3" r="1.6"/><circle cx="12" cy="13" r="1.6"/><path d="M5.4 4.8 L10.6 3.2 M5.4 11.2 L10.6 12.8 M12 4.6 V11.4"/></svg>
+                <span>Social Media</span>
+              </a>
+            </div>
           </div>
         </div>
       </div>
     </section>
 
-    <!-- Clarity Section (full-width closing band) -->
-    <section id="clarity" class="max-w-7xl mx-auto px-4 md:px-6 pb-24 md:pb-32">
-      <div class="reveal relative overflow-hidden glass-panel rounded-3xl px-6 md:px-16 py-16 md:py-24 text-center">
-        <div aria-hidden="true" class="pointer-events-none absolute inset-0" style="background: radial-gradient(700px circle at 50% -20%, rgba(163,230,53,0.12), transparent 60%);"></div>
-        <div aria-hidden="true" class="pointer-events-none absolute -bottom-24 left-1/2 -translate-x-1/2 w-[560px] h-[300px] rounded-full blur-3xl opacity-40 drift" style="background: radial-gradient(circle, rgba(163,230,53,0.16), transparent 65%);"></div>
-
-        <div class="relative z-10 max-w-2xl mx-auto space-y-6">
-          <h2 class="font-display font-bold text-3xl md:text-6xl text-white tracking-tight text-balance">Clear tools, zero clutter.</h2>
-          <p class="text-slate-300 text-base md:text-lg leading-relaxed">One hub for the tools you actually use. Open it, use it, move on.</p>
-
-          <div class="pt-4 flex flex-col sm:flex-row items-center justify-center gap-4">
-            <a href="https://tiktok-hd-enhancer-by-apis-fgtkuxmpzmi7h8gifh4a8o.streamlit.app/"
-               target="_blank"
-               rel="noopener noreferrer"
-               data-magnetic
-               class="btn btn-accent w-full sm:w-auto group">
-              <i class="ph-bold ph-magic-wand text-lg" aria-hidden="true"></i>
-              <span>Open HD Enhancer</span>
-              <i class="ph-bold ph-arrow-right text-sm transition-transform group-hover:translate-x-1" aria-hidden="true"></i>
-            </a>
-
-            <button onclick="copyToClipboard('https://tiktok-hd-enhancer-by-apis-fgtkuxmpzmi7h8gifh4a8o.streamlit.app/', 'Enhancer link copied!')"
-                    class="btn btn-glass w-full sm:w-auto">
-              <i class="ph-bold ph-copy text-accent-mint" aria-hidden="true"></i>
-              <span>Copy enhancer link</span>
-            </button>
-
-            <a href="https://newsocapis.vercel.app"
-               target="_blank"
-               rel="noopener noreferrer"
-               data-magnetic
-               class="btn btn-glass w-full sm:w-auto group">
-              <i class="ph-bold ph-share-network text-lg text-accent-mint" aria-hidden="true"></i>
-              <span>Social Media</span>
-              <i class="ph-bold ph-arrow-square-out text-sm text-slate-400 group-hover:text-white transition-colors" aria-hidden="true"></i>
-            </a>
-          </div>
-        </div>
-      </div>
-    </section>
-  </main>
-
-  <!-- Back to Top -->
-  <button id="back-to-top" class="back-to-top w-11 h-11 rounded-full glass-panel flex items-center justify-center text-accent-mint transition-colors hover:bg-white/10" aria-label="Back to top">
-    <i class="ph-bold ph-arrow-up text-lg" aria-hidden="true"></i>
-  </button>
-
-  <!-- Toast Notification Container -->
-  <div id="toast" class="fixed bottom-8 right-8 z-[70] transform translate-y-20 opacity-0 transition-all duration-300 pointer-events-none" role="status" aria-live="polite">
-    <div class="glass-panel px-5 py-3 rounded-2xl shadow-2xl flex items-center gap-3 border border-accent-mint/30">
-      <i class="ph-fill ph-check-circle text-accent-mint text-xl" aria-hidden="true"></i>
-      <span id="toast-message" class="text-xs font-semibold text-white tracking-wide">Link Copied!</span>
-    </div>
-  </div>
+  </div><!-- /.page -->
 
   <!-- Footer -->
-  <footer class="border-t border-surface-border py-10 px-6 text-center text-xs text-slate-400 z-10 bg-surface">
-    <div class="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-6">
-      <div class="flex flex-col items-center md:items-start gap-2">
-        <a href="#overview" class="flex items-center gap-2 font-display font-bold tracking-wider text-white hover:text-accent-mint transition-colors">
-          <span class="w-6 h-6 rounded-full bg-accent-mint flex items-center justify-center text-surface font-bold text-xs">TL</span>
-          TOOLAPIS<span class="text-accent-mint">.</span>
-        </a>
-        <p>&copy; 2026 TOOLAPIS. All rights reserved.</p>
+  <footer class="site-foot">
+    <div class="wrap">
+      <div>
+        <a href="#" class="brand-mark"><span class="dot" aria-hidden="true"></span>TOOLAPIS<span style="opacity:.7">.</span></a>
+        <p style="margin-top:.5rem;">&copy; 2026 TOOLAPIS. All rights reserved.</p>
       </div>
-      <nav class="footer-nav flex items-center gap-6" aria-label="Footer">
-        <a href="#overview" class="hover:text-white transition-colors">Overview</a>
-        <a href="#features" class="hover:text-white transition-colors">Features</a>
-        <a href="#flow" class="hover:text-white transition-colors">Flow</a>
-        <a href="#clarity" class="hover:text-white transition-colors">Clarity</a>
+      <nav aria-label="Footer">
+        <a href="#overview">Overview</a>
+        <a href="#features">Features</a>
+        <a href="#flow">Flow</a>
+        <a href="#clarity">Clarity</a>
       </nav>
-      <div class="flex items-center gap-5">
-        <a href="https://newsocapis.vercel.app" target="_blank" rel="noopener noreferrer" class="social-btn" aria-label="Open Social Media hub">
-          <i class="ph-bold ph-share-network text-lg" aria-hidden="true"></i>
-        </a>
-        <span class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-accent-mint"></span> All systems operational</span>
-      </div>
+      <div class="status"><span class="lamp" aria-hidden="true"></span> All systems operational</div>
     </div>
   </footer>
 
-  <!-- JavaScript Interaction Script (deferred so it runs after the Tailwind CDN loads) -->
+  <!-- Back to top -->
+  <button id="back-to-top" type="button" aria-label="Back to top">
+    <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><path d="M8 13 V3 M4 7 L8 3 L12 7"/></svg>
+  </button>
+
+  <!-- Toast -->
+  <div id="toast" role="status" aria-live="polite">
+    <div class="tbox">
+      <svg viewBox="0 0 16 16" width="15" height="15" aria-hidden="true"><circle cx="8" cy="8" r="6.5" fill="none"/><path d="M5 8.2 L7.3 10.4 L11 5.7"/></svg>
+      <span id="toast-message">Link Copied!</span>
+    </div>
+  </div>
+
   <script defer src="script.js"></script>
 </body>
 </html>
