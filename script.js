@@ -214,4 +214,101 @@
         toastTimer = null;
       }, 3000);
     }
+
+    // ---------------------------------------------------------------
+    // Motion Vanilla animations (progressive enhancement, optional)
+    // ---------------------------------------------------------------
+    (function initMotion() {
+      if (typeof Motion === 'undefined' || reduceMotion) return;
+      const ease = [0.16, 1, 0.3, 1];
+
+      const run = (el, keyframes, opts, persistent) => {
+        if (el._motionAnim) {
+          try { el._motionAnim.stop(); } catch (err) { /* noop */ }
+        }
+        const anim = Motion.animate(el, keyframes, opts);
+        el._motionAnim = anim;
+        if (!persistent) {
+          anim.finished.then(() => {
+            try { anim.stop(); } catch (err) { /* noop */ }
+            if (el._motionAnim === anim) el._motionAnim = null;
+            el.style.opacity = '';
+            el.style.transform = '';
+          }).catch(() => {
+            el.style.opacity = '';
+            el.style.transform = '';
+          });
+        }
+        return anim;
+      };
+
+      // Hero: scroll-cue fades in + slides up slightly after the headline reveals
+      const heroScroll = document.querySelector('.hero-scroll');
+      if (heroScroll) {
+        heroScroll.style.opacity = '0';
+        heroScroll.style.transform = 'translateY(-8px)';
+        run(heroScroll, {
+          opacity: [0, 1],
+          y: [-8, 0]
+        }, { duration: 0.7, easing: ease, delay: 0.9 }, false);
+      }
+
+      // Micro-interactions: light hover lift + click bounce
+      const clickables = document.querySelectorAll('.btn:not([data-magnetic]), .back-to-top');
+      if (finePointer) {
+        clickables.forEach(el => {
+          el.addEventListener('pointerenter', () => {
+            run(el, { scale: 1.05, y: -2 }, { duration: 0.22, easing: 'ease-out' }, true);
+          });
+          el.addEventListener('pointerleave', () => {
+            run(el, { scale: 1, y: 0 }, { duration: 0.18, easing: 'ease-in' }, false);
+          });
+        });
+      }
+      clickables.forEach(el => {
+        el.addEventListener('pointerdown', () => {
+          run(el, { scale: 0.95 }, { duration: 0.08, easing: 'ease-out' }, true);
+        }, { passive: true });
+        const release = () => {
+          run(el, { scale: 1 }, { type: 'spring', stiffness: 520, damping: 18 }, false);
+        };
+        el.addEventListener('pointerup', release, { passive: true });
+        el.addEventListener('pointercancel', release, { passive: true });
+      });
+
+      // Scroll reveal: headings fade up, tool-card icons pop in with a light stagger
+      const motionTargets = Array.from(document.querySelectorAll('main h2')).map(el => ({ el, kind: 'heading' }));
+      document.querySelectorAll('[data-reveal] > div:first-child').forEach(el => {
+        if (/\bw-12\b|\bw-14\b|\bw-16\b/.test(el.className)) motionTargets.push({ el, kind: 'icon' });
+      });
+      if (motionTargets.length && 'IntersectionObserver' in window) {
+        let iconIndex = 0;
+        const mio = new IntersectionObserver((entries, obs) => {
+          entries.forEach(en => {
+            if (!en.isIntersecting) return;
+            obs.unobserve(en.target);
+            const el = en.target;
+            if (el.dataset.motionKind === 'icon') {
+              el.style.opacity = '0';
+              el.style.transform = 'scale(0.85)';
+              run(el, {
+                opacity: [0, 1],
+                scale: [0.85, 1]
+              }, { duration: 0.55, easing: 'ease-out', delay: Math.min(iconIndex++ * 80, 320) }, false);
+            } else {
+              el.style.opacity = '0';
+              el.style.transform = 'translateY(22px)';
+              run(el, {
+                opacity: [0, 1],
+                y: [22, 0]
+              }, { duration: 0.75, easing: ease }, false);
+            }
+          });
+        }, { threshold: 0.18 });
+        motionTargets.forEach(({ el, kind }) => {
+          el.dataset.motionKind = kind;
+          mio.observe(el);
+        });
+      }
+    })();
   
