@@ -105,6 +105,25 @@
     }
 
     // ---------------------------------------------------------------
+    // Staggered reveal: children of .reveal-group auto-cascade one by one
+    // ---------------------------------------------------------------
+    const autoStagger = () => {
+      document.querySelectorAll('.reveal-group').forEach((group) => {
+        const step = group.hasAttribute('data-delay-step')
+          ? Math.max(0, Number(group.dataset.delayStep) || 0)
+          : 130;
+        let i = 0;
+        Array.from(group.children).forEach((el) => {
+          if (el.matches('[data-reveal], .reveal') && !el.dataset.delay) {
+            el.dataset.delay = String(i * step);
+            i += 1;
+          }
+        });
+      });
+    };
+    autoStagger();
+
+    // ---------------------------------------------------------------
     // Scroll Reveal (IntersectionObserver)
     // ---------------------------------------------------------------
     const revealEls = document.querySelectorAll('[data-reveal], .reveal');

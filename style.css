@@ -194,7 +194,13 @@
     html:not(.js) .hero-reveal { opacity: 1; transform: none; animation: none; }
     html:not(.js) [data-reveal], html:not(.js) .reveal { opacity: 1; transform: none; transition: none; }
 
-    /* ---- Scroll reveal ---- */
+    /* ---- Scroll reveal ----
+       API:
+       - .reveal (atau [data-reveal])  -> elemen mulai tersembunyi, muncul fade-up saat masuk viewport
+       - data-delay="120"              -> jeda custom (ms) utk elemen itu
+       - .reveal-group                 -> wadah; anak berefek-reveal otomatis cascade (0, 130, 260, ... ms)
+       - data-delay-step="150"         -> opsional di wadah: besar jeda antar anak
+    */
     [data-reveal], .reveal {
       opacity: 0;
       transform: translateY(26px);
