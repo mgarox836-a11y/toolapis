@@ -367,21 +367,23 @@
       50%      { transform: scaleY(0.35); opacity: 0.4; }
     }
 
-    /* Reduced motion: collapse everything to static */
-    @media (prefers-reduced-motion: reduce) {
-      [data-reveal], .reveal { opacity: 1; transform: none; transition: none; }
-      .ring-float, .ring-float-slow, .drift { animation: none; }
-      .sheen::after { animation: none; }
-      .spot-card::before { display: none; }
-      #navbar { transition: none; }
-      .hero-scroll { display: none; }
-      .hero-scroll-line, .text-shimmer, .eyebrow i, .flow-dash, .nav-link.active::after, #navbar > div, .pt-dot { animation: none; }
-      #scroll-progress { height: 2px; }
-      #glow-field { transform: none !important; }
-      #page-transition { transition: none; }
-      .title-line::after, .footer-nav a::after { transform: scaleX(1); transition: none; }
-      .reveal > div:first-child, .reveal > div:first-child i { transition: none; }
-    }
+    /* Reduced motion: collapse everything to static.
+       Class-based (set by script.js) so users can override the OS setting
+       via localStorage "toolapis-motion" ("on" re-enables animations). */
+    html.reduced-motion [data-reveal], html.reduced-motion .reveal { opacity: 1; transform: none; transition: none; }
+    html.reduced-motion .ring-float, html.reduced-motion .ring-float-slow, html.reduced-motion .drift { animation: none; }
+    html.reduced-motion .sheen::after { animation: none; }
+    html.reduced-motion .spot-card::before { display: none; }
+    html.reduced-motion #navbar { transition: none; }
+    html.reduced-motion .hero-scroll { display: none; }
+    html.reduced-motion .hero-scroll-line, html.reduced-motion .text-shimmer, html.reduced-motion .eyebrow i,
+    html.reduced-motion .flow-dash, html.reduced-motion .nav-link.active::after, html.reduced-motion #navbar > div,
+    html.reduced-motion .pt-dot { animation: none; }
+    html.reduced-motion #scroll-progress { height: 2px; }
+    html.reduced-motion #glow-field { transform: none !important; }
+    html.reduced-motion #page-transition { transition: none; }
+    html.reduced-motion .title-line::after, html.reduced-motion .footer-nav a::after { transform: scaleX(1); transition: none; }
+    html.reduced-motion .reveal > div:first-child, html.reduced-motion .reveal > div:first-child i { transition: none; }
 
     /* ---- Scroll progress bar ---- */
     #scroll-progress {

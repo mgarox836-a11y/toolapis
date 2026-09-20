@@ -26,7 +26,15 @@
 
     document.documentElement.classList.add('js');
 
-    const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    // Motion preference override: localStorage "toolapis-motion"
+    //   "on"  -> force animations even if the OS requests reduced motion
+    //   "off" -> always reduce
+    //   unset -> respect the OS setting (prefers-reduced-motion)
+    const motionPref = (() => { try { return localStorage.getItem('toolapis-motion') || ''; } catch (err) { return ''; } })();
+    const reduceMotion = motionPref === 'on'
+      ? false
+      : (motionPref === 'off' || window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+    document.documentElement.classList.toggle('reduced-motion', reduceMotion);
     const finePointer = window.matchMedia('(pointer: fine)').matches;
 
     // ---------------------------------------------------------------
