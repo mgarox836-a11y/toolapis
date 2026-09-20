@@ -79,6 +79,69 @@
       background-size: auto, auto, 56px 56px, 56px 56px;
     }
 
+    /* ---- Hero 3D: interactive model (desktop: beside copy / mobile: ambient background) ---- */
+    .hero-grid { position: relative; }
+
+    .hero-3d { pointer-events: none; }
+
+    .hero-3d canvas {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      display: block;
+      opacity: 0.95;
+      -webkit-mask-image: linear-gradient(to bottom, #000 58%, rgba(0, 0, 0, 0.3) 86%, transparent 100%);
+      mask-image: linear-gradient(to bottom, #000 58%, rgba(0, 0, 0, 0.3) 86%, transparent 100%);
+    }
+
+    /* Seamless gradient fade of the 3D bottom edge into #0B0F12 (matches hero background) */
+    .hero-3d-fade {
+      position: absolute;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      height: 46%;
+      pointer-events: none;
+      background: linear-gradient(to top, #0B0F12 0%, #0B0F12 22%, rgba(11, 15, 18, 0.86) 42%, rgba(11, 15, 18, 0.18) 70%, transparent 100%);
+    }
+
+    @media (max-width: 767.98px) {
+      .hero-grid {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        isolation: isolate;
+        min-height: calc(100dvh - 11rem); /* pt-28 (7rem) + pb-16 (4rem) */
+      }
+      .hero-3d {
+        position: absolute;
+        inset: 0;
+        z-index: -1;
+        opacity: 0.5;
+      }
+      .hero-copy {
+        position: relative;
+        z-index: 1;
+      }
+    }
+
+    @media (min-width: 768px) {
+      .hero-grid {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) minmax(0, 0.92fr);
+        align-items: center;
+        gap: clamp(2.5rem, 5vw, 5rem);
+      }
+      .hero-3d {
+        position: relative;
+        height: min(62vh, 600px);
+        min-height: 430px;
+      }
+      .hero-3d-fade { height: 38%; }
+    }
+
     /* ---- Button primitives (pill shape everywhere = consistent) ---- */
     .btn {
       display: inline-flex;
@@ -454,68 +517,76 @@
 
   <!-- Hero Main Section -->
   <main id="main-content">
-    <section class="hero-bg min-h-[100dvh] flex flex-col justify-center items-center px-4 md:px-6 pt-24 pb-12 relative overflow-hidden">
-
-      <!-- 3D WebGL Background -->
-      <canvas id="hero-canvas" class="absolute inset-0 w-full h-full z-0 pointer-events-none opacity-90" aria-hidden="true"></canvas>
+    <section class="hero-bg min-h-[100dvh] flex items-center px-4 md:px-8 pt-28 pb-16 relative overflow-hidden">
 
       <!-- Ambient drift glows -->
       <div aria-hidden="true" class="pointer-events-none absolute -top-32 -left-24 z-0 w-[480px] h-[480px] rounded-full blur-3xl opacity-40 drift" style="background: radial-gradient(circle, rgba(163,230,53,0.16), transparent 65%);"></div>
       <div aria-hidden="true" class="pointer-events-none absolute -bottom-40 -right-32 z-0 w-[520px] h-[520px] rounded-full blur-3xl opacity-30 drift ring-float-slow" style="background: radial-gradient(circle, rgba(163,230,53,0.14), transparent 65%);"></div>
 
-      <div class="max-w-4xl mx-auto text-center z-10 space-y-7">
-        <!-- Eyebrow Badge -->
-        <div class="hero-reveal d-1 eyebrow">
-          <i class="ph-bold ph-sparkle" aria-hidden="true"></i>
-          <span>Web Tools</span>
+      <!-- Hero layout grid: copy + 3D model (2 columns on desktop, canvas becomes ambient backdrop on mobile) -->
+      <div class="hero-grid max-w-7xl mx-auto w-full">
+
+        <!-- Copy column -->
+        <div class="hero-copy text-center md:text-left z-10 space-y-7 max-w-2xl mx-auto md:max-w-none md:mx-0">
+          <!-- Eyebrow Badge -->
+          <div class="hero-reveal d-1 eyebrow">
+            <i class="ph-bold ph-sparkle" aria-hidden="true"></i>
+            <span>Web Tools</span>
+          </div>
+
+          <!-- Main Headline -->
+          <h1 class="hero-reveal d-2 font-display text-4xl sm:text-5xl md:text-6xl font-extrabold text-white tracking-tight leading-[1.08] max-w-3xl mx-auto md:mx-0 text-balance">
+            Web Tools For You,<br class="hidden sm:block">
+            <span class="text-transparent bg-clip-text bg-gradient-to-r from-accent-mint to-accent-mint-hover">All in One Place.</span>
+          </h1>
+
+          <!-- Description Subtext -->
+          <p class="hero-reveal d-3 text-slate-300 text-base md:text-lg max-w-2xl mx-auto md:mx-0 font-normal leading-relaxed">
+            Boost TikTok clips to HD, tether your PC's internet to Android over USB, or jump into the social media hub. One hub, three tools, zero friction.
+          </p>
+
+          <!-- Primary Action Buttons -->
+          <div class="hero-reveal d-4 pt-3 flex flex-col sm:flex-row items-center justify-center md:justify-start gap-4">
+
+            <!-- Button 1: TikTok HD Enhancer -->
+            <a href="https://tiktok-hd-enhancer-by-apis-fgtkuxmpzmi7h8gifh4a8o.streamlit.app/"
+               target="_blank"
+               rel="noopener noreferrer"
+               data-magnetic
+               class="btn btn-accent w-full sm:w-auto group">
+              <i class="ph-bold ph-magic-wand text-lg" aria-hidden="true"></i>
+              <span>Open HD Enhancer</span>
+              <i class="ph-bold ph-arrow-right text-sm transition-transform group-hover:translate-x-1" aria-hidden="true"></i>
+            </a>
+
+            <!-- Button 2: Gnirehtet USB Tethering -->
+            <a href="https://drive.google.com/file/d/1gH_huKs7Pf9XP2uJcRfMaLqJonLfJcbI/view"
+               target="_blank"
+               rel="noopener noreferrer"
+               data-magnetic
+               class="btn btn-glass w-full sm:w-auto group">
+              <i class="ph-bold ph-usb text-lg text-accent-mint" aria-hidden="true"></i>
+              <span>Open Gnirehtet</span>
+              <i class="ph-bold ph-arrow-square-out text-sm text-slate-400 group-hover:text-white transition-colors" aria-hidden="true"></i>
+            </a>
+
+            <!-- Button 3: Social Media -->
+            <a href="https://newsocapis.vercel.app"
+               target="_blank"
+               rel="noopener noreferrer"
+               data-magnetic
+               class="btn btn-glass w-full sm:w-auto group">
+              <i class="ph-bold ph-share-network text-lg text-accent-mint" aria-hidden="true"></i>
+              <span>Social Media</span>
+              <i class="ph-bold ph-arrow-square-out text-sm text-slate-400 group-hover:text-white transition-colors" aria-hidden="true"></i>
+            </a>
+          </div>
         </div>
 
-        <!-- Main Headline -->
-        <h1 class="hero-reveal d-2 font-display text-4xl sm:text-5xl md:text-6xl font-extrabold text-white tracking-tight leading-[1.08] max-w-3xl mx-auto text-balance">
-          Web Tools For You,<br class="hidden sm:block">
-          <span class="text-transparent bg-clip-text bg-gradient-to-r from-accent-mint to-accent-mint-hover">All in One Place.</span>
-        </h1>
-
-        <!-- Description Subtext -->
-        <p class="hero-reveal d-3 text-slate-300 text-base md:text-lg max-w-2xl mx-auto font-normal leading-relaxed">
-          Boost TikTok clips to HD, tether your PC's internet to Android over USB, or jump into the social media hub. One hub, three tools, zero friction.
-        </p>
-
-        <!-- Primary Action Buttons -->
-        <div class="hero-reveal d-4 pt-3 flex flex-col sm:flex-row items-center justify-center gap-4 max-w-lg mx-auto">
-
-          <!-- Button 1: TikTok HD Enhancer -->
-          <a href="https://tiktok-hd-enhancer-by-apis-fgtkuxmpzmi7h8gifh4a8o.streamlit.app/"
-             target="_blank"
-             rel="noopener noreferrer"
-             data-magnetic
-             class="btn btn-accent w-full sm:w-auto group">
-            <i class="ph-bold ph-magic-wand text-lg" aria-hidden="true"></i>
-            <span>Open HD Enhancer</span>
-            <i class="ph-bold ph-arrow-right text-sm transition-transform group-hover:translate-x-1" aria-hidden="true"></i>
-          </a>
-
-          <!-- Button 2: Gnirehtet USB Tethering -->
-          <a href="https://drive.google.com/file/d/1gH_huKs7Pf9XP2uJcRfMaLqJonLfJcbI/view"
-             target="_blank"
-             rel="noopener noreferrer"
-             data-magnetic
-             class="btn btn-glass w-full sm:w-auto group">
-            <i class="ph-bold ph-usb text-lg text-accent-mint" aria-hidden="true"></i>
-            <span>Open Gnirehtet</span>
-            <i class="ph-bold ph-arrow-square-out text-sm text-slate-400 group-hover:text-white transition-colors" aria-hidden="true"></i>
-          </a>
-
-          <!-- Button 3: Social Media -->
-          <a href="https://newsocapis.vercel.app"
-             target="_blank"
-             rel="noopener noreferrer"
-             data-magnetic
-             class="btn btn-glass w-full sm:w-auto group">
-            <i class="ph-bold ph-share-network text-lg text-accent-mint" aria-hidden="true"></i>
-            <span>Social Media</span>
-            <i class="ph-bold ph-arrow-square-out text-sm text-slate-400 group-hover:text-white transition-colors" aria-hidden="true"></i>
-          </a>
+        <!-- 3D interactive model column (beside the copy on desktop; ambient backdrop behind text on mobile) -->
+        <div class="hero-3d" aria-hidden="true">
+          <canvas id="hero-canvas"></canvas>
+          <div class="hero-3d-fade"></div>
         </div>
       </div>
     </section>
@@ -771,19 +842,73 @@
       const canvas = document.getElementById('hero-canvas');
       if (!canvas || typeof THREE === 'undefined') return;
 
+      const container = canvas.closest('.hero-3d') || canvas;
+
       const scene = new THREE.Scene();
-      const camera = new THREE.PerspectiveCamera(55, canvas.clientWidth / canvas.clientHeight, 0.1, 100);
+      const camera = new THREE.PerspectiveCamera(55, 1, 0.1, 100);
       camera.position.z = 7;
 
-      const renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: finePointer, powerPreference: 'high-performance' });
+      let renderer;
+      try {
+        renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: finePointer, powerPreference: 'high-performance' });
+      } catch (err) {
+        console.warn('WebGL unavailable; 3D hero disabled.', err);
+        return;
+      }
       renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-      renderer.setSize(canvas.clientWidth, canvas.clientHeight, false);
+      renderer.setClearColor(0x000000, 0);
+      renderer.toneMapping = THREE.ACESFilmicToneMapping;
+      renderer.outputEncoding = THREE.sRGBEncoding;
 
-      // Soft particle cloud (additive, low opacity)
+      function fit() {
+        const w = canvas.clientWidth || container.clientWidth;
+        const h = canvas.clientHeight || container.clientHeight;
+        if (!w || !h) return;
+        camera.aspect = w / h;
+        camera.updateProjectionMatrix();
+        renderer.setSize(w, h, false);
+      }
+      fit();
+
+      // Lighting rig for the shimmering surface
+      scene.add(new THREE.AmbientLight(0x9fb8c8, 0.55));
+      const key = new THREE.PointLight(0xa3e635, 1.7, 20);
+      key.position.set(4, 3, 5);
+      const rim = new THREE.PointLight(0x4ade80, 1.1, 16);
+      rim.position.set(-4, -2, 3);
+      const fill = new THREE.DirectionalLight(0xffffff, 0.6);
+      fill.position.set(0, 2, 4);
+      scene.add(key, rim, fill);
+
+      // Hero object: polished torus knot (shiny mesh)
+      const knot = new THREE.Mesh(
+        new THREE.TorusKnotGeometry(1.06, 0.34, 180, 28),
+        new THREE.MeshPhysicalMaterial({
+          color: 0x9ada48,
+          metalness: 0.92,
+          roughness: 0.22,
+          clearcoat: 1.0,
+          clearcoatRoughness: 0.12,
+          emissive: 0x101d02,
+          emissiveIntensity: 0.35
+        })
+      );
+
+      // Wireframe cage + inner core for depth contrast
+      const outer = new THREE.Mesh(
+        new THREE.IcosahedronGeometry(2.7, 1),
+        new THREE.MeshBasicMaterial({ color: 0xa3e635, wireframe: true, transparent: true, opacity: 0.10 })
+      );
+      const inner = new THREE.Mesh(
+        new THREE.IcosahedronGeometry(1.7, 1),
+        new THREE.MeshBasicMaterial({ color: 0x8fb86b, wireframe: true, transparent: true, opacity: 0.06 })
+      );
+
+      // Soft additive particle halo
       const COUNT = reduceMotion ? 260 : 650;
       const positions = new Float32Array(COUNT * 3);
       for (let i = 0; i < COUNT; i++) {
-        const r = 2.4 + Math.random() * 3.6;
+        const r = 2.8 + Math.random() * 4.2;
         const theta = Math.random() * Math.PI * 2;
         const phi = Math.acos(2 * Math.random() - 1);
         positions[i * 3]     = r * Math.sin(phi) * Math.cos(theta);
@@ -794,26 +919,16 @@
         new THREE.BufferGeometry().setAttribute('position', new THREE.BufferAttribute(positions, 3)),
         new THREE.PointsMaterial({
           color: 0xa3e635,
-          size: 0.045,
+          size: 0.04,
           transparent: true,
-          opacity: 0.35,
+          opacity: 0.32,
           blending: THREE.AdditiveBlending,
           depthWrite: false,
           sizeAttenuation: true
         })
       );
 
-      // Outer + inner wireframe polyhedra
-      const outer = new THREE.Mesh(
-        new THREE.IcosahedronGeometry(2.1, 1),
-        new THREE.MeshBasicMaterial({ color: 0xa3e635, wireframe: true, transparent: true, opacity: 0.10 })
-      );
-      const inner = new THREE.Mesh(
-        new THREE.IcosahedronGeometry(1.25, 1),
-        new THREE.MeshBasicMaterial({ color: 0x8fb86b, wireframe: true, transparent: true, opacity: 0.07 })
-      );
-
-      scene.add(particles, outer, inner);
+      scene.add(knot, outer, inner, particles);
 
       // Mouse parallax
       let tx = 0, ty = 0, mx = 0, my = 0;
@@ -837,28 +952,29 @@
         mx += (tx - mx) * 0.06;
         my += (ty - my) * 0.06;
 
-        // Particle cloud: slow spin + vertical sway
-        particles.rotation.y = t * 0.05;
-        particles.rotation.x = t * 0.02;
+        // Torus knot: slow elegant rotation + gentle floating drift
+        knot.rotation.y = t * 0.2;
+        knot.rotation.x = 0.35 + Math.sin(t * 0.5) * 0.22;
+        knot.position.y = Math.sin(t * 0.85) * 0.35;
+        knot.position.x = Math.sin(t * 0.45) * 0.25;
+        knot.position.z = Math.cos(t * 0.6) * 0.15;
+
+        // Wireframe cages counter-rotate for depth contrast
+        outer.rotation.y = t * 0.14;
+        outer.rotation.z = t * 0.05;
+        outer.position.y = Math.sin(t * 0.4) * 0.2;
+        inner.rotation.y = -t * 0.34;
+        inner.rotation.z = t * 0.14;
+        inner.position.y = Math.sin(t * 0.7 + 1.5) * 0.3;
+
+        // Particle halo: slow spin + vertical sway
+        particles.rotation.y = t * 0.04;
+        particles.rotation.x = t * 0.016;
         particles.position.y = Math.sin(t * 0.4) * 0.15;
 
-        // Outer polyhedron: clear visible rotation + float + breathing scale
-        outer.rotation.y = t * 0.22;
-        outer.rotation.x = Math.sin(t * 0.35) * 0.18;
-        outer.rotation.z = t * 0.07;
-        outer.position.y = Math.sin(t * 0.85) * 0.5;
-        outer.position.x = Math.sin(t * 0.45) * 0.35;
-        const breathe = 1 + Math.sin(t * 1.15) * 0.06;
-        outer.scale.set(breathe, breathe, breathe);
-
-        // Inner polyhedron: spins the opposite way for depth contrast
-        inner.rotation.y = -t * 0.3;
-        inner.rotation.z = t * 0.12;
-        inner.position.y = Math.sin(t * 0.7 + 1.5) * 0.4;
-
         // Camera leans gently toward the cursor
-        camera.position.x = mx * 0.9;
-        camera.position.y = -my * 0.6;
+        camera.position.x += (mx * 0.9 - camera.position.x) * 0.04;
+        camera.position.y += (-my * 0.6 - camera.position.y) * 0.04;
         camera.lookAt(0, 0, 0);
 
         renderer.render(scene, camera);
@@ -879,18 +995,25 @@
       // Pause when the hero scrolls out of view or the tab is hidden
       new IntersectionObserver((entries) => {
         entries.forEach(en => en.isIntersecting ? start() : stop());
-      }, { threshold: 0.02 }).observe(canvas.closest('section'));
+      }, { threshold: 0.02 }).observe(container.closest('section'));
 
       document.addEventListener('visibilitychange', () => {
         if (document.hidden) stop(); else start();
       });
 
-      window.addEventListener('resize', () => {
-        const w = canvas.clientWidth, h = canvas.clientHeight;
+      // Keep the canvas in sync with its container on any resize/layout change
+      function resize() {
+        const w = canvas.clientWidth || container.clientWidth;
+        const h = canvas.clientHeight || container.clientHeight;
+        if (!w || !h) return;
         camera.aspect = w / h;
         camera.updateProjectionMatrix();
         renderer.setSize(w, h, false);
-      });
+      }
+      window.addEventListener('resize', resize);
+      if ('ResizeObserver' in window) {
+        new ResizeObserver(resize).observe(container);
+      }
     })();
 
     // ---------------------------------------------------------------
