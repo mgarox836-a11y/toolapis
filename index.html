@@ -82,9 +82,9 @@
     /* ---- Hero 3D: interactive model (desktop: beside copy / mobile: ambient background) ---- */
     .hero-grid { position: relative; }
 
-    .hero-3d { pointer-events: none; }
+    #canvas-3d-container { pointer-events: none; }
 
-    .hero-3d canvas {
+    #canvas-3d-container canvas {
       position: absolute;
       inset: 0;
       width: 100%;
@@ -95,17 +95,18 @@
       mask-image: linear-gradient(to bottom, #000 58%, rgba(0, 0, 0, 0.3) 86%, transparent 100%);
     }
 
-    /* Seamless gradient fade of the 3D bottom edge into #0B0F12 (matches hero background) */
+    /* Seamless gradient overlay: 3D bottom edge fades into #0B0F12 (hero background) */
     .hero-3d-fade {
       position: absolute;
       left: 0;
       right: 0;
       bottom: 0;
-      height: 46%;
+      top: 0;
       pointer-events: none;
-      background: linear-gradient(to top, #0B0F12 0%, #0B0F12 22%, rgba(11, 15, 18, 0.86) 42%, rgba(11, 15, 18, 0.18) 70%, transparent 100%);
+      background: linear-gradient(to bottom, transparent 60%, #0B0F12 100%);
     }
 
+    /* ---- Mobile (< 768px): canvas becomes a full-area ambient backdrop BEHIND the text ---- */
     @media (max-width: 767.98px) {
       .hero-grid {
         display: flex;
@@ -115,11 +116,14 @@
         isolation: isolate;
         min-height: calc(100dvh - 11rem); /* pt-28 (7rem) + pb-16 (4rem) */
       }
-      .hero-3d {
+      #canvas-3d-container {
         position: absolute;
-        inset: 0;
-        z-index: -1;
-        opacity: 0.5;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        z-index: 0;
+        opacity: 0.4;
       }
       .hero-copy {
         position: relative;
@@ -127,6 +131,7 @@
       }
     }
 
+    /* ---- Desktop (>= 768px): 2-column layout, 3D model beside the headline ---- */
     @media (min-width: 768px) {
       .hero-grid {
         display: grid;
@@ -134,12 +139,11 @@
         align-items: center;
         gap: clamp(2.5rem, 5vw, 5rem);
       }
-      .hero-3d {
+      #canvas-3d-container {
         position: relative;
         height: min(62vh, 600px);
         min-height: 430px;
       }
-      .hero-3d-fade { height: 38%; }
     }
 
     /* ---- Button primitives (pill shape everywhere = consistent) ---- */
@@ -584,7 +588,7 @@
         </div>
 
         <!-- 3D interactive model column (beside the copy on desktop; ambient backdrop behind text on mobile) -->
-        <div class="hero-3d" aria-hidden="true">
+        <div id="canvas-3d-container" aria-hidden="true">
           <canvas id="hero-canvas"></canvas>
           <div class="hero-3d-fade"></div>
         </div>
@@ -842,7 +846,7 @@
       const canvas = document.getElementById('hero-canvas');
       if (!canvas || typeof THREE === 'undefined') return;
 
-      const container = canvas.closest('.hero-3d') || canvas;
+      const container = canvas.closest('#canvas-3d-container') || document.getElementById('canvas-3d-container') || canvas;
 
       const scene = new THREE.Scene();
       const camera = new THREE.PerspectiveCamera(55, 1, 0.1, 100);
@@ -870,15 +874,13 @@
       }
       fit();
 
-      // Lighting rig for the shimmering surface
-      scene.add(new THREE.AmbientLight(0x9fb8c8, 0.55));
-      const key = new THREE.PointLight(0xa3e635, 1.7, 20);
-      key.position.set(4, 3, 5);
-      const rim = new THREE.PointLight(0x4ade80, 1.1, 16);
-      rim.position.set(-4, -2, 3);
-      const fill = new THREE.DirectionalLight(0xffffff, 0.6);
-      fill.position.set(0, 2, 4);
-      scene.add(key, rim, fill);
+      // Smooth ambient + directional lighting for the neon glow
+      scene.add(new THREE.AmbientLight(0xffffff, 0.6));
+      const key = new THREE.DirectionalLight(0xa3e635, 1.2);
+      key.position.set(3, 4, 5);
+      const fill = new THREE.DirectionalLight(0xffffff, 0.45);
+      fill.position.set(-3, -1, 3);
+      scene.add(key, fill);
 
       // Hero object: polished torus knot (shiny mesh)
       const knot = new THREE.Mesh(
@@ -889,8 +891,8 @@
           roughness: 0.22,
           clearcoat: 1.0,
           clearcoatRoughness: 0.12,
-          emissive: 0x101d02,
-          emissiveIntensity: 0.35
+          emissive: 0x2a4500,
+          emissiveIntensity: 0.55
         })
       );
 
