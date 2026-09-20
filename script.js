@@ -127,26 +127,45 @@
     // Scroll Reveal (IntersectionObserver): .reveal + .active
     // ---------------------------------------------------------------
     const revealEls = document.querySelectorAll('.reveal');
+    const revealed = new WeakSet();
     const revealTarget = (el) => {
+      if (revealed.has(el)) return;
+      revealed.add(el);
       if (el.dataset.delay) el.style.transitionDelay = el.dataset.delay + 'ms';
       el.classList.add('is-visible', 'active');
+      window.setTimeout(() => { el.style.transitionDelay = ''; }, Number(el.dataset.delay || 0) + 750);
     };
     if (reduceMotion || !('IntersectionObserver' in window)) {
       revealEls.forEach(revealTarget);
     } else {
       const io = new IntersectionObserver((entries, obs) => {
         entries.forEach(en => {
-          if (en.isIntersecting) {
-            revealTarget(en.target);
-            obs.unobserve(en.target);
-          }
+          if (en.isIntersecting) { revealTarget(en.target); obs.unobserve(en.target); }
         });
       }, { threshold: 0.15 });
-      revealEls.forEach(el => {
-        io.observe(el);
-        const r = el.getBoundingClientRect();
-        if (r.top <= window.innerHeight - 60 && r.bottom > 0) revealTarget(el);
-      });
+      revealEls.forEach(el => io.observe(el));
+
+      // Safe net: once layout is stable (fonts + Tailwind CDN applied),
+      // reveal anything already in view. Idempotent; IO is still the main
+      // trigger and self-corrects as the layout settles.
+      const passVisible = () => {
+        revealEls.forEach(el => {
+          if (revealed.has(el)) return;
+          const r = el.getBoundingClientRect();
+          if (r.top <= window.innerHeight && r.bottom > 0) revealTarget(el);
+        });
+      };
+      window.addEventListener('load', () => requestAnimationFrame(passVisible), { once: true });
+
+      // Belt-and-braces: passive scroll + resize fallback.
+      let ticking = false;
+      const onLayoutChange = () => {
+        if (ticking) return;
+        ticking = true;
+        requestAnimationFrame(() => { passVisible(); ticking = false; });
+      };
+      window.addEventListener('scroll', onLayoutChange, { passive: true });
+      window.addEventListener('resize', onLayoutChange, { passive: true });
     }
 
     // ---------------------------------------------------------------
