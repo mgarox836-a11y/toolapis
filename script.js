@@ -105,6 +105,45 @@
     }
 
     // ---------------------------------------------------------------
+    // Scroll progress bar
+    // ---------------------------------------------------------------
+    const progressBar = document.getElementById('scroll-progress');
+    if (progressBar) {
+      const updateProgress = () => {
+        const doc = document.documentElement;
+        const total = doc.scrollHeight - doc.clientHeight;
+        const p = total > 0 ? doc.scrollTop / total : 0;
+        progressBar.style.transform = 'scaleX(' + p + ')';
+      };
+      updateProgress();
+      window.addEventListener('scroll', updateProgress, { passive: true });
+      window.addEventListener('resize', updateProgress, { passive: true });
+    }
+
+    // ---------------------------------------------------------------
+    // Hero glow blobs: gentle cursor parallax
+    // ---------------------------------------------------------------
+    const glowField = document.getElementById('glow-field');
+    if (glowField && finePointer && !reduceMotion) {
+      let px = 0, py = 0, cx = 0, cy = 0;
+      let rafParallax = null;
+      const tick = () => {
+        rafParallax = null;
+        cx += (px - cx) * 0.05;
+        cy += (py - cy) * 0.05;
+        glowField.style.transform = 'translate3d(' + cx.toFixed(2) + 'px,' + cy.toFixed(2) + 'px,0)';
+        if (Math.abs(px - cx) > 0.05 || Math.abs(py - cy) > 0.05) {
+          rafParallax = requestAnimationFrame(tick);
+        }
+      };
+      window.addEventListener('pointermove', (e) => {
+        px = (e.clientX / window.innerWidth - 0.5) * 26;
+        py = (e.clientY / window.innerHeight - 0.5) * 18;
+        if (!rafParallax) rafParallax = requestAnimationFrame(tick);
+      }, { passive: true });
+    }
+
+    // ---------------------------------------------------------------
     // Scrollspy: highlight current section in the nav
     // ---------------------------------------------------------------
     const navLinks = Array.from(document.querySelectorAll('.nav-link'));
@@ -276,11 +315,14 @@
         el.addEventListener('pointercancel', release, { passive: true });
       });
 
-      // Scroll reveal: headings fade up, tool-card icons pop in with a light stagger
+      // Scroll reveal: headings fade up + underline draws in,
+      // tool-card icons pop in with a light stagger, footer rises softly
       const motionTargets = Array.from(document.querySelectorAll('main h2')).map(el => ({ el, kind: 'heading' }));
       document.querySelectorAll('[data-reveal] > div:first-child').forEach(el => {
         if (/\bw-12\b|\bw-14\b|\bw-16\b/.test(el.className)) motionTargets.push({ el, kind: 'icon' });
       });
+      const footer = document.querySelector('footer');
+      if (footer) motionTargets.push({ el: footer, kind: 'block' });
       if (motionTargets.length && 'IntersectionObserver' in window) {
         let iconIndex = 0;
         const mio = new IntersectionObserver((entries, obs) => {
@@ -295,13 +337,22 @@
                 opacity: [0, 1],
                 scale: [0.85, 1]
               }, { duration: 0.55, easing: 'ease-out', delay: Math.min(iconIndex++ * 80, 320) }, false);
-            } else {
+            } else if (el.dataset.motionKind === 'heading') {
+              el.classList.add('title-line');
+              el.classList.add('is-titled');
               el.style.opacity = '0';
               el.style.transform = 'translateY(22px)';
               run(el, {
                 opacity: [0, 1],
                 y: [22, 0]
               }, { duration: 0.75, easing: ease }, false);
+            } else {
+              el.style.opacity = '0';
+              el.style.transform = 'translateY(18px)';
+              run(el, {
+                opacity: [0, 1],
+                y: [18, 0]
+              }, { duration: 0.7, easing: ease }, false);
             }
           });
         }, { threshold: 0.18 });

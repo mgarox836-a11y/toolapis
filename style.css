@@ -376,5 +376,116 @@
       .spot-card::before { display: none; }
       #navbar { transition: none; }
       .hero-scroll { display: none; }
-      .hero-scroll-line { animation: none; }
+      .hero-scroll-line, .text-shimmer, .eyebrow i, .flow-dash, .nav-link.active::after, #navbar > div { animation: none; }
+      #scroll-progress { height: 2px; }
+      #glow-field { transform: none !important; }
+      .title-line::after, .footer-nav a::after { transform: scaleX(1); transition: none; }
+      [data-reveal] > div:first-child, [data-reveal] > div:first-child i { transition: none; }
     }
+
+    /* ---- Scroll progress bar ---- */
+    #scroll-progress {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 3px;
+      z-index: 45;
+      transform-origin: 0 50%;
+      transform: scaleX(0);
+      background: linear-gradient(90deg, #A3E635, #BEF264, rgba(163, 230, 53, 0.7));
+      box-shadow: 0 0 12px rgba(163, 230, 53, 0.45);
+      pointer-events: none;
+    }
+
+    /* ---- Navbar entrance: content drops in with a soft fade ---- */
+    @keyframes navIn {
+      from { opacity: 0; transform: translateY(-12px); }
+      to   { opacity: 1; transform: none; }
+    }
+    html.js #navbar > div { animation: navIn .7s cubic-bezier(.16, 1, .3, 1) .1s backwards; }
+
+    /* ---- Animated gradient text shimmer ---- */
+    @keyframes shimmer {
+      0%   { background-position: 0% 50%; }
+      100% { background-position: 200% 50%; }
+    }
+    .text-shimmer {
+      background-size: 200% auto;
+      animation: shimmer 5s linear infinite;
+    }
+
+    /* ---- Eyebrow badge: soft pulsing sparkle ---- */
+    @keyframes sparkle {
+      0%, 100% { transform: scale(1); opacity: 1; }
+      50%      { transform: scale(1.18); opacity: 0.75; }
+    }
+    .eyebrow i { animation: sparkle 2.4s ease-in-out infinite; }
+
+    /* ---- Hero glow blobs: cursor parallax (transformed via JS on #glow-field) ---- */
+    #glow-field { will-change: transform; }
+
+    /* ---- Tool/feature icon boxes pop on card hover ---- */
+    [data-reveal]:has(> div:first-child i.ph) > div:first-child {
+      transition: transform .4s cubic-bezier(.34, 1.56, .64, 1);
+    }
+    [data-reveal]:hover:has(> div:first-child i.ph) > div:first-child {
+      transform: scale(1.1) rotate(-5deg);
+    }
+    [data-reveal]:has(> div:first-child i.ph) > div:first-child i {
+      transition: transform .4s cubic-bezier(.34, 1.56, .64, 1);
+    }
+    [data-reveal]:hover:has(> div:first-child i.ph) > div:first-child i {
+      transform: scale(1.06) rotate(6deg);
+    }
+
+    /* ---- Section heading underline that draws in (class toggled on view) ---- */
+    .title-line {
+      position: relative;
+      display: inline-block;
+      padding-bottom: 0.35em;
+    }
+    .title-line::after {
+      content: "";
+      position: absolute;
+      left: 0;
+      bottom: 0;
+      width: 100%;
+      height: 3px;
+      border-radius: 9999px;
+      background: linear-gradient(90deg, #A3E635, transparent);
+      transform: scaleX(0);
+      transform-origin: left;
+      transition: transform .9s cubic-bezier(.16, 1, .3, 1) .15s;
+    }
+    .title-line.is-titled::after { transform: scaleX(1); }
+
+    /* ---- Active nav dot: breathing glow ---- */
+    @keyframes dotPulse {
+      0%, 100% { box-shadow: 0 0 8px rgba(163, 230, 53, 0.8); }
+      50%      { box-shadow: 0 0 14px rgba(163, 230, 53, 1); }
+    }
+    .nav-link.active::after { animation: dotPulse 2.2s ease-in-out infinite; }
+
+    /* ---- Flow connectors: marching dashes ---- */
+    @keyframes dashMove {
+      to { background-position-x: 14px; }
+    }
+    .flow-dash { animation: dashMove .9s linear infinite; }
+
+    /* ---- Footer nav links: underline slides in on hover ---- */
+    .footer-nav a {
+      position: relative;
+      padding-bottom: 2px;
+    }
+    .footer-nav a::after {
+      content: "";
+      position: absolute;
+      left: 0;
+      right: 100%;
+      bottom: 0;
+      height: 1px;
+      background: #A3E635;
+      transition: right .28s ease;
+    }
+    .footer-nav a:hover::after { right: 0; }
