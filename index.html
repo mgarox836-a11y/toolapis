@@ -18,426 +18,18 @@
 
   <!-- Tailwind CSS CDN -->
   <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Custom Styles -->
+  <link rel="stylesheet" href="style.css">
 
   <!-- Google Fonts CDN -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700&family=Syne:wght@500;700;800&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600;9..40,700&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
 
   <!-- Phosphor Icons (deferred, non-blocking) -->
   <link rel="preconnect" href="https://unpkg.com">
   <script defer src="https://unpkg.com/@phosphor-icons/web"></script>
 
-  <!-- Three.js (3D hero background, deferred, non-blocking) -->
-  <link rel="preconnect" href="https://cdnjs.cloudflare.com">
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-
-  <!-- Tailwind Custom Configuration -->
-  <script>
-    tailwind.config = {
-      darkMode: 'class',
-      theme: {
-        extend: {
-          fontFamily: {
-            display: ['Syne', 'sans-serif'],
-            sans: ['Plus Jakarta Sans', 'sans-serif'],
-          },
-          colors: {
-            surface: {
-              DEFAULT: '#0B0F12',
-              card: '#13191D',
-              border: '#232D34',
-            },
-            accent: {
-              mint: '#A3E635',
-              'mint-hover': '#BEF264',
-            }
-          },
-          boxShadow: {
-            'mint': '0 0 24px rgba(163, 230, 53, 0.18)',
-          }
-        }
-      }
-    }
-  </script>
-
-  <style>
-    /* Custom Scrollbar */
-    ::-webkit-scrollbar { width: 8px; }
-    ::-webkit-scrollbar-track { background: #0B0F12; }
-    ::-webkit-scrollbar-thumb { background: #232D34; border-radius: 4px; }
-    ::-webkit-scrollbar-thumb:hover { background: #2E3A43; }
-
-    /* Hero backdrop: dark base + mint glows + faint grid (no raster image) */
-    .hero-bg {
-      background-color: #0B0F12;
-      background-image:
-        radial-gradient(1100px 600px at 50% -10%, rgba(163, 230, 53, 0.15), transparent 62%),
-        radial-gradient(900px 560px at 105% 115%, rgba(163, 230, 53, 0.08), transparent 60%),
-        linear-gradient(rgba(255, 255, 255, 0.035) 1px, transparent 1px),
-        linear-gradient(90deg, rgba(255, 255, 255, 0.035) 1px, transparent 1px);
-      background-size: auto, auto, 56px 56px, 56px 56px;
-    }
-
-    /* ---- Hero 3D: interactive model (desktop: beside copy / mobile: ambient background) ---- */
-    .hero-grid { position: relative; }
-
-    #canvas-3d-container { pointer-events: none; }
-
-    #canvas-3d-container canvas {
-      position: absolute;
-      inset: 0;
-      width: 100%;
-      height: 100%;
-      display: block;
-      opacity: 0.95;
-      -webkit-mask-image: linear-gradient(to bottom, #000 58%, rgba(0, 0, 0, 0.3) 86%, transparent 100%);
-      mask-image: linear-gradient(to bottom, #000 58%, rgba(0, 0, 0, 0.3) 86%, transparent 100%);
-    }
-
-    /* Seamless gradient overlay: 3D bottom edge fades into #0B0F12 (hero background) */
-    .hero-3d-fade {
-      position: absolute;
-      left: 0;
-      right: 0;
-      bottom: 0;
-      top: 0;
-      pointer-events: none;
-      background: linear-gradient(to bottom, transparent 60%, #0B0F12 100%);
-    }
-
-    /* ---- Mobile (< 768px): canvas becomes a full-area ambient backdrop BEHIND the text ---- */
-    @media (max-width: 767.98px) {
-      .hero-grid {
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        justify-content: center;
-        isolation: isolate;
-        min-height: calc(100dvh - 11rem); /* pt-28 (7rem) + pb-16 (4rem) */
-      }
-      #canvas-3d-container {
-        position: absolute;
-        top: 0;
-        left: 0;
-        width: 100%;
-        height: 100%;
-        z-index: 0;
-        opacity: 0.4;
-      }
-      .hero-copy {
-        position: relative;
-        z-index: 1;
-      }
-    }
-
-    /* ---- Desktop (>= 768px): 2-column layout, 3D model beside the headline ---- */
-    @media (min-width: 768px) {
-      .hero-grid {
-        display: grid;
-        grid-template-columns: minmax(0, 1fr) minmax(0, 0.92fr);
-        align-items: center;
-        gap: clamp(2.5rem, 5vw, 5rem);
-      }
-      #canvas-3d-container {
-        position: relative;
-        height: min(62vh, 600px);
-        min-height: 430px;
-      }
-    }
-
-    /* ---- Button primitives (pill shape everywhere = consistent) ---- */
-    .btn {
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      gap: 0.625rem;
-      border-radius: 9999px;
-      font-size: 0.875rem;
-      font-weight: 700;
-      line-height: 1;
-      padding: 0.95rem 1.5rem;
-      transition: all .3s ease;
-      will-change: transform;
-      cursor: pointer;
-      white-space: nowrap;
-    }
-    .btn:active { transform: scale(0.97); }
-    .btn-sm { padding: 0.55rem 1.25rem; font-size: 0.8125rem; }
-
-    .btn-accent {
-      background: #A3E635;
-      color: #0B0F12;
-    }
-    .btn-accent:hover {
-      background: #BEF264;
-      box-shadow: 0 0 24px rgba(163, 230, 53, 0.18);
-    }
-
-    .btn-glass {
-      background: rgba(19, 25, 29, 0.65);
-      border: 1px solid rgba(255, 255, 255, 0.08);
-      color: #ffffff;
-      backdrop-filter: blur(16px);
-      -webkit-backdrop-filter: blur(16px);
-    }
-    .btn-glass:hover {
-      background: rgba(255, 255, 255, 0.08);
-      border-color: rgba(255, 255, 255, 0.16);
-    }
-
-    /* ---- Social media icon button ---- */
-    .social-btn {
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      width: 2.5rem;
-      height: 2.5rem;
-      border-radius: 9999px;
-      background: rgba(19, 25, 29, 0.65);
-      border: 1px solid rgba(255, 255, 255, 0.08);
-      color: #CBD5E1;
-      transition: all .3s ease;
-      will-change: transform;
-      cursor: pointer;
-    }
-    .social-btn:hover {
-      background: rgba(163, 230, 53, 0.12);
-      border-color: rgba(163, 230, 53, 0.35);
-      color: #A3E635;
-      box-shadow: 0 0 18px rgba(163, 230, 53, 0.15);
-    }
-    .social-btn:active { transform: scale(0.95); }
-
-    /* ---- Section eyebrow ---- */
-    .eyebrow {
-      display: inline-flex;
-      align-items: center;
-      gap: 0.5rem;
-      border-radius: 9999px;
-      background: rgba(255, 255, 255, 0.05);
-      border: 1px solid rgba(255, 255, 255, 0.1);
-      padding: 0.35rem 0.9rem;
-      font-size: 0.6875rem;
-      font-weight: 600;
-      letter-spacing: 0.16em;
-      text-transform: uppercase;
-      color: #CBD5E1;
-      backdrop-filter: blur(10px);
-      -webkit-backdrop-filter: blur(10px);
-      white-space: nowrap;
-    }
-    .eyebrow i { color: #A3E635; font-size: 0.8125rem; }
-
-    /* ---- Mobile nav panel ---- */
-    .mobile-menu {
-      opacity: 0;
-      visibility: hidden;
-      transform: translateY(-8px);
-      transition: opacity .25s ease, transform .25s ease, visibility .25s ease;
-    }
-    .mobile-menu.open {
-      opacity: 1;
-      visibility: visible;
-      transform: none;
-    }
-
-    /* ---- Subdued transparency preference ---- */
-    @media (prefers-reduced-transparency: reduce) {
-      .glass-panel, .glass-pill, .btn-glass, #navbar.nav-solid {
-        background: rgba(19, 25, 29, 0.98);
-        backdrop-filter: none;
-        -webkit-backdrop-filter: none;
-      }
-    }
-
-    /* Subtle Glassmorphism */
-    .glass-panel {
-      background: rgba(19, 25, 29, 0.65);
-      backdrop-filter: blur(16px);
-      -webkit-backdrop-filter: blur(16px);
-      border: 1px solid rgba(255, 255, 255, 0.08);
-    }
-
-    .glass-pill {
-      background: rgba(255, 255, 255, 0.05);
-      backdrop-filter: blur(10px);
-      -webkit-backdrop-filter: blur(10px);
-      border: 1px solid rgba(255, 255, 255, 0.1);
-    }
-
-    /* Film Grain Overlay (fixed, pointer-events none) */
-    .grain {
-      position: fixed;
-      inset: 0;
-      z-index: 60;
-      pointer-events: none;
-      opacity: 0.03;
-      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.5'/%3E%3C/svg%3E");
-    }
-
-    /* Anchor offset for the fixed navbar */
-    section[id] { scroll-margin-top: 90px; }
-
-    /* ---- Hero entrance ---- */
-    @keyframes riseIn {
-      from { opacity: 0; transform: translateY(28px); }
-      to   { opacity: 1; transform: none; }
-    }
-    .hero-reveal { opacity: 0; animation: riseIn .8s cubic-bezier(.16, 1, .3, 1) forwards; }
-    .d-1 { animation-delay: .10s; } .d-2 { animation-delay: .20s; }
-    .d-3 { animation-delay: .30s; } .d-4 { animation-delay: .42s; }
-    .d-5 { animation-delay: .54s; } .d-6 { animation-delay: .66s; }
-
-    /* ---- Scroll reveal ---- */
-    [data-reveal] {
-      opacity: 0;
-      transform: translateY(26px);
-      transition: opacity .7s cubic-bezier(.16, 1, .3, 1), transform .7s cubic-bezier(.16, 1, .3, 1);
-    }
-    [data-reveal].is-visible { opacity: 1; transform: none; }
-
-    /* ---- Navbar solid state ---- */
-    #navbar { transition: background-color .3s ease, box-shadow .3s ease; }
-    #navbar.nav-solid {
-      background: rgba(11, 15, 18, 0.8);
-      backdrop-filter: blur(16px);
-      -webkit-backdrop-filter: blur(16px);
-      box-shadow: 0 1px 0 rgba(255, 255, 255, 0.06);
-    }
-
-    /* ---- 3D tilt cards ---- */
-    .tilt {
-      transform-style: preserve-3d;
-      will-change: transform;
-    }
-    .spot-card { position: relative; }
-    .spot-card::before {
-      content: "";
-      position: absolute;
-      inset: 0;
-      border-radius: inherit;
-      opacity: 0;
-      transition: opacity .3s ease;
-      background: radial-gradient(420px circle at var(--mx, 50%) var(--my, 50%), rgba(163, 230, 53, 0.09), transparent 65%);
-      pointer-events: none;
-    }
-    .spot-card:hover::before { opacity: 1; }
-
-    /* Full-bleed chroma gradient border */
-    .chroma { position: relative; }
-    .chroma::before {
-      content: "";
-      position: absolute;
-      inset: 0;
-      border-radius: inherit;
-      padding: 1px;
-      background: linear-gradient(120deg, rgba(163, 230, 53, 0.45), transparent 38%, rgba(163, 230, 53, 0.18));
-      -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
-      -webkit-mask-composite: xor;
-      mask-composite: exclude;
-      pointer-events: none;
-    }
-
-    /* Light sheen sweep on hover (transform-based) */
-    .sheen { position: relative; overflow: hidden; }
-    .sheen::after {
-      content: "";
-      position: absolute;
-      top: -20%;
-      bottom: -20%;
-      left: -60%;
-      width: 60%;
-      transform: skewX(-20deg) translateX(-160%);
-      background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.09), transparent);
-      pointer-events: none;
-    }
-    .sheen:hover::after { animation: sheenMove 1.1s ease; }
-    @keyframes sheenMove { to { transform: skewX(-20deg) translateX(460%); } }
-
-    /* Gentle float for decorative rings */
-    @keyframes floatY {
-      0%, 100% { transform: translateY(-5px); }
-      50%      { transform: translateY(6px); }
-    }
-    .ring-float { animation: floatY 6s ease-in-out infinite; }
-    .ring-float-slow { animation: floatY 9s ease-in-out infinite; }
-
-    /* Soft drift for hero glow blobs */
-    @keyframes drift {
-      0%, 100% { transform: translate(0, 0) scale(1); }
-      33%      { transform: translate(30px, -20px) scale(1.08); }
-      66%      { transform: translate(-20px, 18px) scale(0.95); }
-    }
-    .drift { animation: drift 16s ease-in-out infinite; }
-
-    /* Focus ring consistency for interactive elements */
-    a:focus-visible, button:focus-visible {
-      outline: 2px solid rgba(163, 230, 53, 0.7);
-      outline-offset: 3px;
-      border-radius: 8px;
-    }
-
-    /* ---- Skip link (keyboard accessibility) ---- */
-    .skip-link {
-      position: fixed;
-      top: -100%;
-      left: 1rem;
-      z-index: 90;
-      background: #A3E635;
-      color: #0B0F12;
-      font-weight: 700;
-      font-size: 0.8125rem;
-      padding: 0.7rem 1.2rem;
-      border-radius: 9999px;
-      transition: top .25s ease;
-      box-shadow: 0 8px 24px rgba(0,0,0,.4);
-    }
-    .skip-link:focus { top: 1rem; }
-
-    /* ---- Active nav link indicator ---- */
-    .nav-link { position: relative; }
-    .nav-link.active { color: #ffffff; }
-    .nav-link.active::after {
-      content: "";
-      position: absolute;
-      left: 50%;
-      transform: translateX(-50%);
-      bottom: -7px;
-      width: 4px;
-      height: 4px;
-      border-radius: 9999px;
-      background: #A3E635;
-      box-shadow: 0 0 8px rgba(163, 230, 53, 0.8);
-    }
-
-    /* ---- Back-to-top floating action ---- */
-    .back-to-top {
-      position: fixed;
-      right: 1.25rem;
-      bottom: 1.25rem;
-      z-index: 55;
-      opacity: 0;
-      visibility: hidden;
-      transform: translateY(12px);
-      transition: opacity .3s ease, transform .3s ease, visibility .3s ease;
-    }
-    .back-to-top.visible {
-      opacity: 1;
-      visibility: visible;
-      transform: none;
-    }
-
-    /* Reduced motion: collapse everything to static */
-    @media (prefers-reduced-motion: reduce) {
-      .hero-reveal { animation: none; opacity: 1; transform: none; }
-      [data-reveal] { opacity: 1; transform: none; transition: none; }
-      .ring-float, .ring-float-slow, .drift { animation: none; }
-      .sheen::after { animation: none; }
-      .spot-card::before { display: none; }
-      #navbar { transition: none; }
-    }
-  </style>
 </head>
 <body class="bg-surface text-slate-200 font-sans antialiased min-h-[100dvh] flex flex-col justify-between selection:bg-accent-mint selection:text-black overflow-x-hidden relative">
 
@@ -449,7 +41,7 @@
   <div class="grain" aria-hidden="true"></div>
 
   <!-- Spotlight Glow Cursor Effect -->
-  <div id="spotlight" class="pointer-events-none fixed -inset-px z-30 transition duration-300 opacity-0" style="background: radial-gradient(600px circle at 0px 0px, rgba(163, 230, 53, 0.05), transparent 80%);"></div>
+  <div id="spotlight" class="pointer-events-none fixed -inset-px z-30 transition duration-300 opacity-0" aria-hidden="true" style="background: radial-gradient(600px circle at 0px 0px, rgba(163, 230, 53, 0.05), transparent 80%);"></div>
 
   <!-- Header Navigation -->
   <header id="navbar" class="fixed top-0 left-0 right-0 z-40 px-4 md:px-8 py-4">
@@ -521,17 +113,17 @@
 
   <!-- Hero Main Section -->
   <main id="main-content">
-    <section class="hero-bg min-h-[100dvh] flex items-center px-4 md:px-8 pt-28 pb-16 relative overflow-hidden">
+    <section id="hero" class="hero-bg min-h-[100dvh] flex items-center px-4 md:px-8 pt-28 pb-16 relative overflow-hidden">
 
       <!-- Ambient drift glows -->
       <div aria-hidden="true" class="pointer-events-none absolute -top-32 -left-24 z-0 w-[480px] h-[480px] rounded-full blur-3xl opacity-40 drift" style="background: radial-gradient(circle, rgba(163,230,53,0.16), transparent 65%);"></div>
       <div aria-hidden="true" class="pointer-events-none absolute -bottom-40 -right-32 z-0 w-[520px] h-[520px] rounded-full blur-3xl opacity-30 drift ring-float-slow" style="background: radial-gradient(circle, rgba(163,230,53,0.14), transparent 65%);"></div>
 
-      <!-- Hero layout grid: copy + 3D model (2 columns on desktop, canvas becomes ambient backdrop on mobile) -->
+      <!-- Hero layout grid: centered copy -->
       <div class="hero-grid max-w-7xl mx-auto w-full">
 
         <!-- Copy column -->
-        <div class="hero-copy text-center md:text-left z-10 space-y-7 max-w-2xl mx-auto md:max-w-none md:mx-0">
+        <div class="hero-copy text-center space-y-7 max-w-2xl mx-auto">
           <!-- Eyebrow Badge -->
           <div class="hero-reveal d-1 eyebrow">
             <i class="ph-bold ph-sparkle" aria-hidden="true"></i>
@@ -539,18 +131,18 @@
           </div>
 
           <!-- Main Headline -->
-          <h1 class="hero-reveal d-2 font-display text-4xl sm:text-5xl md:text-6xl font-extrabold text-white tracking-tight leading-[1.08] max-w-3xl mx-auto md:mx-0 text-balance">
+          <h1 class="hero-reveal d-2 font-display text-4xl sm:text-5xl md:text-6xl font-bold text-white tracking-tight leading-[1.08] max-w-3xl mx-auto text-balance">
             Web Tools For You,<br class="hidden sm:block">
             <span class="text-transparent bg-clip-text bg-gradient-to-r from-accent-mint to-accent-mint-hover">All in One Place.</span>
           </h1>
 
           <!-- Description Subtext -->
-          <p class="hero-reveal d-3 text-slate-300 text-base md:text-lg max-w-2xl mx-auto md:mx-0 font-normal leading-relaxed">
+          <p class="hero-reveal d-3 text-slate-300 text-base md:text-lg max-w-2xl mx-auto font-normal leading-relaxed">
             Boost TikTok clips to HD, tether your PC's internet to Android over USB, or jump into the social media hub. One hub, three tools, zero friction.
           </p>
 
           <!-- Primary Action Buttons -->
-          <div class="hero-reveal d-4 pt-3 flex flex-col sm:flex-row items-center justify-center md:justify-start gap-4">
+          <div class="hero-reveal d-4 pt-3 flex flex-col sm:flex-row items-center justify-center gap-4">
 
             <!-- Button 1: TikTok HD Enhancer -->
             <a href="https://tiktok-hd-enhancer-by-apis-fgtkuxmpzmi7h8gifh4a8o.streamlit.app/"
@@ -586,13 +178,12 @@
             </a>
           </div>
         </div>
-
-        <!-- 3D interactive model column (beside the copy on desktop; ambient backdrop behind text on mobile) -->
-        <div id="canvas-3d-container" aria-hidden="true">
-          <canvas id="hero-canvas"></canvas>
-          <div class="hero-3d-fade"></div>
-        </div>
       </div>
+
+      <!-- Scroll cue -->
+      <a href="#overview" class="hero-scroll" aria-label="Scroll to tools">
+        <span class="hero-scroll-line" aria-hidden="true"></span>
+      </a>
     </section>
 
     <!-- Overview / Tool Cards Section -->
@@ -658,7 +249,7 @@
     <!-- Features Section (asymmetric grid) -->
     <section id="features" class="max-w-7xl mx-auto px-4 md:px-6 py-24 md:py-28 z-10">
       <div class="max-w-3xl" data-reveal>
-        <h2 class="font-display font-extrabold text-3xl md:text-5xl text-white tracking-tight text-balance">Small hub. Real tools.</h2>
+        <h2 class="font-display font-bold text-3xl md:text-5xl text-white tracking-tight text-balance">Small hub. Real tools.</h2>
         <p class="mt-4 text-slate-400 max-w-2xl leading-relaxed">No installs, no accounts, no filler. Just a few tools that do the job and get out of your way.</p>
       </div>
 
@@ -708,7 +299,7 @@
     <!-- Flow Section (stepper layout) -->
     <section id="flow" class="max-w-7xl mx-auto px-4 md:px-6 py-24 md:py-28">
       <div class="max-w-3xl" data-reveal>
-        <h2 class="font-display font-extrabold text-3xl md:text-5xl text-white tracking-tight text-balance">Pick it up in a minute.</h2>
+        <h2 class="font-display font-bold text-3xl md:text-5xl text-white tracking-tight text-balance">Pick it up in a minute.</h2>
         <p class="mt-4 text-slate-400 max-w-2xl leading-relaxed">Open a tool, run it, done. Nothing else on the page gets in your way.</p>
       </div>
 
@@ -761,7 +352,7 @@
         <div aria-hidden="true" class="pointer-events-none absolute -bottom-24 left-1/2 -translate-x-1/2 w-[560px] h-[300px] rounded-full blur-3xl opacity-40 drift" style="background: radial-gradient(circle, rgba(163,230,53,0.16), transparent 65%);"></div>
 
         <div class="relative z-10 max-w-2xl mx-auto space-y-6">
-          <h2 class="font-display font-extrabold text-3xl md:text-6xl text-white tracking-tight text-balance">Clear tools, zero clutter.</h2>
+          <h2 class="font-display font-bold text-3xl md:text-6xl text-white tracking-tight text-balance">Clear tools, zero clutter.</h2>
           <p class="text-slate-300 text-base md:text-lg leading-relaxed">One hub for the tools you actually use. Open it, use it, move on.</p>
 
           <div class="pt-4 flex flex-col sm:flex-row items-center justify-center gap-4">
@@ -810,7 +401,7 @@
   </div>
 
   <!-- Footer -->
-  <footer class="border-t border-surface-border py-10 px-6 text-center text-xs text-slate-500 z-10 bg-surface">
+  <footer class="border-t border-surface-border py-10 px-6 text-center text-xs text-slate-400 z-10 bg-surface">
     <div class="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-6">
       <div class="flex flex-col items-center md:items-start gap-2">
         <a href="#overview" class="flex items-center gap-2 font-display font-bold tracking-wider text-white hover:text-accent-mint transition-colors">
@@ -834,373 +425,7 @@
     </div>
   </footer>
 
-  <!-- JavaScript Interaction Script -->
-  <script>
-    const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    const finePointer = window.matchMedia('(pointer: fine)').matches;
-
-    // ---------------------------------------------------------------
-    // 3D WebGL Background (Three.js)
-    // ---------------------------------------------------------------
-    (function initHero3D() {
-      const canvas = document.getElementById('hero-canvas');
-      if (!canvas || typeof THREE === 'undefined') return;
-
-      const container = canvas.closest('#canvas-3d-container') || document.getElementById('canvas-3d-container') || canvas;
-
-      const scene = new THREE.Scene();
-      const camera = new THREE.PerspectiveCamera(55, 1, 0.1, 100);
-      camera.position.z = 7;
-
-      let renderer;
-      try {
-        renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: finePointer, powerPreference: 'high-performance' });
-      } catch (err) {
-        console.warn('WebGL unavailable; 3D hero disabled.', err);
-        return;
-      }
-      renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-      renderer.setClearColor(0x000000, 0);
-      renderer.toneMapping = THREE.ACESFilmicToneMapping;
-      renderer.outputEncoding = THREE.sRGBEncoding;
-
-      function fit() {
-        const w = canvas.clientWidth || container.clientWidth;
-        const h = canvas.clientHeight || container.clientHeight;
-        if (!w || !h) return;
-        camera.aspect = w / h;
-        camera.updateProjectionMatrix();
-        renderer.setSize(w, h, false);
-      }
-      fit();
-
-      // Smooth ambient + directional lighting for the neon glow
-      scene.add(new THREE.AmbientLight(0xffffff, 0.6));
-      const key = new THREE.DirectionalLight(0xa3e635, 1.2);
-      key.position.set(3, 4, 5);
-      const fill = new THREE.DirectionalLight(0xffffff, 0.45);
-      fill.position.set(-3, -1, 3);
-      scene.add(key, fill);
-
-      // Hero object: polished torus knot (shiny mesh)
-      const knot = new THREE.Mesh(
-        new THREE.TorusKnotGeometry(1.06, 0.34, 180, 28),
-        new THREE.MeshPhysicalMaterial({
-          color: 0x9ada48,
-          metalness: 0.92,
-          roughness: 0.22,
-          clearcoat: 1.0,
-          clearcoatRoughness: 0.12,
-          emissive: 0x2a4500,
-          emissiveIntensity: 0.55
-        })
-      );
-
-      // Wireframe cage + inner core for depth contrast
-      const outer = new THREE.Mesh(
-        new THREE.IcosahedronGeometry(2.7, 1),
-        new THREE.MeshBasicMaterial({ color: 0xa3e635, wireframe: true, transparent: true, opacity: 0.10 })
-      );
-      const inner = new THREE.Mesh(
-        new THREE.IcosahedronGeometry(1.7, 1),
-        new THREE.MeshBasicMaterial({ color: 0x8fb86b, wireframe: true, transparent: true, opacity: 0.06 })
-      );
-
-      // Soft additive particle halo
-      const COUNT = reduceMotion ? 260 : 650;
-      const positions = new Float32Array(COUNT * 3);
-      for (let i = 0; i < COUNT; i++) {
-        const r = 2.8 + Math.random() * 4.2;
-        const theta = Math.random() * Math.PI * 2;
-        const phi = Math.acos(2 * Math.random() - 1);
-        positions[i * 3]     = r * Math.sin(phi) * Math.cos(theta);
-        positions[i * 3 + 1] = r * Math.sin(phi) * Math.sin(theta);
-        positions[i * 3 + 2] = r * Math.cos(phi);
-      }
-      const particles = new THREE.Points(
-        new THREE.BufferGeometry().setAttribute('position', new THREE.BufferAttribute(positions, 3)),
-        new THREE.PointsMaterial({
-          color: 0xa3e635,
-          size: 0.04,
-          transparent: true,
-          opacity: 0.32,
-          blending: THREE.AdditiveBlending,
-          depthWrite: false,
-          sizeAttenuation: true
-        })
-      );
-
-      scene.add(knot, outer, inner, particles);
-
-      // Mouse parallax
-      let tx = 0, ty = 0, mx = 0, my = 0;
-      window.addEventListener('pointermove', (e) => {
-        tx = (e.clientX / window.innerWidth - 0.5) * 2;
-        ty = (e.clientY / window.innerHeight - 0.5) * 2;
-      }, { passive: true });
-
-      let raf = null;
-      const clock = new THREE.Clock();
-
-      // Reduced motion: render a single static frame instead of animating.
-      if (reduceMotion) {
-        renderer.render(scene, camera);
-        return;
-      }
-
-      function animate() {
-        raf = requestAnimationFrame(animate);
-        const t = clock.getElapsedTime();
-        mx += (tx - mx) * 0.06;
-        my += (ty - my) * 0.06;
-
-        // Torus knot: slow elegant rotation + gentle floating drift
-        knot.rotation.y = t * 0.2;
-        knot.rotation.x = 0.35 + Math.sin(t * 0.5) * 0.22;
-        knot.position.y = Math.sin(t * 0.85) * 0.35;
-        knot.position.x = Math.sin(t * 0.45) * 0.25;
-        knot.position.z = Math.cos(t * 0.6) * 0.15;
-
-        // Wireframe cages counter-rotate for depth contrast
-        outer.rotation.y = t * 0.14;
-        outer.rotation.z = t * 0.05;
-        outer.position.y = Math.sin(t * 0.4) * 0.2;
-        inner.rotation.y = -t * 0.34;
-        inner.rotation.z = t * 0.14;
-        inner.position.y = Math.sin(t * 0.7 + 1.5) * 0.3;
-
-        // Particle halo: slow spin + vertical sway
-        particles.rotation.y = t * 0.04;
-        particles.rotation.x = t * 0.016;
-        particles.position.y = Math.sin(t * 0.4) * 0.15;
-
-        // Camera leans gently toward the cursor
-        camera.position.x += (mx * 0.9 - camera.position.x) * 0.04;
-        camera.position.y += (-my * 0.6 - camera.position.y) * 0.04;
-        camera.lookAt(0, 0, 0);
-
-        renderer.render(scene, camera);
-      }
-
-      function start() {
-        if (raf) return;
-        animate();
-      }
-      function stop() {
-        if (raf) { cancelAnimationFrame(raf); raf = null; }
-      }
-
-      // First frame immediately so the model is never frozen-looking
-      renderer.render(scene, camera);
-      start();
-
-      // Pause when the hero scrolls out of view or the tab is hidden
-      new IntersectionObserver((entries) => {
-        entries.forEach(en => en.isIntersecting ? start() : stop());
-      }, { threshold: 0.02 }).observe(container.closest('section'));
-
-      document.addEventListener('visibilitychange', () => {
-        if (document.hidden) stop(); else start();
-      });
-
-      // Keep the canvas in sync with its container on any resize/layout change
-      function resize() {
-        const w = canvas.clientWidth || container.clientWidth;
-        const h = canvas.clientHeight || container.clientHeight;
-        if (!w || !h) return;
-        camera.aspect = w / h;
-        camera.updateProjectionMatrix();
-        renderer.setSize(w, h, false);
-      }
-      window.addEventListener('resize', resize);
-      if ('ResizeObserver' in window) {
-        new ResizeObserver(resize).observe(container);
-      }
-    })();
-
-    // ---------------------------------------------------------------
-    // 3D Tilt Cards + Spotlight Border
-    // ---------------------------------------------------------------
-    if (finePointer && !reduceMotion) {
-      document.querySelectorAll('.tilt').forEach(card => {
-        card.addEventListener('pointermove', (e) => {
-          const r = card.getBoundingClientRect();
-          const px = (e.clientX - r.left) / r.width;
-          const py = (e.clientY - r.top) / r.height;
-          const rx = (0.5 - py) * Number(card.dataset.tilt || 8);
-          const ry = (px - 0.5) * Number(card.dataset.tilt || 8) * 1.4;
-          card.style.transform = 'perspective(900px) rotateX(' + rx.toFixed(2) + 'deg) rotateY(' + ry.toFixed(2) + 'deg) translateY(-4px)';
-          card.style.setProperty('--mx', (px * 100).toFixed(1) + '%');
-          card.style.setProperty('--my', (py * 100).toFixed(1) + '%');
-        });
-        card.addEventListener('pointerleave', () => {
-          card.style.transform = '';
-        });
-      });
-    }
-
-    // ---------------------------------------------------------------
-    // Magnetic Buttons (slight pull toward cursor)
-    // ---------------------------------------------------------------
-    if (finePointer && !reduceMotion) {
-      document.querySelectorAll('[data-magnetic]').forEach(el => {
-        el.addEventListener('pointermove', (e) => {
-          const r = el.getBoundingClientRect();
-          const dx = (e.clientX - r.left - r.width / 2) * 0.12;
-          const dy = (e.clientY - r.top - r.height / 2) * 0.2;
-          el.style.transform = 'translate(' + dx.toFixed(1) + 'px, ' + dy.toFixed(1) + 'px)';
-        });
-        el.addEventListener('pointerleave', () => { el.style.transform = ''; });
-      });
-    }
-
-    // ---------------------------------------------------------------
-    // Scroll Reveal (IntersectionObserver)
-    // ---------------------------------------------------------------
-    const revealEls = document.querySelectorAll('[data-reveal]');
-    if (reduceMotion) {
-      revealEls.forEach(el => el.classList.add('is-visible'));
-    } else {
-      const io = new IntersectionObserver((entries, obs) => {
-        entries.forEach(en => {
-          if (en.isIntersecting) {
-            en.target.style.transitionDelay = (en.target.dataset.delay || 0) + 'ms';
-            en.target.classList.add('is-visible');
-            obs.unobserve(en.target);
-          }
-        });
-      }, { threshold: 0.15 });
-      revealEls.forEach(el => io.observe(el));
-    }
-
-    // ---------------------------------------------------------------
-    // Navbar Solid State + Back-to-top visibility
-    // ---------------------------------------------------------------
-    const sentinel = document.getElementById('nav-sentinel');
-    const navbar = document.getElementById('navbar');
-    const backToTop = document.getElementById('back-to-top');
-    const backHandler = backToTop
-      ? () => window.scrollTo({ top: 0, behavior: reduceMotion ? 'auto' : 'smooth' })
-      : () => {};
-    if (backToTop) backToTop.addEventListener('click', backHandler);
-    new IntersectionObserver((entries) => {
-      entries.forEach(en => {
-        const scrolled = !en.isIntersecting;
-        navbar.classList.toggle('nav-solid', scrolled);
-        if (backToTop) backToTop.classList.toggle('visible', scrolled);
-      });
-    }, { threshold: 0 }).observe(sentinel);
-
-    // ---------------------------------------------------------------
-    // Scrollspy: highlight current section in the nav
-    // ---------------------------------------------------------------
-    const navLinks = Array.from(document.querySelectorAll('.nav-link'));
-    const sections = ['overview', 'features', 'flow', 'clarity']
-      .map(id => document.getElementById(id))
-      .filter(Boolean);
-    if (navLinks.length && sections.length && 'IntersectionObserver' in window) {
-      const spy = new IntersectionObserver((entries) => {
-        entries.forEach(en => {
-          if (!en.isIntersecting) return;
-          const id = '#' + en.target.id;
-          navLinks.forEach(link => link.classList.toggle('active', link.getAttribute('href') === id));
-        });
-      }, { rootMargin: '-40% 0px -55% 0px' });
-      sections.forEach(sec => spy.observe(sec));
-    }
-
-    // ---------------------------------------------------------------
-    // Spotlight Cursor Effect
-    // ---------------------------------------------------------------
-    const spotlight = document.getElementById('spotlight');
-    if (finePointer) {
-      spotlight.classList.remove('opacity-0');
-      spotlight.classList.add('opacity-100');
-      window.addEventListener('mousemove', (e) => {
-        spotlight.style.background = 'radial-gradient(600px circle at ' + e.clientX + 'px ' + e.clientY + 'px, rgba(163, 230, 53, 0.055), transparent 80%)';
-      }, { passive: true });
-    }
-
-    // ---------------------------------------------------------------
-    // Mobile Navigation
-    // ---------------------------------------------------------------
-    const navToggle = document.getElementById('nav-toggle');
-    const mobileMenu = document.getElementById('mobile-menu');
-    const navIcon = document.getElementById('nav-icon');
-    if (navToggle && mobileMenu) {
-      const closeMenu = () => {
-        mobileMenu.classList.remove('open');
-        mobileMenu.classList.remove('pointer-events-auto');
-        mobileMenu.classList.add('pointer-events-none');
-        navToggle.setAttribute('aria-expanded', 'false');
-        if (navIcon) navIcon.className = 'ph-bold ph-list text-lg pointer-events-none';
-      };
-      const openMenu = () => {
-        mobileMenu.classList.add('open');
-        mobileMenu.classList.remove('pointer-events-none');
-        mobileMenu.classList.add('pointer-events-auto');
-        navToggle.setAttribute('aria-expanded', 'true');
-        if (navIcon) navIcon.className = 'ph-bold ph-x text-lg pointer-events-none';
-      };
-      navToggle.addEventListener('click', () => {
-        const isOpen = mobileMenu.classList.contains('open');
-        isOpen ? closeMenu() : openMenu();
-      });
-      mobileMenu.querySelectorAll('a').forEach(a => a.addEventListener('click', closeMenu));
-      document.addEventListener('click', (e) => {
-        if (!e.target.closest('#navbar')) closeMenu();
-      });
-      document.addEventListener('keydown', (e) => {
-        if (e.key === 'Escape' && mobileMenu.classList.contains('open')) {
-          closeMenu();
-          navToggle.focus();
-        }
-      });
-    }
-
-    // ---------------------------------------------------------------
-    // Copy to Clipboard Utility (with fallback for non-secure contexts)
-    // ---------------------------------------------------------------
-    function copyToClipboard(text, message) {
-      const success = () => showToast(message);
-      const fallback = () => {
-        try {
-          const ta = document.createElement('textarea');
-          ta.value = text;
-          ta.setAttribute('readonly', '');
-          ta.style.position = 'fixed';
-          ta.style.opacity = '0';
-          document.body.appendChild(ta);
-          ta.select();
-          document.execCommand('copy');
-          document.body.removeChild(ta);
-          success();
-        } catch (err) {
-          console.error('Failed to copy: ', err);
-        }
-      };
-      if (navigator.clipboard && window.isSecureContext) {
-        navigator.clipboard.writeText(text).then(success).catch(fallback);
-      } else {
-        fallback();
-      }
-    }
-
-    // Toast Notification System
-    let toastTimer = null;
-    function showToast(message) {
-      const toast = document.getElementById('toast');
-      const toastMsg = document.getElementById('toast-message');
-      toastMsg.innerText = message;
-      toast.classList.remove('translate-y-20', 'opacity-0');
-      toast.classList.add('translate-y-0', 'opacity-100');
-      if (toastTimer) clearTimeout(toastTimer);
-      toastTimer = setTimeout(() => {
-        toast.classList.remove('translate-y-0', 'opacity-100');
-        toast.classList.add('translate-y-20', 'opacity-0');
-        toastTimer = null;
-      }, 3000);
-    }
-  </script>
+  <!-- JavaScript Interaction Script (deferred so it runs after the Tailwind CDN loads) -->
+  <script defer src="script.js"></script>
 </body>
 </html>
