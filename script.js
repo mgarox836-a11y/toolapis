@@ -357,13 +357,28 @@
         }
         const anim = Motion.animate(el, keyframes, opts);
         el._motionAnim = anim;
+        // Safety watchdog: some environments throttle WAAPI/rAF so
+        // anim.finished may never resolve. Never leave a component stuck
+        // at inline opacity:0 (invisible). Force a hard cleanup once the
+        // animation budget passes.
+        const budget = ((opts.delay || 0) + (opts.duration || 1)) * 1000 + 450;
+        el._motionWatchdog = window.setTimeout(() => {
+          if (el._motionAnim !== anim) return;
+          el._motionAnim = null;
+          el.style.opacity = '';
+          el.style.transform = '';
+          el.style.transformOrigin = '';
+          el.style.touchAction = '';
+        }, budget);
         if (!persistent) {
           anim.finished.then(() => {
             try { anim.stop(); } catch (err) { /* noop */ }
             if (el._motionAnim === anim) el._motionAnim = null;
+            if (el._motionWatchdog) { window.clearTimeout(el._motionWatchdog); el._motionWatchdog = null; }
             el.style.opacity = '';
             el.style.transform = '';
           }).catch(() => {
+            if (el._motionWatchdog) { window.clearTimeout(el._motionWatchdog); el._motionWatchdog = null; }
             el.style.opacity = '';
             el.style.transform = '';
           });
