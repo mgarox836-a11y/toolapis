@@ -7,7 +7,11 @@
 
   var finePointer = window.matchMedia('(pointer: fine)').matches;
   var mqReduce = window.matchMedia('(prefers-reduced-motion: reduce)');
-  var reduceMotion = function () { return mqReduce.matches; };
+  var motionAlways = document.documentElement.dataset.motion === 'always';
+  /* the switch: html[data-motion="always"] overrides the OS reduced-motion
+     preference. Everything (entrance, reveals, video, smooth scroll, tilt)
+     follows this single source of truth. */
+  var reduceMotion = function () { return !motionAlways && mqReduce.matches; };
 
   /* ---------------------------------------------------------------
      Reduced-motion: the background is a VIDEO, so CSS cannot pause it.
@@ -17,7 +21,7 @@
     var v = document.querySelector('video.art');
     if (!v) return;
     function sync() {
-      if (mqReduce.matches) { v.pause(); }
+      if (reduceMotion()) { v.pause(); }
       else { var p = v.play(); if (p && p.catch) p.catch(function () {}); }
     }
     sync();

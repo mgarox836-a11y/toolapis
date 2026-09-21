@@ -35,7 +35,8 @@
   --glow:calc(var(--u)*34);
   --hairline:max(1px, calc(var(--u)*1.6));
   --rise:9px;
-  --gutter:clamp(24px, 5vw, 96px);
+  --gutter:clamp(32px, 8vw, 160px);
+  --wrap:min(calc(100vw - var(--gutter) - var(--gutter)),1360px);
 
   /* shared glass recipe (THE CTA GLASS, reused across every surface) */
   --glass-bg:
@@ -95,7 +96,7 @@ html{scrollbar-width:thin;scrollbar-color:#1a2a45 #02060f}
 section[id],footer[id]{scroll-margin-top:96px}
 
 /* ---------- 3. HERO WRAP — video confined to one viewport ---------- */
-.hero-wrap{position:relative;min-height:100vh;
+.hero-wrap{position:relative;min-height:100vh;isolation:isolate;
   background:#03060c}
 @supports (height:100dvh){.hero-wrap{min-height:100dvh}}
 
@@ -105,7 +106,7 @@ section[id],footer[id]{scroll-margin-top:96px}
 @supports (height:100dvh){.art{height:100dvh}}
 @supports (width:100dvw){.art{width:100dvw}}
 
-.veil{position:absolute;top:0;left:0;right:0;height:100vh;z-index:0;pointer-events:none;
+.veil{position:absolute;top:0;left:0;right:0;height:100vh;z-index:1;pointer-events:none;
   background:
     radial-gradient(44% 11% at 50% 42%,
         rgba(var(--veil),.36) 0%, rgba(var(--veil),.18) 55%,
@@ -205,53 +206,55 @@ section[id],footer[id]{scroll-margin-top:96px}
   mask-composite:exclude}
 
 /* =============================================================================
-   6. ENTRANCE SEQUENCE — one timeline, runs once at load (~2.1s)
+   6. ENTRANCE SEQUENCE — one timeline, runs once at load (~2.1s).
+   Active when the OS prefers motion OR html[data-motion="always"] is present.
+   Removing the attribute restores the accessible reduced-motion behaviour via
+   the guarded reset block in section 11 (nothing here is duplicated).
+   Independent properties only (translate/scale/opacity/clip-path), no
+   transform shorthand.
    ============================================================================= */
-@media (prefers-reduced-motion:no-preference){
-  :root{--ent-line:cubic-bezier(.16,1,.3,1);--ent-soft:cubic-bezier(.25,.8,.35,1)}
+:root{--ent-line:cubic-bezier(.16,1,.3,1);--ent-soft:cubic-bezier(.25,.8,.35,1)}
 
-  @keyframes en-wipe{from{clip-path:inset(-.78em 0 calc(100% + .78em) 0);translate:0 var(--rise)}
-                     to{clip-path:inset(-.78em 0 -.78em 0);translate:0 0}}
-  @keyframes en-lift{from{opacity:0;translate:0 var(--rise)}}
-  @keyframes en-settle{from{opacity:0;translate:0 calc(var(--rise)*.7);scale:.99}}
-  @keyframes en-draw{from{scale:1 0}}
+@keyframes en-wipe{from{clip-path:inset(-.78em 0 calc(100% + .78em) 0);translate:0 var(--rise)}
+                   to{clip-path:inset(-.78em 0 -.78em 0);translate:0 0}}
+@keyframes en-lift{from{opacity:0;translate:0 var(--rise)}}
+@keyframes en-settle{from{opacity:0;translate:0 calc(var(--rise)*.7);scale:.99}}
+@keyframes en-draw{from{scale:1 0}}
 
-  html:not(.is-entered) .brand{animation:en-lift .60s var(--ent-soft) .12s backwards}
-  html:not(.is-entered) #about{animation:en-lift .55s var(--ent-soft) .20s backwards}
-  html:not(.is-entered) #product{animation:en-lift .55s var(--ent-soft) .25s backwards}
-  html:not(.is-entered) #solutions,
-  html:not(.is-entered) .caret{animation:en-lift .55s var(--ent-soft) .30s backwards}
-  html:not(.is-entered) #login,
-  html:not(.is-entered) .navarrow{animation:en-lift .55s var(--ent-soft) .35s backwards}
-  html:not(.is-entered) .pill{animation:en-settle .60s var(--ent-soft) .40s backwards}
-  html:not(.is-entered) .burger{animation:en-lift .60s var(--ent-soft) .40s backwards}
-  html:not(.is-entered) #h1a{animation:en-wipe .95s var(--ent-line) .34s backwards}
-  html:not(.is-entered) #h1b{animation:en-wipe .95s var(--ent-line) .44s backwards}
-  html:not(.is-entered) #sub1{animation:en-lift .70s var(--ent-soft) .74s backwards}
-  html:not(.is-entered) #sub2{animation:en-lift .70s var(--ent-soft) .80s backwards}
-  html:not(.is-entered) .cta{animation:en-lift .80s var(--ent-line) .94s backwards}
-  html:not(.is-entered) .feats li:nth-child(1){animation:en-lift .60s var(--ent-soft) 1.08s backwards}
-  html:not(.is-entered) .feats li:nth-child(2){animation:en-lift .60s var(--ent-soft) 1.15s backwards}
-  html:not(.is-entered) .feats li:nth-child(3){animation:en-lift .60s var(--ent-soft) 1.22s backwards}
-  html:not(.is-entered) .feats li:nth-child(4){animation:en-lift .60s var(--ent-soft) 1.29s backwards}
-  html:not(.is-entered) .rule{animation:en-draw .55s var(--ent-line) 1.34s backwards;transform-origin:top}
-  html:not(.is-entered) .scroll-cue{animation:en-lift .60s var(--ent-soft) 1.50s backwards}
-  html:not(.is-entered) #foot1{animation:en-lift .60s var(--ent-soft) 1.42s backwards}
-  html:not(.is-entered) #foot2{animation:en-lift .60s var(--ent-soft) 1.48s backwards}
-}
+html:not(.is-entered) .brand{animation:en-lift .60s var(--ent-soft) .12s backwards}
+html:not(.is-entered) #about{animation:en-lift .55s var(--ent-soft) .20s backwards}
+html:not(.is-entered) #product{animation:en-lift .55s var(--ent-soft) .25s backwards}
+html:not(.is-entered) #solutions,
+html:not(.is-entered) .caret{animation:en-lift .55s var(--ent-soft) .30s backwards}
+html:not(.is-entered) #login,
+html:not(.is-entered) .navarrow{animation:en-lift .55s var(--ent-soft) .35s backwards}
+html:not(.is-entered) .pill{animation:en-settle .60s var(--ent-soft) .40s backwards}
+html:not(.is-entered) .burger{animation:en-lift .60s var(--ent-soft) .40s backwards}
+html:not(.is-entered) #h1a{animation:en-wipe .95s var(--ent-line) .34s backwards}
+html:not(.is-entered) #h1b{animation:en-wipe .95s var(--ent-line) .44s backwards}
+html:not(.is-entered) #sub1{animation:en-lift .70s var(--ent-soft) .74s backwards}
+html:not(.is-entered) #sub2{animation:en-lift .70s var(--ent-soft) .80s backwards}
+html:not(.is-entered) .cta{animation:en-lift .80s var(--ent-line) .94s backwards}
+html:not(.is-entered) .feats li:nth-child(1){animation:en-lift .60s var(--ent-soft) 1.08s backwards}
+html:not(.is-entered) .feats li:nth-child(2){animation:en-lift .60s var(--ent-soft) 1.15s backwards}
+html:not(.is-entered) .feats li:nth-child(3){animation:en-lift .60s var(--ent-soft) 1.22s backwards}
+html:not(.is-entered) .feats li:nth-child(4){animation:en-lift .60s var(--ent-soft) 1.29s backwards}
+html:not(.is-entered) .rule{animation:en-draw .55s var(--ent-line) 1.34s backwards;transform-origin:top}
+html:not(.is-entered) .scroll-cue{animation:en-lift .60s var(--ent-soft) 1.50s backwards}
+html:not(.is-entered) #foot1{animation:en-lift .60s var(--ent-soft) 1.42s backwards}
+html:not(.is-entered) #foot2{animation:en-lift .60s var(--ent-soft) 1.48s backwards}
 
 /* =============================================================================
    7. ARCHITECTURE A — LOCKED COMPOSITION (desktop)
    ============================================================================= */
 @media (min-width:1200px) and (min-height:560px) and (min-aspect-ratio:100/95){
-  .bar{left:0;right:0;width:100%;transform:none;
+  .bar{left:0;right:0;width:var(--wrap);margin-inline:auto;transform:none;
     height:calc(var(--u)*92);pointer-events:none;
-    display:flex;align-items:center;gap:clamp(32px,4vw,72px);
-    padding-inline:var(--gutter)}
+    display:flex;align-items:center;gap:clamp(32px,4vw,72px)}
   .bar a,.bar label,.bar input{pointer-events:auto}
   .hero{position:absolute;left:50%;top:50%;width:calc(var(--u)*1536);
     height:calc(var(--u)*1024);transform:translate(-50%,-50%);z-index:2}
-  .foot{position:absolute;left:var(--gutter);right:var(--gutter);bottom:0;
+  .foot{position:absolute;left:0;right:0;bottom:0;width:var(--wrap);margin-inline:auto;
     height:calc(var(--u)*140);z-index:2;
     display:flex;align-items:center;justify-content:space-between}
 
@@ -283,9 +286,8 @@ section[id],footer[id]{scroll-margin-top:96px}
     width:auto;height:calc(var(--u)*46.6);padding:0 calc(var(--u)*30);
     display:inline-flex;align-items:center;justify-content:center;gap:calc(var(--u)*12)}
   .cta .arrow{position:static;flex:none;width:calc(var(--u)*16);height:calc(var(--u)*11)}
-  .feats{position:absolute;top:calc(var(--u)*718);
-    left:calc(var(--gutter) - 50vw + var(--u)*768);
-    right:calc(var(--u)*768 - 50vw + var(--gutter));
+  .feats{position:absolute;left:50%;top:calc(var(--u)*718);transform:translateX(-50%);
+    width:min(var(--wrap),900px);
     display:flex;align-items:center;justify-content:space-between}
   .feats li{display:flex;align-items:center;gap:calc(var(--u)*15)}
   .feats .chev{flex:none;width:calc(var(--u)*11);height:calc(var(--u)*20)}
@@ -366,7 +368,7 @@ section[id],footer[id]{scroll-margin-top:96px}
   .navtoggle:checked ~ .scrim{display:block}
 
   /* PANEL — CTA glass recipe restated at panel scale */
-  .navpanel{position:absolute;top:calc(100% + calc(var(--c)*12));right:0;
+  .bar .navpanel{position:absolute;top:calc(100% + calc(var(--c)*12));right:0;
     display:flex;flex-direction:column;gap:calc(var(--c)*2);
     width:min(calc(var(--c)*268), 78vw);padding:calc(var(--c)*12);
     border-radius:calc(var(--c)*20);
@@ -381,6 +383,9 @@ section[id],footer[id]{scroll-margin-top:96px}
     transform-origin:100% 0;pointer-events:none;
     transition:opacity .2s ease,transform .2s ease}
   .navtoggle:checked ~ .navpanel{opacity:1;transform:none;pointer-events:auto}
+  .navpanel a,.navpanel .pill{pointer-events:none}
+  .navtoggle:checked ~ .navpanel a,
+  .navtoggle:checked ~ .navpanel .pill{pointer-events:auto}
   .navpanel .menu{display:flex;flex-direction:column}
   .navpanel .menu a,.navpanel .login{display:flex;align-items:center;gap:calc(var(--c)*8);
     padding:calc(var(--c)*10) calc(var(--c)*12);border-radius:calc(var(--c)*12);
@@ -397,7 +402,8 @@ section[id],footer[id]{scroll-margin-top:96px}
   .hero-wrap{display:flex;flex-direction:column;
     padding:calc(env(safe-area-inset-top) + calc(var(--c)*64)) calc(var(--c)*22)
            calc(env(safe-area-inset-bottom) + calc(var(--c)*22))}
-  .hero{order:2;flex:none;margin-block:auto;display:flex;flex-direction:column;align-items:center;
+  .hero{order:2;position:relative;z-index:2;flex:none;margin-block:auto;
+    display:flex;flex-direction:column;align-items:center;
     text-align:center;gap:calc(var(--c)*20)}
   .title{font-size:calc(var(--c)*33);line-height:1.12;max-width:15ch;font-variation-settings:'wght' 424}
   .sub{color:var(--sub);font-size:calc(var(--c)*17);line-height:1.32;max-width:26ch}
@@ -411,8 +417,8 @@ section[id],footer[id]{scroll-margin-top:96px}
   .feats li{display:flex;align-items:center;gap:calc(var(--c)*9);font-size:calc(var(--c)*14)}
   .feats .chev{width:calc(var(--c)*9);height:calc(var(--c)*16);flex:none}
   .rule{display:block;flex:none;width:1px;height:calc(var(--c)*33);margin:calc(var(--c)*19) auto 0}
-  .scroll-cue{position:static;order:3;margin:calc(var(--c)*8) auto 0}
-  .foot{order:4;text-align:center;color:var(--foot);
+  .scroll-cue{position:relative;z-index:2;order:3;margin:calc(var(--c)*8) auto 0}
+  .foot{order:4;position:relative;z-index:2;text-align:center;color:var(--foot);
     font-size:calc(var(--c)*13);line-height:1.55;margin-top:calc(var(--c)*10)}
   .foot span{display:block}
 }
@@ -731,12 +737,19 @@ section[id],footer[id]{scroll-margin-top:96px}
 html:not(.js) [data-reveal],html:not(.js) .reveal{opacity:1;transform:none;transition:none}
 
 /* =============================================================================
-   11. REDUCED MOTION — last rule block
+   11. REDUCED MOTION — last rule block.
+   Applies ONLY when html[data-motion="always"] is absent, so the transparent
+   entrance/video experience keeps running when the switch is on.
    ============================================================================= */
 @media (prefers-reduced-motion:reduce){
-  *{animation:none!important;transition:none!important}
-  html{scroll-behavior:auto}
-  .reveal,[data-reveal]{opacity:1!important;transform:none!important}
-  .scroll-cue,.driver,.ring-float,[class*="float"]{display:none}
-  .sheen::after,.spot-card::before{animation:none!important}
+  html:not([data-motion="always"]) *{animation:none!important;transition:none!important}
+  html:not([data-motion="always"]){scroll-behavior:auto}
+  html:not([data-motion="always"]) .reveal,
+  html:not([data-motion="always"]) [data-reveal]{opacity:1!important;transform:none!important}
+  html:not([data-motion="always"]) .scroll-cue,
+  html:not([data-motion="always"]) .driver,
+  html:not([data-motion="always"]) .ring-float,
+  html:not([data-motion="always"]) [class*="float"]{display:none}
+  html:not([data-motion="always"]) .sheen::after,
+  html:not([data-motion="always"]) .spot-card::before{animation:none!important}
 }
