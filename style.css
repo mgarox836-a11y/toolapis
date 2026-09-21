@@ -70,7 +70,7 @@
 
 /* ---------- 2. BASE — scrollable page ---------- */
 *,*::before,*::after{box-sizing:border-box}
-html{background:var(--navy);scroll-behavior:smooth;
+html{background:var(--navy);scroll-behavior:smooth;scrollbar-gutter:stable;
      overflow-x:hidden;overflow-x:clip}
 body{margin:0;background:var(--navy);
   background-image:
@@ -776,12 +776,128 @@ html:not(.is-entered) #foot2{animation:en-lift .60s var(--ent-soft) 1.48s backwa
 html:not(.js) [data-reveal],html:not(.js) .reveal{opacity:1;transform:none;transition:none}
 
 /* =============================================================================
+   10b. LOADER INTRO — preloader + cinematic shutter into the hero entrance.
+   html.is-loading (static markup) + html.js (inline head script) hold scroll
+   and the hero entrance until the loader module releases them. Loader sits at
+   the top of the z-index scale (130, above #page-transition 120). New code
+   animates only translate/scale/opacity/clip-path/stroke-dashoffset.
+   ============================================================================= */
+html.js.is-loading{overflow:hidden}
+
+/* Hold the entrance while loading — same 20 selectors as the locked entrance
+   block, one additive property (play-state), zero edits to those rules. */
+html.js.is-loading:not(.is-entered) .brand,
+html.js.is-loading:not(.is-entered) #about,
+html.js.is-loading:not(.is-entered) #product,
+html.js.is-loading:not(.is-entered) #solutions,
+html.js.is-loading:not(.is-entered) .caret,
+html.js.is-loading:not(.is-entered) #login,
+html.js.is-loading:not(.is-entered) .navarrow,
+html.js.is-loading:not(.is-entered) .pill,
+html.js.is-loading:not(.is-entered) .burger,
+html.js.is-loading:not(.is-entered) #h1a,
+html.js.is-loading:not(.is-entered) #h1b,
+html.js.is-loading:not(.is-entered) #sub1,
+html.js.is-loading:not(.is-entered) #sub2,
+html.js.is-loading:not(.is-entered) .cta,
+html.js.is-loading:not(.is-entered) .feats li,
+html.js.is-loading:not(.is-entered) .rule,
+html.js.is-loading:not(.is-entered) .scroll-cue,
+html.js.is-loading:not(.is-entered) #foot1,
+html.js.is-loading:not(.is-entered) #foot2{animation-play-state:paused}
+
+.loader{position:fixed;inset:0;z-index:130;overflow:hidden;
+  display:grid;place-items:center;
+  height:100vh;height:100dvh;
+  padding:env(safe-area-inset-top) env(safe-area-inset-right)
+          env(safe-area-inset-bottom) env(safe-area-inset-left);
+  background-color:var(--navy);
+  animation:ld-auto-hide .45s ease 9s forwards}
+
+/* two shutter panels — top & bottom, mirrored navy-gold wash */
+.loader::before,.loader::after{content:'';position:absolute;left:0;right:0;
+  pointer-events:none;
+  background-color:var(--navy);
+  background-image:
+    radial-gradient(120% 70% at 50% 0%, rgba(255,207,138,.07), transparent 55%),
+    radial-gradient(120% 90% at 50% 100%, rgba(150,196,244,.08), transparent 60%),
+    linear-gradient(180deg,var(--navy) 0%,var(--navy-2) 100%)}
+.loader::before{top:0;height:50%}
+.loader::after{bottom:0;height:50%}
+
+/* center glow blooms as the shutter opens */
+.loader-glow{position:absolute;left:50%;top:50%;width:min(70vw,480px);
+  aspect-ratio:1;translate:-50% -50%;scale:.3;opacity:0;pointer-events:none;
+  background:radial-gradient(circle at 50% 50%,rgba(255,214,166,.30),
+    rgba(150,196,244,.10) 45%,transparent 70%);filter:blur(6px)}
+
+.loader-inner{position:relative;z-index:2;display:flex;flex-direction:column;
+  align-items:center;gap:clamp(14px,2.2vh,22px);text-align:center}
+
+.loader-mark{width:clamp(42px,9vw,64px);height:auto;fill:none;
+  stroke:var(--ink);stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round;
+  stroke-dasharray:120;stroke-dashoffset:120;
+  filter:drop-shadow(0 0 16px rgba(255,214,166,.45))}
+.loader-mark path{animation:ld-draw .95s var(--ent-line) backwards}
+.loader-mark path:nth-child(2){animation-delay:.14s}
+.loader-mark path:nth-child(3){animation-delay:.28s}
+.loader-mark path:nth-child(4){animation-delay:.42s}
+@keyframes ld-draw{70%{stroke-dashoffset:0;fill:transparent}
+  100%{stroke-dashoffset:0;fill:var(--ink)}}
+
+.lw{display:block;color:var(--ink);font-variation-settings:'wght' 531;
+  letter-spacing:.06em;text-transform:uppercase;
+  font-size:clamp(1rem,4vw,1.4rem)}
+.lw i{display:inline-block;font-style:normal;opacity:0;translate:0 .4em;
+  animation:ld-letter .5s var(--ent-soft) backwards}
+.lw i:nth-child(1){animation-delay:.42s}
+.lw i:nth-child(2){animation-delay:.46s}
+.lw i:nth-child(3){animation-delay:.50s}
+.lw i:nth-child(4){animation-delay:.54s}
+.lw i:nth-child(5){animation-delay:.58s}
+.lw i:nth-child(6){animation-delay:.62s}
+.lw i:nth-child(7){animation-delay:.66s}
+.lw i:nth-child(8){animation-delay:.70s}
+@keyframes ld-letter{to{opacity:1;translate:0 0}}
+
+.loader-bar{position:relative;width:min(240px,60vw);height:2px;
+  border-radius:999px;background:rgba(255,255,255,.09);overflow:hidden}
+.loader-fill{position:absolute;inset:0;border-radius:inherit;
+  transform-origin:0 50%;scale:0 1;
+  background:linear-gradient(90deg,var(--flame),var(--gold),var(--ocean-c))}
+.loader-count{color:var(--sub);font-size:.72rem;font-variation-settings:'wght' 500;
+  letter-spacing:.3em;font-variant-numeric:tabular-nums}
+.loader-status{color:var(--sub);font-size:.72rem;letter-spacing:.06em}
+
+.loader-skip{margin-top:.25rem;min-width:88px;min-height:44px;border-radius:999px;
+  border:var(--hairline) solid rgba(255,255,255,.18);color:var(--nav);
+  background:rgba(255,255,255,.04);cursor:pointer;font-size:.75rem;
+  font-variation-settings:'wght' 600}
+.loader-skip:hover{background:rgba(255,255,255,.08)}
+
+/* ---- exit choreography (html.loader-exit) ---- */
+html.loader-exit .loader-inner{animation:ld-fade .4s var(--ent-soft) forwards}
+@keyframes ld-fade{to{opacity:0;translate:0 -22px}}
+html.loader-exit .loader::before{animation:ld-up 1.1s var(--ent-line) .4s backwards}
+html.loader-exit .loader::after{animation:ld-down 1.1s var(--ent-line) .4s backwards}
+@keyframes ld-up{to{translate:0 -110%}}
+@keyframes ld-down{to{translate:0 110%}}
+html.loader-exit .loader-glow{animation:ld-glow 1.25s var(--ent-line) .45s backwards}
+@keyframes ld-glow{0%{opacity:0;scale:.3}30%{opacity:1;scale:1.15}100%{opacity:0;scale:2.4}}
+html.loader-exit .art{animation:art-settle 1.6s var(--ent-line) .6s backwards}
+@keyframes art-settle{from{scale:1.06}}
+
+/* pure-CSS failsafe: even if script.js never runs, never trap the page */
+@keyframes ld-auto-hide{to{opacity:0;visibility:hidden;pointer-events:none}}
+
+/* =============================================================================
    11. REDUCED MOTION — last rule block.
    Applies ONLY when html[data-motion="always"] is absent, so the transparent
    entrance/video experience keeps running when the switch is on.
    ============================================================================= */
 @media (prefers-reduced-motion:reduce){
   html:not([data-motion="always"]) *{animation:none!important;transition:none!important}
+  html:not([data-motion="always"]) .loader{display:none}
   html:not([data-motion="always"]){scroll-behavior:auto}
   html:not([data-motion="always"]) .reveal,
   html:not([data-motion="always"]) [data-reveal]{opacity:1!important;transform:none!important}

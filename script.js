@@ -1,8 +1,40 @@
 /* TOOLAPIS — plain JS. No frameworks, no build step.
    Honors OS prefers-reduced-motion (video pause, no animation, no smooth scroll). */
+
+/* Loader constants — tune here (false = loader runs on every open/refresh). */
+var LOADER_MIN_MS = 4000;
+var LOADER_MAX_MS = 7000;
+var HERO_START_OFFSET_MS = 450;
+var SKIP_IF_SEEN_THIS_SESSION = false;
+var SHOW_SKIP = false;
+
+/* START_AT_TOP_ON_LOAD=true: every fresh open/refresh starts at the hero,
+   the URL hash is ignored on first load, and the browser's scroll
+   restoration is suppressed (scrollRestoration manual is set inline in
+   <head>). In-page links still smooth-scroll and fill the hash; back/forward
+   still restores position (bfcache). false = old hash-as-target behavior. */
+var START_AT_TOP_ON_LOAD = true;
+var startAtTopFresh = true; /* true unless this is a back_forward restore */
+if (START_AT_TOP_ON_LOAD) {
+  try {
+    var startAtTopNav = performance.getEntriesByType('navigation')[0];
+    startAtTopFresh = !startAtTopNav || startAtTopNav.type !== 'back_forward';
+  } catch (e) { startAtTopFresh = true; }
+}
+if (START_AT_TOP_ON_LOAD && startAtTopFresh) {
+  /* (a) strip the hash and pin to top as early as possible */
+  if (window.location.hash && history.replaceState) {
+    history.replaceState(null, '', window.location.pathname + window.location.search);
+  }
+  window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+}
+
 (function () {
   'use strict';
 
+  /* html.js is added statically by an inline script in <head> before first
+     paint, so html.js.is-loading holds the entrance from the very start.
+     This line only guards against an inline-script failure (idempotent). */
   document.documentElement.classList.add('js');
 
   var finePointer = window.matchMedia('(pointer: fine)').matches;
@@ -30,9 +62,13 @@
 
   /* ---------------------------------------------------------------
      Entrance: pure CSS. Retire it once the last tween ends so a later
-     breakpoint change can never replay it.
+     breakpoint change can never replay it. The loader holds this off
+     (animation-play-state: paused) and calls armEntranceRetire() at the
+     release point, so both the #foot2 animationend listener and the
+     4000ms safety timer start counting AFTER the hero is released, not
+     at page load.
      --------------------------------------------------------------- */
-  (function () {
+  var armEntranceRetire = (function () {
     var doneFired = false;
     var timer = null;
     function done() {
@@ -41,15 +77,160 @@
       if (timer) { window.clearTimeout(timer); timer = null; }
       document.documentElement.classList.add('is-entered');
     }
-    var last = document.getElementById('foot2');
-    if (last && !reduceMotion()) {
-      last.addEventListener('animationend', done, { once: true });
-      timer = window.setTimeout(done, 4000);
-    } else if (last) {
-      done();
-    } else {
-      done();
+    return function () {
+      var last = document.getElementById('foot2');
+      if (last && !reduceMotion()) {
+        last.addEventListener('animationend', done, { once: true });
+        timer = window.setTimeout(done, 4000);
+      } else {
+        done();
+      }
+    };
+  })();
+
+  /* ---------------------------------------------------------------
+     Loader intro — preloader + cinematic shutter into the hero entrance.
+     Gates: LOADER_MIN_MS + document.fonts.ready + video ready, hard cap
+     LOADER_MAX_MS. Releases is-loading HERO_START_OFFSET_MS after the
+     exit begins; never relies on animationend alone (safety timeout).
+     --------------------------------------------------------------- */
+  (function () {
+    var loader = document.getElementById('loader');
+    if (!loader) { armEntranceRetire(); return; }
+
+    var docEl = document.documentElement;
+    var start = Date.now();
+    var shown = 0;                  /* progress 0..1, eased toward target */
+    var statusTimer = null;
+    var exiting = false;
+    var released = false;
+    var finished = false;
+
+    var seen = false;
+    if (SKIP_IF_SEEN_THIS_SESSION) {
+      try { seen = sessionStorage.getItem('loader-seen') === '1'; } catch (e) { seen = false; }
+      if (!seen) { try { sessionStorage.setItem('loader-seen', '1'); } catch (e) {} }
     }
+
+    /* reduced motion without the data-motion switch, or JS session skip:
+       never show the loader at all */
+    if (reduceMotion() || seen) { finish(); return; }
+
+    /* everything behind the loader is inert during the load phase */
+    var inertEls = [];
+    [].forEach.call(document.body.children, function (el) {
+      if (el === loader || el.tagName === 'SCRIPT') return;
+      inertEls.push(el);
+      if ('inert' in el) el.inert = true;
+    });
+
+    var fill = loader.querySelector('.loader-fill');
+    var counter = loader.querySelector('.loader-count');
+    var status = loader.querySelector('.loader-status');
+    var msgs = ['Loading tools', 'Preparing the hub', 'Almost there'];
+    var gi = 0;
+    if (status) {
+      status.textContent = msgs[0];
+      statusTimer = window.setInterval(function () {
+        gi = (gi + 1) % msgs.length;
+        status.textContent = msgs[gi];
+      }, 1300);
+    }
+
+    /* readiness gates */
+    var fontsReady = false;
+    if (document.fonts && document.fonts.ready) {
+      document.fonts.ready.then(function () { fontsReady = true; }).catch(function () { fontsReady = true; });
+    } else {
+      fontsReady = true;
+    }
+    var video = document.querySelector('video.art');
+    var videoReady = !video || video.readyState >= 2;
+    if (video && !videoReady) {
+      var onVideo = function () { videoReady = true; };
+      video.addEventListener('loadeddata', onVideo, { once: true });
+      video.addEventListener('canplay', onVideo, { once: true });
+    }
+    function ready() {
+      return (Date.now() - start) >= LOADER_MIN_MS && fontsReady && videoReady;
+    }
+
+    function paint(p) {
+      if (fill) fill.style.scale = p + ' 1';
+      if (counter) counter.textContent = String(Math.round(p * 100)).padStart(3, '0');
+    }
+    function easeIO(t) { return t < .5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2; }
+
+    /* ease toward ~90% during the wait, settle on 100 exactly when ready */
+    function tick() {
+      if (finished) return;
+      var force = (Date.now() - start) >= LOADER_MAX_MS;
+      var target = ready() || force ? 1
+        : easeIO(Math.min(1, (Date.now() - start) / LOADER_MIN_MS)) * .9;
+      shown += (target - shown) * .15;
+      if (shown > .995 && target === 1) shown = 1;
+      paint(shown);
+      if (force) { exit(); return; }
+      if (ready() && shown >= .995) { exit(); return; }
+      window.requestAnimationFrame(tick);
+    }
+
+    /* after the shutter opens: release the hero, unlock scroll, drop inert */
+    function release() {
+      if (released) return;
+      released = true;
+      docEl.classList.remove('is-loading');
+      if (START_AT_TOP_ON_LOAD) {
+        /* (c) re-pin to top right after the scroll lock is released; the
+           browser cannot restore to a lowered section (manual restoration,
+           hash already stripped). On a back_forward restore we deliberately
+           do nothing, so bfcache keeps the browser's own position. */
+        if (startAtTopFresh) window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+      } else if (window.location.hash) {
+        var t = document.getElementById(window.location.hash.slice(1));
+        if (t) t.scrollIntoView({ behavior: 'instant' });
+      }
+      armEntranceRetire();
+      inertEls.forEach(function (el) { if ('inert' in el) el.inert = false; });
+    }
+
+    function exit() {
+      if (exiting) return;
+      exiting = true;
+      /* (b) pin to top before the shutter starts opening, so it reveals the
+         hero, never a lowered section */
+      if (START_AT_TOP_ON_LOAD && startAtTopFresh) window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+      docEl.classList.add('loader-exit');
+      window.setTimeout(release, HERO_START_OFFSET_MS);
+      loader.addEventListener('animationend', function (e) {
+        if (e.animationName === 'ld-up' || e.animationName === 'ld-down') finish();
+      });
+      window.setTimeout(finish, 1500); /* safety — not dependent on animationend */
+    }
+
+    function finish() {
+      if (finished) return;
+      finished = true;
+      docEl.classList.remove('is-loading');
+      docEl.classList.add('is-loaded');
+      if (statusTimer) window.clearInterval(statusTimer);
+      if (loader.parentNode) loader.parentNode.removeChild(loader);
+      release();
+    }
+
+    /* opt-in Skip button (SHOW_SKIP=true) — tap target >= 44px */
+    if (SHOW_SKIP) {
+      var skip = loader.querySelector('.loader-skip');
+      if (skip) {
+        window.setTimeout(function () { skip.hidden = false; }, 1000);
+        skip.addEventListener('click', function () { if (!exiting) exit(); });
+      }
+    }
+
+    /* bfcache: never replay the loader on back/forward restore */
+    window.addEventListener('pageshow', function (e) { if (e.persisted && !finished) finish(); });
+
+    window.requestAnimationFrame(tick);
   })();
 
   /* ---------------------------------------------------------------

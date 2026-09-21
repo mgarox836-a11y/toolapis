@@ -1,8 +1,9 @@
 <!DOCTYPE html>
-<html lang="en" class="dark" data-motion="always">
+<html lang="en" class="dark is-loading" data-motion="always">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <script>if('scrollRestoration' in history)history.scrollRestoration='manual';document.documentElement.classList.add('js');setTimeout(function(){var el=document.getElementById('loader');if(el&&window.START_AT_TOP_ON_LOAD!==false&&window.location.hash)history.replaceState(null,'',window.location.pathname+window.location.search);document.documentElement.classList.remove('is-loading');if(el&&window.START_AT_TOP_ON_LOAD!==false)window.scrollTo({top:0,left:0,behavior:'instant'})},8500)</script>
   <meta name="description" content="TOOLAPIS is a small hub of real web tools: upscale TikTok clips to HD, share your PC's internet with Android over USB, or jump into the social media hub.">
   <meta name="theme-color" content="#02060F">
   <meta name="color-scheme" content="dark">
@@ -28,8 +29,26 @@
   <link href="https://fonts.googleapis.com/css2?family=Sora:wght@100..800&display=swap" rel="stylesheet">
 
   <link rel="stylesheet" href="style.css">
+  <noscript><style>.loader{display:none}</style></noscript>
 </head>
 <body>
+
+  <div class="loader" id="loader" role="status" aria-label="Loading">
+    <span class="loader-glow" aria-hidden="true"></span>
+    <div class="loader-inner">
+      <svg class="loader-mark" viewBox="0 0 23 17" aria-hidden="true">
+        <path d="M8.15 0.9 L4.55 0.9 L0.5 9.3 L4.1 9.3 Z"/>
+        <path d="M17.0 0 L13.4 0 L6.15 16.4 L9.75 16.4 Z"/>
+        <path d="M22.9 0 L19.3 0 L15.0 7.6 L18.6 7.6 Z"/>
+        <path d="M22.6 6.9 L19.0 6.9 L14.05 16.4 L17.65 16.4 Z"/>
+      </svg>
+      <span class="lw" aria-hidden="true"><i>T</i><i>O</i><i>O</i><i>L</i><i>A</i><i>P</i><i>I</i><i>S</i></span>
+      <div class="loader-bar" aria-hidden="true"><i class="loader-fill"></i></div>
+      <span class="loader-count" aria-hidden="true">000</span>
+      <span class="loader-status" aria-hidden="true">Loading tools</span>
+      <button class="loader-skip" type="button" hidden>Skip</button>
+    </div>
+  </div>
 
   <a class="skip-link" href="#main-content">Skip to content</a>
   <div id="nav-sentinel" class="ptr-none" aria-hidden="true"></div>
