@@ -67,7 +67,7 @@
 }
 
 *, *::before, *::after { box-sizing: border-box; }
-html { background: #050811; scroll-behavior: smooth; scrollbar-gutter: stable; }
+html { background: #050811; scrollbar-gutter: stable; }
 body {
   margin: 0;
   background: transparent;
@@ -102,6 +102,15 @@ html { scrollbar-width: thin; scrollbar-color: var(--color-surface-25) var(--col
 
 section[id], footer[id] { scroll-margin-top: 96px; }
 
+/* Lenis smooth-scroll helpers (html default stays scroll-behavior:auto).
+   NOTE — motion is intentionally FORCED ON: do NOT add any
+   @media (prefers-reduced-motion: reduce) rule to this file; it would
+   be defeated anyway by script.js (reduceMotion() hardcoded false). */
+html.lenis, html.lenis body { height: auto; }
+.lenis.lenis-smooth { scroll-behavior: auto !important; }
+.lenis.lenis-smooth [data-lenis-prevent] { overscroll-behavior: contain; }
+.lenis.lenis-stopped { overflow: hidden; }
+
 /* =============================================================================
    TOP BAR — ghost nav
    ============================================================================= */
@@ -119,6 +128,8 @@ section[id], footer[id] { scroll-margin-top: 96px; }
 .menu { display: flex; align-items: center; gap: 1.5rem; }
 .menu a { color: var(--color-surface-50); font-size: var(--text-body-sm); transition: color .2s ease; padding: 10px 0; }
 .menu a:hover { color: var(--color-surface-cream); }
+.menu a.active { color: var(--color-surface-cream); }
+.menu a.active::after { content: ''; display: block; height: 1px; margin-top: 6px; background: linear-gradient(90deg, #00f0ff, #0066ff); }
 
 @media (max-width: 760px) {
   .menu { gap: .75rem; }
@@ -381,32 +392,107 @@ section[id], footer[id] { scroll-margin-top: 96px; }
 }
 
 /* =============================================================================
-   PRELOADER — cinematic intro curtain
+   PRELOADER — cinematic cyber intro
    ============================================================================= */
 body.loading { overflow: hidden; }
 #preloader {
   position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
   background: #050811; z-index: 9999;
   display: flex; align-items: center; justify-content: center;
+  overflow: hidden;
+  will-change: transform, opacity, clip-path;
 }
-.loader-content { display: flex; flex-direction: column; align-items: center; gap: 1.25rem; }
+#preloader.sweeping { box-shadow: 0 -30px 60px rgba(0, 240, 255, 0.35); }
+#preloader::after {
+  content: ''; position: absolute; left: -10%; right: -10%; top: 0;
+  height: 150%; pointer-events: none; will-change: transform;
+  transform: translateY(120%);
+  background: linear-gradient(180deg,
+    rgba(0, 240, 255, 0) 0%,
+    rgba(0, 240, 255, 0) 38%,
+    rgba(0, 240, 255, 0.55) 52%,
+    rgba(120, 220, 255, 0.9) 58%,
+    rgba(0, 240, 255, 0) 70%,
+    rgba(0, 240, 255, 0) 100%);
+}
+#preloader.sweeping::after {
+  transform: translateY(-115%);
+  transition: transform .9s cubic-bezier(0.88, 0, 0.27, 1);
+}
+
+.loader-ambient {
+  position: absolute; inset: 0; pointer-events: none;
+  background:
+    radial-gradient(55% 45% at 50% 0%, rgba(0, 240, 255, 0.10) 0%, transparent 70%),
+    radial-gradient(42% 30% at 50% 100%, rgba(0, 102, 255, 0.08) 0%, transparent 70%);
+}
+.loader-scanline { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
+.loader-scanline::before {
+  content: ''; position: absolute; inset: 0;
+  background: repeating-linear-gradient(0deg, rgba(255, 255, 255, 0.032) 0 1px, transparent 1px 3px);
+}
+.loader-scanline::after {
+  content: ''; position: absolute; left: 0; right: 0; top: 0; height: 18vh;
+  background: linear-gradient(180deg, transparent, rgba(0, 240, 255, 0.07), transparent);
+  animation: loader-sweep 6s linear infinite;
+}
+@keyframes loader-sweep { from { transform: translateY(-20vh); } to { transform: translateY(120vh); } }
+
+.loader-hud {
+  position: absolute; top: 2rem;
+  left: max(1.5rem, calc((100% - var(--page-max-width)) / 2));
+  display: flex; align-items: center; gap: .6rem;
+  font-size: 10px; letter-spacing: 3px; text-transform: uppercase;
+  color: rgba(0, 240, 255, 0.55);
+}
+.loader-hud span { width: 7px; height: 14px; background: currentColor; animation: loader-cursor 1.1s steps(1) infinite; }
+@keyframes loader-cursor { 0%, 55% { opacity: 0; } 56%, 100% { opacity: 1; } }
+
+.loader-content {
+  position: relative;
+  display: flex; flex-direction: column; align-items: center; gap: 1.6rem;
+}
 .loader-brand {
-  font-family: var(--font-mori);
-  font-size: 1.35rem; font-weight: 600; letter-spacing: 4px;
+  display: inline-flex; padding-right: .35em;
+  font-size: clamp(1.9rem, 5vw, 2.6rem); font-weight: 600; letter-spacing: .35em;
+}
+.loader-letter {
+  display: inline-block;
+  background: linear-gradient(120deg, #7df9ff 0%, #00f0ff 45%, #0066ff 80%, #7df9ff 100%);
+  background-size: 200% 100%;
+  -webkit-background-clip: text; background-clip: text;
+  -webkit-text-fill-color: transparent; color: transparent;
+  filter: drop-shadow(0 0 14px rgba(0, 240, 255, 0.6));
+  will-change: transform, opacity, filter;
+  animation: loader-shimmer 2.6s linear infinite;
+}
+@keyframes loader-shimmer { from { background-position: 0% 50%; } to { background-position: 200% 50%; } }
+
+.loader-status {
+  display: flex; align-items: center; gap: 1rem;
+  width: min(340px, 76vw);
+}
+.loader-counter {
+  min-width: 3.2em; text-align: right;
+  font-family: ui-monospace, 'Cascadia Mono', 'Menlo', monospace;
+  font-size: 13px; font-weight: 600; letter-spacing: 1px;
+  font-variant-numeric: tabular-nums;
   color: #00f0ff; text-shadow: 0 0 15px rgba(0, 240, 255, 0.6);
+  will-change: transform, opacity, filter;
 }
 .loader-bar-wrap {
-  width: min(280px, 60vw); height: 2px; border-radius: 999px;
-  background: rgba(0, 240, 255, 0.15); overflow: hidden;
+  flex: 1; height: 2px; border-radius: 999px;
+  background: rgba(0, 240, 255, 0.15); overflow: hidden; position: relative;
 }
 .loader-bar {
   width: 0%; height: 100%; border-radius: inherit;
   background: linear-gradient(90deg, #00f0ff, #0066ff);
-  box-shadow: 0 0 12px rgba(0, 240, 255, 0.6);
+  box-shadow: 0 0 12px rgba(0, 240, 255, 0.8);
+  will-change: transform, opacity, filter;
 }
-.loader-counter {
-  font-family: var(--font-mori);
-  font-size: .9rem; font-weight: 600; letter-spacing: 4px;
-  font-variant-numeric: tabular-nums;
-  color: #00f0ff; text-shadow: 0 0 15px rgba(0, 240, 255, 0.6);
+.loader-status-text {
+  min-width: 11em;
+  font-size: 9px; letter-spacing: 2px; text-transform: uppercase;
+  color: rgba(0, 240, 255, 0.55);
+  will-change: transform, opacity, filter;
 }

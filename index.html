@@ -27,18 +27,25 @@
   <script defer src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
   <script defer src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/ScrollTrigger.min.js"></script>
   <script defer src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/lenis@1/dist/lenis.min.js"></script>
   <script defer src="script.js"></script>
 </head>
 <body class="loading">
 
-  <!-- ============ PRELOADER — cinematic intro (5s) ============ -->
+  <!-- ============ PRELOADER — cinematic cyber intro (~4.2s) ============ -->
   <div id="preloader" aria-hidden="true">
+    <div class="loader-ambient" aria-hidden="true"></div>
+    <div class="loader-scanline" aria-hidden="true"></div>
+    <div class="loader-hud" aria-hidden="true">INITIALIZING SYSTEM // V2.0<span></span></div>
     <div class="loader-content">
-      <span class="loader-brand">TOOLAPIS</span>
-      <div class="loader-bar-wrap">
-        <div class="loader-bar"></div>
+      <div class="loader-brand" role="text" aria-label="TOOLAPIS">
+        <span class="loader-letter">T</span><span class="loader-letter">O</span><span class="loader-letter">O</span><span class="loader-letter">L</span><span class="loader-letter">A</span><span class="loader-letter">P</span><span class="loader-letter">I</span><span class="loader-letter">S</span>
       </div>
-      <span class="loader-counter">00%</span>
+      <div class="loader-status">
+        <span class="loader-counter">00%</span>
+        <div class="loader-bar-wrap"><div class="loader-bar"></div></div>
+        <span class="loader-status-text">BOOTING CORE...</span>
+      </div>
     </div>
   </div>
 

@@ -308,16 +308,18 @@
   }
 
   /* ---------------------------------------------------------------
-     Preloader — counter/bar, curtain exit, camera zoom-out, hero reveal (~5s)
+     Preloader — split-letter reveal, counter ticker, status HUD,
+     clip-path wipe exit, camera zoom-out, hero blur-fade (~4.2s)
      --------------------------------------------------------------- */
   function preloaderSequence() {
     var pre = document.getElementById('preloader');
     var counter = document.querySelector('.loader-counter');
     var bar = document.querySelector('.loader-bar');
+    var statusText = document.querySelector('.loader-status-text');
+    var letters = document.querySelectorAll('.loader-letter');
     var bodyClass = document.body.classList;
 
-    if (reduceMotion() || !pre) {
-      if (pre) { pre.style.display = 'none'; }
+    if (!pre) {
       bodyClass.remove('loading');
       if (webgl.starburst) { webgl.starburst(); }
       return;
@@ -326,45 +328,84 @@
     var obj = { v: 0 };
     if (counter) { counter.textContent = '00%'; }
     if (bar) { bar.style.width = '0%'; }
+    if (statusText) { statusText.innerText = 'BOOTING CORE...'; }
+
+    function statusSwap(v) {
+      if (!statusText) { return; }
+      var msg = 'BOOTING CORE...';
+      if (v >= 100) { msg = 'READY'; }
+      else if (v >= 70) { msg = 'RENDERING SCENE...'; }
+      else if (v >= 25) { msg = 'LOADING ASSETS...'; }
+      statusText.innerText = msg;
+    }
 
     var tl = gsapLib.timeline({
       defaults: { ease: 'power2.inOut' },
       onComplete: function () {
         bodyClass.remove('loading');
         pre.style.display = 'none';
+        pre.style.pointerEvents = 'none';
         if (window.ScrollTrigger) { window.ScrollTrigger.refresh(); }
       }
     });
 
-    /* 0.0–2.5s — counter 00%→100% + loading bar 0→100% */
+    /* 0.0–0.55 — HUD + brand split-letter kinetic reveal (staggered blur fade-up) */
+    tl.from('.loader-hud', { autoAlpha: 0, y: 10, duration: 0.5, ease: 'power2.out', clearProps: 'transform,opacity,visibility' }, 0);
+    tl.from(letters, {
+      yPercent: 120, autoAlpha: 0, filter: 'blur(8px)', duration: 0.7,
+      stagger: 0.055, ease: 'power3.out', clearProps: 'transform,opacity,filter'
+    }, 0.05);
+
+    /* 0.05–2.05 — counter ticker 00→100% + glowing bar + status text swap */
     tl.to(obj, {
-      v: 100, duration: 2.5, ease: 'power2.inOut',
+      v: 100, duration: 2.0, ease: 'power2.inOut',
       onUpdate: function () {
-        if (counter) { counter.textContent = String(Math.round(obj.v)).padStart(2, '0') + '%'; }
+        if (counter) {
+          counter.textContent = String(Math.round(obj.v)).padStart(2, '0') + '%';
+          counter.style.filter = 'blur(' + ((100 - obj.v) * 0.012).toFixed(2) + 'px)';
+        }
+        if (bar) { bar.style.width = obj.v + '%'; }
+        statusSwap(obj.v);
       }
-    }, 0);
-    tl.to(bar, { width: '100%', duration: 2.5, ease: 'power2.inOut' }, 0);
+    }, 0.05);
 
-    /* 2.5–3.2s — curtain up, camera snaps to core close-up, canvas fades in */
-    tl.set(webgl.camera ? webgl.camera.position : {}, { z: 1 }, 2.5);
-    tl.to(pre, { yPercent: -100, duration: 0.8, ease: 'power4.inOut' }, 2.5);
-    tl.fromTo('#webgl-canvas', { autoAlpha: 0 }, { autoAlpha: 1, duration: 1, ease: 'power2.inOut', clearProps: 'opacity,visibility' }, 2.6);
+    /* 2.05 — complete pulse: counter pop + bar glow flash */
+    tl.to('.loader-counter', { scale: 1.18, duration: 0.15, yoyo: true, repeat: 1, ease: 'power2.out', clearProps: 'transform' }, 2.05);
+    tl.to('.loader-bar', { boxShadow: '0 0 22px rgba(0, 240, 255, 1)', duration: 0.2, yoyo: true, repeat: 1, clearProps: 'box-shadow' }, 2.05);
 
-    /* 3.2–5.0s — camera zooms out to z:5, starfield bursts open */
+    /* 2.1–2.35 — content dissolves away before the wipe */
+    tl.to('.loader-content', { autoAlpha: 0, scale: 0.96, filter: 'blur(6px)', duration: 0.25, ease: 'power2.in' }, 2.1);
+
+    /* 2.1 — camera snaps to core close-up, canvas fades in beneath */
+    tl.set(webgl.camera ? webgl.camera.position : {}, { z: 1 }, 2.1);
+    tl.fromTo('#webgl-canvas', { autoAlpha: 0 }, { autoAlpha: 1, duration: 1, ease: 'power2.inOut', clearProps: 'opacity,visibility' }, 2.2);
+
+    /* 2.3–3.2 — clip-path wipe (top→bottom) + energy swoosh streak */
+    tl.fromTo(pre, { clipPath: 'inset(0% 0% 0% 0%)' }, { clipPath: 'inset(0% 0% 100% 0%)', duration: 0.9, ease: 'power4.inOut' }, 2.3);
+    tl.add(function () { pre.classList.add('sweeping'); }, 2.3);
+
+    /* 3.2 — curtain gone: unlock scroll + drop preloader from the paint tree */
+    tl.add(function () {
+      bodyClass.remove('loading');
+      pre.style.pointerEvents = 'none';
+      pre.style.display = 'none';
+    }, 3.2);
+
+    /* 2.4–4.2 — camera zooms out to z:5, starfield bursts open */
     if (webgl.camera) {
-      tl.to(webgl.camera.position, { z: 5, duration: 1.8, ease: 'expo.out' }, 3.2);
+      tl.to(webgl.camera.position, { z: 5, duration: 1.8, ease: 'expo.out' }, 2.4);
     }
     tl.call(function () {
       if (webgl.starburst) { webgl.starburst(); }
-    }, null, 3.3);
+    }, null, 2.7);
 
-    /* 3.4s — hero copy staggered blur-fade-up, unlock scroll at the end */
+    /* 3.0s — hero copy rides the wipe tail, staggered blur-fade-up */
     tl.fromTo('.hero-copy > *', {
       y: 25, opacity: 0, filter: 'blur(12px)'
     }, {
-      y: 0, opacity: 1, filter: 'blur(0px)', duration: 1.2, ease: 'power3.out', stagger: 0.15,
+      y: 0, opacity: 1, filter: 'blur(0px)', duration: 1.0, ease: 'power3.out', stagger: 0.15,
       clearProps: 'transform,opacity,filter'
-    }, 3.4);
+    }, 3.0);
   }
 
   /* ---------------------------------------------------------------
@@ -424,6 +465,93 @@
   }
 
   /* ---------------------------------------------------------------
+     Smooth scroll — Lenis engine + native fallback, click handler,
+     active menu indicator
+     --------------------------------------------------------------- */
+  var NAV_OFFSET = 96;
+  var lenisSmooth = null;
+
+  function initSmoothScroll() {
+    if (window.Lenis) {
+      lenisSmooth = new window.Lenis({ lerp: 0.09, wheelMultiplier: 1 });
+      if (window.ScrollTrigger) {
+        lenisSmooth.on('scroll', window.ScrollTrigger.update);
+      }
+      gsapLib.ticker.add(function (t) { lenisSmooth.raf(t * 1000); });
+      gsapLib.ticker.lagSmoothing(0);
+    }
+
+    var anchors = document.querySelectorAll('a[href^="#"]');
+    anchors.forEach(function (a) {
+      a.addEventListener('click', function (e) {
+        if (document.body.classList.contains('loading')) { e.preventDefault(); return; }
+        var href = a.getAttribute('href');
+        if (href === '#' || href === '#top') {
+          e.preventDefault();
+          smoothTo(0);
+          setActive(null);
+          return;
+        }
+        var target = document.getElementById(href.slice(1));
+        if (!target) { return; }
+        e.preventDefault();
+        var top = target.getBoundingClientRect().top + (window.scrollY || window.pageYOffset) - NAV_OFFSET;
+        smoothTo(top);
+        setActive(a);
+      });
+    });
+
+    setActiveFromScroll();
+  }
+
+  function smoothTo(top) {
+    if (lenisSmooth) {
+      lenisSmooth.scrollTo(top, { duration: 1.2 });
+      return;
+    }
+    /* rAF fallback — scrollTo(0, y) instant is never coerced by the
+       browser under prefers-reduced-motion, so this stays smooth everywhere */
+    var start = window.scrollY || window.pageYOffset;
+    var dist = top - start;
+    if (Math.abs(dist) < 2) { window.scrollTo(0, top); return; }
+    var dur = 1200, t0 = null;
+    var ease = function (t) {
+      return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+    };
+    function step(ts) {
+      if (t0 === null) { t0 = ts; }
+      var p = Math.min(1, (ts - t0) / dur);
+      window.scrollTo(0, start + dist * ease(p));
+      if (p < 1) { requestAnimationFrame(step); }
+    }
+    requestAnimationFrame(step);
+  }
+
+  function setActive(link) {
+    var menu = document.querySelectorAll('.menu a');
+    menu.forEach(function (m) {
+      m.classList.toggle('active', link ? m === link : m.getAttribute('href') === '#overview' && window.scrollY < 1);
+    });
+  }
+
+  function setActiveFromScroll() {
+    var st = window.ScrollTrigger;
+    if (!st) { return; }
+    document.querySelectorAll('.menu a[href^="#"]').forEach(function (a) {
+      var target = document.getElementById(a.getAttribute('href').slice(1));
+      if (!target) { return; }
+      st.create({
+        trigger: target,
+        start: 'top 45%',
+        end: 'top 10%',
+        onToggle: function (self) {
+          if (self.isActive) { setActive(a); }
+        }
+      });
+    });
+  }
+
+  /* ---------------------------------------------------------------
      Utility: navbar state + back-to-top
      --------------------------------------------------------------- */
   (function () {
@@ -442,7 +570,8 @@
 
     if (backToTop) {
       backToTop.addEventListener('click', function () {
-        window.scrollTo({ top: 0, behavior: reduceMotion() ? 'auto' : 'smooth' });
+        smoothTo(0);
+        setActive(null);
       });
     }
   })();
@@ -501,6 +630,7 @@
       if (cnv) { cnv.style.display = 'none'; }
     }
     preloaderSequence();
+    initSmoothScroll();
     scrollReveals();
     floaters();
     magneticCta();
