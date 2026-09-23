@@ -488,6 +488,7 @@
         var href = a.getAttribute('href');
         if (href === '#' || href === '#top') {
           e.preventDefault();
+          if (document.body.classList.contains('menu-open')) { closeMobileMenu(); }
           smoothTo(0);
           setActive(null);
           return;
@@ -495,6 +496,7 @@
         var target = document.getElementById(href.slice(1));
         if (!target) { return; }
         e.preventDefault();
+        if (document.body.classList.contains('menu-open')) { closeMobileMenu(); }
         var top = target.getBoundingClientRect().top + (window.scrollY || window.pageYOffset) - NAV_OFFSET;
         smoothTo(top);
         setActive(a);
@@ -528,16 +530,18 @@
   }
 
   function setActive(link) {
-    var menu = document.querySelectorAll('.menu a');
-    menu.forEach(function (m) {
-      m.classList.toggle('active', link ? m === link : m.getAttribute('href') === '#overview' && window.scrollY < 1);
+    document.querySelectorAll('.menu a, .nav-mobile-menu a').forEach(function (m) {
+      var match = link
+        ? m.getAttribute('href') === link.getAttribute('href')
+        : (m.getAttribute('href') === '#overview' && window.scrollY < 1);
+      m.classList.toggle('active', match);
     });
   }
 
   function setActiveFromScroll() {
     var st = window.ScrollTrigger;
     if (!st) { return; }
-    document.querySelectorAll('.menu a[href^="#"]').forEach(function (a) {
+    document.querySelectorAll('.menu a[href^="#"], .nav-mobile-menu a[href^="#"]').forEach(function (a) {
       var target = document.getElementById(a.getAttribute('href').slice(1));
       if (!target) { return; }
       st.create({
@@ -548,6 +552,60 @@
           if (self.isActive) { setActive(a); }
         }
       });
+    });
+  }
+
+  /* ---------------------------------------------------------------
+     Mobile hamburger drawer — fullscreen glass overlay + GSAP stagger
+     --------------------------------------------------------------- */
+  var menuDrawerTl = null;
+
+  function openMobileMenu() {
+    if (document.body.classList.contains('menu-open')) { return; }
+    document.body.classList.add('menu-open');
+    var toggle = document.querySelector('.nav-toggle');
+    var drawer = document.getElementById('mobile-menu');
+    if (toggle) {
+      toggle.setAttribute('aria-expanded', 'true');
+      toggle.setAttribute('aria-label', 'Close menu');
+    }
+    if (drawer) { drawer.setAttribute('aria-hidden', 'false'); }
+    if (lenisSmooth) { lenisSmooth.stop(); }
+    if (menuDrawerTl) { menuDrawerTl.kill(); }
+    if (drawer) {
+      menuDrawerTl = gsapLib.from(drawer.querySelectorAll('a'), {
+        y: 28, autoAlpha: 0, filter: 'blur(10px)', duration: 0.6,
+        stagger: 0.08, ease: 'power3.out', clearProps: 'transform,opacity,filter'
+      });
+    }
+  }
+
+  function closeMobileMenu() {
+    if (!document.body.classList.contains('menu-open')) { return; }
+    document.body.classList.remove('menu-open');
+    var toggle = document.querySelector('.nav-toggle');
+    var drawer = document.getElementById('mobile-menu');
+    if (toggle) {
+      toggle.setAttribute('aria-expanded', 'false');
+      toggle.setAttribute('aria-label', 'Open menu');
+    }
+    if (drawer) { drawer.setAttribute('aria-hidden', 'true'); }
+    if (menuDrawerTl) { menuDrawerTl.kill(); menuDrawerTl = null; }
+    if (lenisSmooth) { lenisSmooth.start(); }
+  }
+
+  function mobileNav() {
+    var toggle = document.querySelector('.nav-toggle');
+    if (!toggle) { return; }
+    toggle.addEventListener('click', function () {
+      if (document.body.classList.contains('menu-open')) { closeMobileMenu(); }
+      else { openMobileMenu(); }
+    });
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape' && document.body.classList.contains('menu-open')) {
+        closeMobileMenu();
+        toggle.focus();
+      }
     });
   }
 
@@ -631,6 +689,7 @@
     }
     preloaderSequence();
     initSmoothScroll();
+    mobileNav();
     scrollReveals();
     floaters();
     magneticCta();
