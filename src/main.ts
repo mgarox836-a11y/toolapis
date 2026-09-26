@@ -1,3 +1,7 @@
+import "./styles/tokens.css";
+import "./styles/base.css";
+import "./styles/components.css";
+
 import { gsap } from "gsap";
 import { initAtmosphere } from "./atmosphere";
 import { initMotion } from "./motion";
