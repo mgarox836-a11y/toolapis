@@ -38,9 +38,19 @@ menu?.addEventListener("click", (event) => {
   }
 });
 
-initAnimations();
+/* The intro gates the hero, so the scramble is fired by the loader when it
+   finishes rather than on load. Everything else in initAnimations is
+   observer-driven and runs either side of the overlay.
 
-/* The intro gates the reveal, so the hero scramble is fired by the loader when
-   it finishes rather than on load. Everything else in initAnimations is
-   observer-driven and runs either side of the overlay. */
-runLoader();
+   Wrapped so the overlay is always released. The loader holds the scroll lock
+   and covers the page, so an exception thrown anywhere in initAnimations would
+   otherwise leave a black page that cannot be scrolled, with the hero parked
+   below its clips. The motion layer is the only thing at stake here, so a
+   failure is logged and the page still arrives. */
+try {
+  initAnimations();
+} catch (error) {
+  console.error(error);
+} finally {
+  runLoader();
+}

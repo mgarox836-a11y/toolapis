@@ -177,6 +177,10 @@ const CATCHUP_CAP = 60;
    Measured on the slower layer, so the fast one is always settled first. */
 const ARRIVED = 0.15;
 
+/* The hero shapes trail the pointer much more softly than the cursor does, so
+   they read as depth behind it rather than as part of it. */
+const PARALLAX_LAG = 0.07;
+
 /* One table for the whole zone system. Anything interactive falls back to
    "link", so this only has to name the zones that behave differently. */
 const ZONES = {
@@ -187,7 +191,15 @@ const ZONES = {
 
 type ZoneName = keyof typeof ZONES;
 
-const initCursor = (): void => {
+/* How much the hero shapes drift, in px at full deflection, and how far they
+   turn with it. A circle has no visible rotation, so it gets none. */
+const PARALLAX = [
+  { selector: ".geo--square", depth: 34, turn: 0.3 },
+  { selector: ".geo--circle", depth: 46, turn: 0 },
+  { selector: ".geo--triangle", depth: 20, turn: -0.22 },
+] as const;
+
+const initPointerLayer = (): void => {
   const cursor = document.getElementById("cursor");
   const trailEl = document.getElementById("cursor-trail");
 
@@ -209,8 +221,17 @@ const initCursor = (): void => {
   let frame = 0;
   let shown = false;
 
+  /* Normalised pointer position, worked out on the event rather than in the
+     loop, so the loop never reads layout to know where the pointer is. */
+  const aim = { x: 0, y: 0 };
+
+  const shapes = PARALLAX.flatMap((spec) => {
+    const el = document.querySelector<HTMLElement>(spec.selector);
+    return el ? [{ el, depth: spec.depth, turn: spec.turn, at: { x: 0, y: 0 } }] : [];
+  });
+
   /* Only transform is written, never left/top, so the browser never has to
-     lay the cursor out to move it. The -50% in the same transform keeps the
+     lay the element out to move it. The -50% in the same transform keeps the
      element's centre on the point. */
   const place = (el: HTMLElement, at: { x: number; y: number }, scale: number): void => {
     el.style.transform = `translate3d(calc(${at.x.toFixed(1)}px - 50%), calc(${at.y.toFixed(1)}px - 50%), 0) scale(${scale})`;
@@ -240,9 +261,25 @@ const initCursor = (): void => {
     place(cursor, head, ZONES[zone].scale);
     place(trailEl, ring, 1);
 
-    /* Loop until the slow layer has actually converged, so the cursor never
-       freezes part-way through catching up when the pointer stops moving. */
-    if (Math.hypot(pointer.x - ring.x, pointer.y - ring.y) > ARRIVED) {
+    /* The shapes chase the pointer from the opposite direction, so the hero
+       gains a sense of depth off a single mouse. They ease rather than track,
+       which is what stops them feeling glued to the cursor. */
+    let settled = 0;
+
+    for (const shape of shapes) {
+      const target = { x: aim.x * shape.depth, y: aim.y * shape.depth };
+      const offset = getMagneticOffset(target.x, target.y, shape.at.x, shape.at.y, PARALLAX_LAG, CATCHUP_CAP);
+      shape.at.x += offset.x;
+      shape.at.y += offset.y;
+      shape.el.style.transform = `translate3d(${shape.at.x.toFixed(2)}px, ${shape.at.y.toFixed(2)}px, 0) rotate(${(shape.at.x * shape.turn).toFixed(2)}deg)`;
+      settled = Math.max(settled, Math.hypot(target.x - shape.at.x, target.y - shape.at.y));
+    }
+
+    const ringGap = Math.hypot(pointer.x - ring.x, pointer.y - ring.y);
+
+    /* Loop until everything has converged, so nothing freezes part-way through
+       catching up when the pointer stops moving. */
+    if (ringGap > ARRIVED || settled > ARRIVED) {
       frame = requestAnimationFrame(tick);
     } else {
       frame = 0;
@@ -260,6 +297,8 @@ const initCursor = (): void => {
     (event) => {
       pointer.x = event.clientX;
       pointer.y = event.clientY;
+      aim.x = (event.clientX / window.innerWidth - 0.5) * 2;
+      aim.y = (event.clientY / window.innerHeight - 0.5) * 2;
 
       if (!shown) {
         shown = true;
@@ -361,7 +400,7 @@ export const initAnimations = (): void => {
   initSmoothScroll();
   initReveals();
   initCounters();
-  initCursor();
+  initPointerLayer();
   initNavShadow();
   initSound();
 };

@@ -70,6 +70,10 @@ export const runLoader = (): Promise<void> => {
   const release = (): void => {
     loader?.remove();
     document.documentElement.classList.remove("is-loading");
+    /* The single signal that the page is live. The hero clip-reveal, the sub
+       copy and the CTAs are all parked behind it, so it has to be set on every
+       path out of the intro, including the reduced-motion bail. */
+    document.documentElement.classList.add("is-ready");
     playHeroScramble();
   };
 

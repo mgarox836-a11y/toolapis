@@ -380,6 +380,10 @@
   position: absolute;
   opacity: 0.15;
   pointer-events: none;
+  /* Moved by the pointer layer every frame, so it is promoted once and stays
+     promoted: unlike the scroll-linked effects this one has no resting state
+     to fall back to mid-transition. */
+  will-change: transform;
 }
 
 .geo--square {
@@ -388,7 +392,6 @@
   width: 220px;
   height: 220px;
   border: 6px solid var(--yellow);
-  animation: spin 28s linear infinite;
 }
 
 .geo--circle {
@@ -398,7 +401,6 @@
   height: 160px;
   border: 6px solid var(--cyan);
   border-radius: 50%;
-  animation: bob 4.5s ease-in-out infinite;
 }
 
 .geo--triangle {
@@ -409,7 +411,6 @@
   border-left: 80px solid transparent;
   border-right: 80px solid transparent;
   border-bottom: 140px solid var(--red);
-  animation: spin 18s linear infinite reverse;
 }
 
 .hero-inner {
@@ -422,6 +423,17 @@
 .hero-title {
   font-size: clamp(56px, 9vw, 116px);
   line-height: 0.92;
+  /* The headline shears with scroll velocity. The bus caps velocity at 40, so
+     the worst case is a 2.4 degree lean. */
+  transform: skewX(calc(var(--scroll-velocity) * -0.06deg));
+}
+
+.hero-clip {
+  display: block;
+  /* Clips the line while it rises. The padding is the slack a 0.92 line-height
+     needs so descenders and the accented edge of a glyph are not shaved. */
+  overflow: hidden;
+  padding-bottom: 0.08em;
 }
 
 .hero-line {
@@ -538,6 +550,15 @@
 
 /* The two halves are identical and gapless, so -50% lands exactly on the seam
    with no drift, whatever the loaded font does to the item widths. */
+/* The skew lives on its own wrapper because the inner element's keyframe owns
+   `transform` outright. Baking the skew into the keyframe would work, but a
+   running animation resolving a custom property is exactly the kind of engine
+   behaviour that differs between browsers, and this has to be dependable. */
+.marquee-skew {
+  height: 100%;
+  transform: skewX(calc(var(--scroll-velocity) * -0.15deg));
+}
+
 .marquee-inner {
   display: flex;
   width: max-content;

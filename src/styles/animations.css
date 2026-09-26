@@ -12,24 +12,16 @@
   }
 }
 
-@keyframes spin {
+/* Rises out of its clip. The y value of the curve is over 1, so the line
+   overshoots slightly past its resting place and settles back, which is what
+   gives the entrance its snap. */
+@keyframes line-in {
   from {
-    transform: rotate(0deg);
+    translate: 0 110%;
   }
 
   to {
-    transform: rotate(360deg);
-  }
-}
-
-@keyframes bob {
-  0%,
-  100% {
-    transform: translateY(-26px);
-  }
-
-  50% {
-    transform: translateY(26px);
+    translate: 0 0;
   }
 }
 
@@ -83,14 +75,42 @@
   transform-origin: top;
 }
 
-/* The hero sub-copy and CTAs land on the tail of the scramble, so the entrance
-   reads as one sequence rather than two. */
-.hero-sub {
-  animation: rise-in 0.6s cubic-bezier(0.16, 1, 0.3, 1) both 0.95s;
+/* ── Hero entrance ──────────────────────────────────────────────────────── */
+
+/* Gated on .js for the same reason as [data-reveal]: without the script nothing
+   ever adds .is-ready, so the lines would stay parked below their clips. */
+.js .hero-clip > .hero-line {
+  translate: 0 110%;
 }
 
-.hero-actions {
+/* Driven off .is-ready, which the loader sets the moment the intro wipes away.
+   These used to run on a fixed 0.95s delay counted from page load, which meant
+   they had long since finished behind the five second overlay and the hero was
+   simply sitting still when it finally appeared. The delays below are the
+   scramble's own stagger, so each line is still decoding as it rises. */
+.is-ready .hero-clip > .hero-line {
+  animation: line-in 0.7s cubic-bezier(0.16, 1.3, 0.3, 1) both;
+}
+
+.is-ready .hero-clip:nth-child(1) > .hero-line {
+  animation-delay: 0.1s;
+}
+
+.is-ready .hero-clip:nth-child(2) > .hero-line {
+  animation-delay: 0.42s;
+}
+
+.is-ready .hero-clip:nth-child(3) > .hero-line {
+  animation-delay: 0.72s;
+}
+
+/* The sub-copy and the CTAs land on the tail of the third line's decode. */
+.is-ready .hero-sub {
   animation: rise-in 0.6s cubic-bezier(0.16, 1, 0.3, 1) both 1.15s;
+}
+
+.is-ready .hero-actions {
+  animation: rise-in 0.6s cubic-bezier(0.16, 1, 0.3, 1) both 1.35s;
 }
 
 /* ── Reveal ─────────────────────────────────────────────────────────────── */
@@ -128,13 +148,15 @@
 
 @media (prefers-reduced-motion: reduce) {
   .marquee-inner,
-  .geo--square,
-  .geo--circle,
-  .geo--triangle,
-  .scroll-arrow,
-  .hero-sub,
-  .hero-actions {
+  .scroll-arrow {
     animation: none;
+  }
+
+  /* The velocity shears are transforms rather than animations, so the global
+     duration override below does not reach them. */
+  .hero-title,
+  .marquee-skew {
+    transform: none;
   }
 
   /* Every revealed element is already in its final position, whether or not the
@@ -143,6 +165,13 @@
     opacity: 1;
     translate: 0 0;
     rotate: 0deg;
+  }
+
+  /* And the hero lines are out of their clips, whether or not the intro ever
+     finished. Leaving this to the global duration override would still depend
+     on .is-ready arriving. */
+  .js .hero-clip > .hero-line {
+    translate: 0 0;
   }
 
   *,
