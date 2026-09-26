@@ -3,40 +3,108 @@
 
 /* ── Cursor ─────────────────────────────────────────────────────────────── */
 
+/* Two layers: the crosshair reads as the pointer, the ring trails behind it.
+   The distance between them is the weight, which is why neither is pinned
+   exactly to the mouse. Both are moved by transform only, written per frame by
+   initCursor, so the browser never lays them out to move them. */
 #cursor,
 #cursor-trail {
   position: fixed;
   top: 0;
   left: 0;
-  pointer-events: none;
-  transform: translate(-50%, -50%);
-  /* Hidden until the first pointer event, so neither block sits in the corner
-     of the viewport on load. */
-  opacity: 0;
-}
-
-#cursor {
   z-index: 9999;
-  width: 18px;
-  height: 18px;
-  background: var(--yellow);
-  border: var(--border);
-  transition: width 0.15s, height 0.15s, background 0.15s;
+  pointer-events: none;
+  opacity: 0;
+  transform: translate3d(-100px, -100px, 0);
+  will-change: transform;
 }
 
-#cursor.hover {
-  width: 40px;
-  height: 40px;
-  background: var(--red);
+/* A crosshair with a real gap, built from four arm segments rather than two
+   full bars. currentColor keeps the zone colour change to one declaration. */
+#cursor {
+  width: 26px;
+  height: 26px;
+  color: var(--yellow);
+  background-image:
+    linear-gradient(currentColor, currentColor),
+    linear-gradient(currentColor, currentColor),
+    linear-gradient(currentColor, currentColor),
+    linear-gradient(currentColor, currentColor);
+  background-size:
+    2px 8px,
+    2px 8px,
+    8px 2px,
+    8px 2px;
+  background-position:
+    center top,
+    center bottom,
+    left center,
+    right center;
+  background-repeat: no-repeat;
+  transition: color 0.15s;
+}
+
+/* The micro-label rides below the crosshair and only exists when the zone
+   supplied one. */
+#cursor::after {
+  content: attr(data-label);
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  margin-top: 6px;
+  padding: 3px 7px;
+  background: var(--black);
+  border: 2px solid currentColor;
+  color: inherit;
+  font-family: var(--font-mono);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: var(--tracking-wide);
+  line-height: 1;
+  white-space: nowrap;
+  transform: translateX(-50%);
+}
+
+/* Over anything interactive. Thinner and red, so a link is obvious before the
+   pointer arrives at it. */
+#cursor.is-link {
+  color: var(--red);
+}
+
+/* Over a launch surface: the crosshair opens into a heavier target. */
+#cursor.is-panel {
+  color: var(--red);
+  background-size:
+    3px 11px,
+    3px 11px,
+    11px 3px,
+    11px 3px;
+}
+
+/* Over body copy: collapses to a single bar, the way a text caret would. */
+#cursor.is-text {
+  background-size:
+    2px 100%,
+    0 0,
+    0 0,
+    0 0;
 }
 
 #cursor-trail {
   z-index: 9998;
-  width: 8px;
-  height: 8px;
-  /* Red, not black: the trail has to read on the black hero as well as on the
-     light sections. */
-  background: var(--red);
+  width: 44px;
+  height: 44px;
+  border: 2px solid var(--red);
+  transition: border-color 0.15s;
+}
+
+#cursor-trail.is-link,
+#cursor-trail.is-panel {
+  border-color: var(--black);
+}
+
+#cursor-trail.is-text {
+  border-color: var(--ink-line-mid);
 }
 
 /* ── Nav ────────────────────────────────────────────────────────────────── */
@@ -126,6 +194,56 @@
   padding: 0 9px;
   background: var(--black);
   border: var(--border);
+}
+
+/* ── Sound toggle ───────────────────────────────────────────────────────── */
+
+/* Three bars that read as a level meter, filled or struck through. Plain CSS
+   rather than two icons, so there is one element and no image request. */
+.sound-toggle {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  background: var(--white);
+  border: var(--border);
+  flex-shrink: 0;
+}
+
+.sound-bars {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  height: 16px;
+}
+
+.sound-bars i {
+  display: block;
+  width: 3px;
+  height: 5px;
+  background: var(--black);
+  transition: height 0.2s, background 0.2s;
+}
+
+.sound-toggle[aria-pressed="true"] .sound-bars i:nth-child(1) {
+  height: 9px;
+}
+
+.sound-toggle[aria-pressed="true"] .sound-bars i:nth-child(2) {
+  height: 16px;
+}
+
+.sound-toggle[aria-pressed="true"] .sound-bars i:nth-child(3) {
+  height: 11px;
+}
+
+.sound-toggle[aria-pressed="false"] .sound-bars i {
+  height: 3px;
+  background: var(--ink-line-mid);
+}
+
+.sound-toggle:hover {
+  background: var(--yellow);
 }
 
 .nav-burger span {
@@ -909,5 +1027,25 @@
 
   .mega-cta {
     padding-inline: 24px;
+  }
+}
+
+/* The narrowest phones still have to fit the logo, the shortcut, the sound
+   toggle and the burger on one row, so the row tightens rather than wrapping
+   or clipping. */
+@media (max-width: 380px) {
+  .nav-inner {
+    gap: 8px;
+  }
+
+  .nav-cta {
+    padding: 7px 8px;
+    font-size: 10px;
+  }
+
+  .sound-toggle,
+  .nav-burger {
+    width: 34px;
+    height: 34px;
   }
 }

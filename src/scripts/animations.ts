@@ -3,6 +3,7 @@ import Lenis from "lenis";
    a bundler; vite resolves it the same way. */
 import { getMagneticOffset, isMotionAllowed } from "../motion.ts";
 import { initScrollBus, sampleScroll } from "../scroll.ts";
+import { clack, restoreSoundPreference, setSoundEnabled } from "../sound.ts";
 
 const CHARS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789#@$%!";
 
@@ -163,6 +164,29 @@ const initCounters = (): void => {
   targets.forEach((el) => observer.observe(el));
 };
 
+/* How hard each layer chases the pointer. The crosshair is close enough to feel
+   exact, the ring is not, and the gap between them is the weight. */
+const CURSOR_LAG = 0.45;
+const TRAIL_LAG = 0.16;
+
+/* Cap on catch-up per frame, so a jump across the viewport sprints rather than
+   teleports, and so a dropped frame cannot fling the cursor off screen. */
+const CATCHUP_CAP = 60;
+
+/* Within this many px the cursor counts as having arrived and the loop stops.
+   Measured on the slower layer, so the fast one is always settled first. */
+const ARRIVED = 0.15;
+
+/* One table for the whole zone system. Anything interactive falls back to
+   "link", so this only has to name the zones that behave differently. */
+const ZONES = {
+  link: { className: "is-link", scale: 0.9 },
+  panel: { className: "is-panel", scale: 1.7 },
+  text: { className: "is-text", scale: 1 },
+} as const;
+
+type ZoneName = keyof typeof ZONES;
+
 const initCursor = (): void => {
   const cursor = document.getElementById("cursor");
   const trailEl = document.getElementById("cursor-trail");
@@ -171,31 +195,101 @@ const initCursor = (): void => {
     return;
   }
 
-  const at = { x: -40, y: -40 };
-  const trailAt = { x: -40, y: -40 };
+  /* The custom cursor is a lagging motion effect, so motion off means the
+     native pointer instead. base.css gates `cursor: none` behind the same
+     condition, or nothing would be visible at all. */
+  if (!isMotionAllowed()) {
+    return;
+  }
 
-  const handleMove = (event: PointerEvent): void => {
-    at.x = event.clientX;
-    at.y = event.clientY;
-    cursor.style.left = `${at.x}px`;
-    cursor.style.top = `${at.y}px`;
-    cursor.style.opacity = "1";
+  const pointer = { x: -60, y: -60 };
+  const head = { x: -60, y: -60 };
+  const ring = { x: -60, y: -60 };
+  let zone: ZoneName = "link";
+  let frame = 0;
+  let shown = false;
 
-    /* The trail eases toward the pointer with the same capped geometry the
-       magnetic hover used, instead of a setTimeout per mouse event. */
-    const offset = getMagneticOffset(at.x, at.y, trailAt.x, trailAt.y, 0.3, 24);
-    trailAt.x += offset.x;
-    trailAt.y += offset.y;
-    trailEl.style.left = `${trailAt.x}px`;
-    trailEl.style.top = `${trailAt.y}px`;
-    trailEl.style.opacity = "1";
+  /* Only transform is written, never left/top, so the browser never has to
+     lay the cursor out to move it. The -50% in the same transform keeps the
+     element's centre on the point. */
+  const place = (el: HTMLElement, at: { x: number; y: number }, scale: number): void => {
+    el.style.transform = `translate3d(calc(${at.x.toFixed(1)}px - 50%), calc(${at.y.toFixed(1)}px - 50%), 0) scale(${scale})`;
   };
 
-  window.addEventListener("pointermove", handleMove, { passive: true });
+  const applyZone = (next: ZoneName, label: string): void => {
+    if (next === zone) {
+      return;
+    }
+    cursor.classList.remove(ZONES[zone].className);
+    trailEl.classList.remove(ZONES[zone].className);
+    zone = next;
+    cursor.classList.add(ZONES[zone].className);
+    trailEl.classList.add(ZONES[zone].className);
+    cursor.dataset.label = label;
+  };
 
-  document.querySelectorAll<HTMLElement>("a, button").forEach((el) => {
-    el.addEventListener("pointerenter", () => cursor.classList.add("hover"));
-    el.addEventListener("pointerleave", () => cursor.classList.remove("hover"));
+  const tick = (): void => {
+    const headOffset = getMagneticOffset(pointer.x, pointer.y, head.x, head.y, CURSOR_LAG, CATCHUP_CAP);
+    const ringOffset = getMagneticOffset(pointer.x, pointer.y, ring.x, ring.y, TRAIL_LAG, CATCHUP_CAP);
+
+    head.x += headOffset.x;
+    head.y += headOffset.y;
+    ring.x += ringOffset.x;
+    ring.y += ringOffset.y;
+
+    place(cursor, head, ZONES[zone].scale);
+    place(trailEl, ring, 1);
+
+    /* Loop until the slow layer has actually converged, so the cursor never
+       freezes part-way through catching up when the pointer stops moving. */
+    if (Math.hypot(pointer.x - ring.x, pointer.y - ring.y) > ARRIVED) {
+      frame = requestAnimationFrame(tick);
+    } else {
+      frame = 0;
+    }
+  };
+
+  const wake = (): void => {
+    if (!frame) {
+      frame = requestAnimationFrame(tick);
+    }
+  };
+
+  window.addEventListener(
+    "pointermove",
+    (event) => {
+      pointer.x = event.clientX;
+      pointer.y = event.clientY;
+
+      if (!shown) {
+        shown = true;
+        /* Held back until the first real movement, so neither block sits in the
+           corner of the viewport on load. */
+        head.x = ring.x = pointer.x;
+        head.y = ring.y = pointer.y;
+        cursor.style.opacity = "1";
+        trailEl.style.opacity = "1";
+      }
+
+      wake();
+    },
+    { passive: true },
+  );
+
+  /* One delegated listener rather than two per interactive element, which also
+     means elements added later, such as the tool rail panels, are picked up
+     with no extra wiring. */
+  document.addEventListener("pointerover", (event) => {
+    const target = event.target as Element | null;
+    const hit = target?.closest<HTMLElement>("[data-cursor], a, button");
+
+    if (!hit) {
+      applyZone("link", "");
+      return;
+    }
+
+    const declared = hit.dataset.cursor as ZoneName | undefined;
+    applyZone(declared && declared in ZONES ? declared : "link", hit.dataset.cursorLabel ?? "");
   });
 };
 
@@ -234,6 +328,32 @@ export const playHeroScramble = (): void => {
   }
 };
 
+/* The sound toggle, plus the one delegated press listener that fires the clack.
+   Both live off a single data attribute rather than per-element listeners, so
+   nothing has to be rewired when markup changes. */
+const initSound = (): void => {
+  const toggle = document.getElementById("sound-toggle");
+  let on = restoreSoundPreference();
+
+  toggle?.setAttribute("aria-pressed", String(on));
+
+  toggle?.addEventListener("click", () => {
+    on = !on;
+    setSoundEnabled(on);
+    toggle.setAttribute("aria-pressed", String(on));
+  });
+
+  document.addEventListener(
+    "pointerdown",
+    (event) => {
+      if ((event.target as Element | null)?.closest("[data-clack]")) {
+        clack();
+      }
+    },
+    { passive: true },
+  );
+};
+
 export const initAnimations = (): void => {
   /* The bus starts before Lenis so it is already live when Lenis's first scroll
      event asks it to sample. */
@@ -243,4 +363,5 @@ export const initAnimations = (): void => {
   initCounters();
   initCursor();
   initNavShadow();
+  initSound();
 };
