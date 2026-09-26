@@ -12,10 +12,14 @@
   --bg: #f2ede4;
   --white: #ffffff;
 
-  /* Tints on the dark sections. Named by role, not by value, so a contrast
-     change lands everywhere at once. */
-  --ink: #666666; /* body copy on black */
-  --ink-faint: #555555; /* footer sub-copy */
+  /* Tints, split by the surface they sit on. Named by role, not by value, so a
+     contrast change lands everywhere at once. The split is not tidiness: no
+     single grey clears 4.5:1 on both the paper and the near-black, so one scale
+     for both surfaces would have to fail one of them. Values are the dimmest
+     tint that still clears the threshold on its own surface. */
+  --ink: #8a8a8a; /* body copy on black */
+  --ink-faint: #7d7d7d; /* the dimmest copy on black */
+  --ink-light: #626262; /* muted copy on paper and on the yellow band */
   --ink-line: #222222; /* dashed connectors on black */
   --ink-line-soft: #1a1a1a; /* footer hairline */
   --ink-line-mid: #333333; /* footer icon borders */

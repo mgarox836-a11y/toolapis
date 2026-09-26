@@ -155,8 +155,17 @@
   /* The velocity shears are transforms rather than animations, so the global
      duration override below does not reach them. */
   .hero-title,
-  .marquee-skew {
+  .marquee-skew,
+  .footer-skew {
     transform: none;
+  }
+
+  /* Nothing moves either of these with motion off, so a promoted layer is pure
+     cost. The rail track is the one that used to be scrubbed, the magnet is the
+     one that would have been dragged. */
+  .magnet,
+  .rail-track {
+    will-change: auto;
   }
 
   /* Every revealed element is already in its final position, whether or not the
@@ -197,7 +206,6 @@
     overflow-x: auto;
     overflow-clip-margin: 0;
     scroll-snap-type: x mandatory;
-    will-change: auto;
   }
 
   .rail-panel {
