@@ -7,6 +7,7 @@ import {
   initScrollBus,
   sampleScroll,
   scroll,
+  trackBox,
   trackSection,
 } from "../scroll.ts";
 import { clack, restoreSoundPreference, setSoundEnabled } from "../sound.ts";
@@ -259,6 +260,18 @@ const initCounters = (): void => {
 const CURSOR_LAG = 0.45;
 const TRAIL_LAG = 0.16;
 
+/* The magnet leans less and settles slower than the cursor: it is a large object,
+   and one that moved as fast would slide out from under the pointer before it
+   arrived. */
+const MAGNET_PULL = 0.16;
+const MAGNET_CAP = 12;
+const MAGNET_LAG = 0.18;
+
+/* How far outside the element the pointer may be and still pull on it. Generous,
+   because a magnet that only reacts once you are already on top of it is not a
+   magnet, it is a hover. */
+const MAGNET_REACH = 60;
+
 /* Cap on catch-up per frame, so a jump across the viewport sprints rather than
    teleports, and so a dropped frame cannot fling the cursor off screen. */
 const CATCHUP_CAP = 60;
@@ -320,6 +333,28 @@ const initPointerLayer = (): void => {
     return el ? [{ el, depth: spec.depth, turn: spec.turn, at: { x: 0, y: 0 } }] : [];
   });
 
+  /* The magnetic CTA. Same loop as the cursor, because a second one would mean a
+     second rAF on the page for no reason.
+
+     Its geometry comes from the bus rather than from a measurement here: this
+     loop writes a transform on every frame it runs, and reading layout after
+     that forces one. The bus measures in its read pass, which has already paid
+     for a layout this frame, and hands the numbers over. */
+  const magnets = [...document.querySelectorAll<HTMLElement>("[data-magnet]")].map((el) => ({
+    el,
+    at: { x: 0, y: 0 },
+    box: { x: 0, y: 0, width: 0, height: 0 },
+  }));
+
+  for (const magnet of magnets) {
+    trackBox(magnet.el, (box) => {
+      magnet.box.x = box.x;
+      magnet.box.y = box.y;
+      magnet.box.width = box.width;
+      magnet.box.height = box.height;
+    });
+  }
+
   /* Only transform is written, never left/top, so the browser never has to
      lay the element out to move it. The -50% in the same transform keeps the
      element's centre on the point. */
@@ -363,6 +398,24 @@ const initPointerLayer = (): void => {
       shape.at.y += offset.y;
       shape.el.style.transform = `translate3d(${shape.at.x.toFixed(2)}px, ${shape.at.y.toFixed(2)}px, 0) rotate(${(shape.at.x * shape.turn).toFixed(2)}deg)`;
       settled = Math.max(settled, Math.hypot(target.x - shape.at.x, target.y - shape.at.y));
+    }
+
+    for (const magnet of magnets) {
+      /* Only while the pointer is within reach of the box, so a pointer parked
+         at the other end of the page leaves it alone. */
+      const near =
+        Math.abs(pointer.x - magnet.box.x) < magnet.box.width / 2 + MAGNET_REACH &&
+        Math.abs(pointer.y - magnet.box.y) < magnet.box.height / 2 + MAGNET_REACH;
+
+      const target = near
+        ? getMagneticOffset(pointer.x, pointer.y, magnet.box.x, magnet.box.y, MAGNET_PULL, MAGNET_CAP)
+        : { x: 0, y: 0 };
+
+      const offset = getMagneticOffset(target.x, target.y, magnet.at.x, magnet.at.y, MAGNET_LAG, CATCHUP_CAP);
+      magnet.at.x += offset.x;
+      magnet.at.y += offset.y;
+      magnet.el.style.transform = `translate3d(${magnet.at.x.toFixed(2)}px, ${magnet.at.y.toFixed(2)}px, 0)`;
+      settled = Math.max(settled, Math.hypot(target.x - magnet.at.x, target.y - magnet.at.y));
     }
 
     const ringGap = Math.hypot(pointer.x - ring.x, pointer.y - ring.y);
@@ -422,8 +475,16 @@ const initPointerLayer = (): void => {
   });
 };
 
-const initNavShadow = (): void => {
+/* Nav state: a shadow once you are off the top, and a marker on the link for
+   whichever section you are actually looking at.
+
+   The marker is the section with the most of itself on screen, not the last one
+   entered, because a 300vh rail is entered long before it is read and a
+   last-entered rule would sit on the wrong link for most of the runway. It is
+   not a motion effect, so it runs with motion off. */
+const initNav = (): void => {
   const nav = document.getElementById("nav");
+
   if (!nav) {
     return;
   }
@@ -434,6 +495,50 @@ const initNavShadow = (): void => {
 
   window.addEventListener("scroll", sync, { passive: true });
   sync();
+
+  const links = [...document.querySelectorAll<HTMLAnchorElement>('.nav-links a[href^="#"]')];
+  const byId = new Map(
+    links.map((link) => [link.getAttribute("href")?.slice(1) ?? "", link]),
+  );
+
+  if (!byId.size || !("IntersectionObserver" in window)) {
+    return;
+  }
+
+  const shares = new Map<string, number>();
+  const observer = new IntersectionObserver(
+    (entries) => {
+      for (const entry of entries) {
+        shares.set(entry.target.id, entry.isIntersecting ? entry.intersectionRatio : 0);
+      }
+
+      let best = "";
+      let most = 0;
+
+      for (const [id, share] of shares) {
+        if (share > most) {
+          most = share;
+          best = id;
+        }
+      }
+
+      for (const [id, link] of byId) {
+        if (id === best) {
+          link.setAttribute("aria-current", "location");
+        } else {
+          link.removeAttribute("aria-current");
+        }
+      }
+    },
+    { threshold: [0, 0.25, 0.5, 0.75, 1] },
+  );
+
+  for (const id of byId.keys()) {
+    const section = document.getElementById(id);
+    if (section) {
+      observer.observe(section);
+    }
+  }
 };
 
 /* Fired by the loader once the intro wipes away, so the hero decodes as the
@@ -564,6 +669,6 @@ export const initAnimations = (): void => {
   initPointerLayer();
   initRail();
   initFlow();
-  initNavShadow();
+  initNav();
   initSound();
 };

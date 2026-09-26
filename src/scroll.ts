@@ -117,8 +117,25 @@ interface TrackedSection {
   height: number;
 }
 
+/** An element's centre and size in viewport coordinates, as of the last read. */
+export interface BoxState {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+type BoxListener = (box: BoxState) => void;
+
+interface TrackedBox {
+  el: HTMLElement;
+  onBox: BoxListener;
+  box: BoxState;
+}
+
 const frameListeners = new Set<FrameListener>();
 const sections = new Set<TrackedSection>();
+const boxes = new Set<TrackedBox>();
 
 let lastY = 0;
 let running = false;
@@ -140,6 +157,14 @@ const read = (): void => {
     section.top = rect.top;
     section.height = rect.height;
   }
+
+  for (const box of boxes) {
+    const rect = box.el.getBoundingClientRect();
+    box.box.x = rect.left + rect.width / 2;
+    box.box.y = rect.top + rect.height / 2;
+    box.box.width = rect.width;
+    box.box.height = rect.height;
+  }
 };
 
 /* Mutate. Runs once per frame and may not read layout. */
@@ -159,6 +184,10 @@ const write = (): void => {
 
   for (const listener of frameListeners) {
     listener(scroll);
+  }
+
+  for (const box of boxes) {
+    box.onBox(box.box);
   }
 };
 
@@ -198,6 +227,34 @@ export const trackSection = (
   sampleScroll();
   return () => {
     sections.delete(section);
+  };
+};
+
+/**
+ * Publish an element's centre and size in viewport coordinates.
+ *
+ * For effects that need to know where something is relative to the pointer.
+ * A pointer loop cannot measure for itself: getBoundingClientRect() after a
+ * frame that wrote transforms forces layout, and the pointer layer writes a
+ * transform on every frame it runs. So the measurement happens here, in the
+ * read pass that has already paid for a layout this frame, and the pointer loop
+ * only ever reads the cached numbers.
+ *
+ * The callback fires from the write pass, so it is expected to write, not read.
+ * It fires on scroll and on resize rather than on every animation frame, which
+ * is enough: the numbers only go stale while the element is moving, and moving
+ * it is what makes this fire.
+ */
+export const trackBox = (el: HTMLElement, onBox: BoxListener): (() => void) => {
+  const box: TrackedBox = {
+    el,
+    onBox,
+    box: { x: 0, y: 0, width: 0, height: 0 },
+  };
+  boxes.add(box);
+  sampleScroll();
+  return () => {
+    boxes.delete(box);
   };
 };
 

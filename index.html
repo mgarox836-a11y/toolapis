@@ -348,42 +348,51 @@
       <section class="cta" id="clarity">
         <h2 class="cta-title" data-reveal>Siap Mulai?</h2>
         <p class="cta-sub" data-reveal data-delay="1" data-cursor="text">Tidak perlu daftar. Tidak perlu download. Cukup buka dan pakai.</p>
-        <a
-          class="mega-cta"
-          href="#features"
-          data-reveal
-          data-delay="2"
-          data-cursor="panel"
-          data-cursor-label="Go"
-          data-clack
-        >Open All Tools ★</a>
+        <!-- The magnet lives on a wrapper, not on the button, so the button keeps
+             its own hover and press transforms to itself. Same split as the
+             marquee's skew wrapper. -->
+        <span class="magnet" data-magnet>
+          <a
+            class="mega-cta"
+            href="#features"
+            data-reveal
+            data-delay="2"
+            data-cursor="panel"
+            data-cursor-label="Go"
+            data-clack
+          >Open All Tools ★</a>
+        </span>
       </section>
     </main>
 
     <footer class="footer">
-      <p class="footer-copy">© 2026 TOOLAPIS</p>
-      <div class="footer-socials">
-        <a class="social" href="https://tiktok-hd-enhancer-by-apis-fgtkuxmpzmi7h8gifh4a8o.streamlit.app/" target="_blank" rel="noopener noreferrer" aria-label="HD Video Enhancer">
-          <svg viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true">
-            <rect x="2.5" y="6.5" width="27" height="19" />
-            <path d="M16 21V11M12.5 14.5L16 11l3.5 3.5" />
-          </svg>
-        </a>
-        <a class="social" href="https://drive.google.com/file/d/1gH_huKs7Pf9XP2uJcRfMaLqJonLfJcbI/view" target="_blank" rel="noopener noreferrer" aria-label="Android USB Tethering">
-          <svg viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true">
-            <rect x="2.5" y="6" width="11" height="20" />
-            <path d="M17 16h5.5M19.5 13L22.5 16l-3 3" />
-            <rect x="22.5" y="8.5" width="7" height="15" />
-          </svg>
-        </a>
-        <a class="social" href="https://newsocapis.vercel.app" target="_blank" rel="noopener noreferrer" aria-label="Social Hub">
-          <svg viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true">
-            <circle cx="16" cy="6.5" r="4" />
-            <circle cx="6.5" cy="24.5" r="4" />
-            <circle cx="25.5" cy="24.5" r="4" />
-            <path d="M16 10.5v5M16 15.5H6.5v5M16 15.5h9.5v5" />
-          </svg>
-        </a>
+      <!-- Skewed on a wrapper so the rule along the top stays straight, exactly as
+           the marquee does it. -->
+      <div class="footer-skew">
+        <p class="footer-copy">© 2026 TOOLAPIS</p>
+        <div class="footer-socials">
+          <a class="social" href="https://tiktok-hd-enhancer-by-apis-fgtkuxmpzmi7h8gifh4a8o.streamlit.app/" target="_blank" rel="noopener noreferrer" aria-label="HD Video Enhancer">
+            <svg viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true">
+              <rect x="2.5" y="6.5" width="27" height="19" />
+              <path d="M16 21V11M12.5 14.5L16 11l3.5 3.5" />
+            </svg>
+          </a>
+          <a class="social" href="https://drive.google.com/file/d/1gH_huKs7Pf9XP2uJcRfMaLqJonLfJcbI/view" target="_blank" rel="noopener noreferrer" aria-label="Android USB Tethering">
+            <svg viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true">
+              <rect x="2.5" y="6" width="11" height="20" />
+              <path d="M17 16h5.5M19.5 13L22.5 16l-3 3" />
+              <rect x="22.5" y="8.5" width="7" height="15" />
+            </svg>
+          </a>
+          <a class="social" href="https://newsocapis.vercel.app" target="_blank" rel="noopener noreferrer" aria-label="Social Hub">
+            <svg viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true">
+              <circle cx="16" cy="6.5" r="4" />
+              <circle cx="6.5" cy="24.5" r="4" />
+              <circle cx="25.5" cy="24.5" r="4" />
+              <path d="M16 10.5v5M16 15.5H6.5v5M16 15.5h9.5v5" />
+            </svg>
+          </a>
+        </div>
       </div>
     </footer>
 

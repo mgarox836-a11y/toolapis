@@ -165,6 +165,15 @@
   border-color: var(--black);
 }
 
+/* Where you are, as opposed to where the pointer is. A rule under the link
+   rather than the full yellow block, so it reads as a position marker and not as
+   a hover that happens to be stuck on. The border is already there at 3px and
+   transparent, so colouring it moves nothing. */
+.nav-links a[aria-current] {
+  border-bottom-color: var(--yellow);
+  color: var(--yellow);
+}
+
 .nav-cta {
   padding: 10px 18px;
   background: var(--black);
@@ -1035,6 +1044,14 @@ html:not(.js) .flow-connector {
   font-size: 15px;
 }
 
+/* A shrink-wrapped box that carries the magnetic pull, so the button inside keeps
+   its own hover and press transforms to itself. transform is written by the
+   script and nothing else writes it here, so the two never argue. */
+.magnet {
+  display: inline-block;
+  will-change: transform;
+}
+
 .mega-cta {
   display: inline-block;
   margin-top: 48px;
@@ -1064,13 +1081,23 @@ html:not(.js) .flow-connector {
 /* ── Footer ─────────────────────────────────────────────────────────────── */
 
 .footer {
+  padding: 28px var(--pad-x);
+  background: var(--black);
+  border-top: 3px solid var(--ink-line-soft);
+}
+
+/* Sheared by scroll velocity, on a wrapper so the rule along the top of the
+   footer stays straight. The same trick and the same reason as the marquee: a
+   running animation resolving a custom property differs between browsers, so the
+   skew lives on a wrapper that owns nothing else. Gentler than the marquee's
+   because this one sits still at the end of the document, where the velocity has
+   already decayed to nothing by the time the shear would read. */
+.footer-skew {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 20px;
-  padding: 28px var(--pad-x);
-  background: var(--black);
-  border-top: 3px solid var(--ink-line-soft);
+  transform: skewX(calc(var(--scroll-velocity) * -0.1deg));
 }
 
 .footer-copy {
