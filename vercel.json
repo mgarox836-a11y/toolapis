@@ -1,1 +1,1 @@
-{"framework":null,"buildCommand":null,"outputDirectory":"."}
+{"framework":"vite","buildCommand":"npm run build","outputDirectory":"dist"}

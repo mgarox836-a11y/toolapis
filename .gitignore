@@ -1,3 +1,7 @@
 node_modules/
-.vercel
+dist/
+.vercel/
 .env*
+dev-server.log
+dev-server.log.err
+__pycache__/

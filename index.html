@@ -1,266 +1,275 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <meta name="description" content="TOOLAPIS is a small hub of real web tools: upscale TikTok clips to HD, share your PC's internet with Android over USB, or jump into the social media hub.">
-  <meta name="theme-color" content="#0e100f">
-  <meta name="color-scheme" content="dark">
-  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='16' fill='%23fffce1'/%3E%3Ctext x='16' y='21.5' font-family='Arial,sans-serif' font-size='12.5' font-weight='800' text-anchor='middle' fill='%230e100f'%3ETL%3C/text%3E%3C/svg%3E">
-  <meta property="og:type" content="website">
-  <meta property="og:title" content="TOOLAPIS — Web Tools Hub">
-  <meta property="og:description" content="Upscale TikTok clips to HD, tether your PC's internet to Android over USB, or open the social hub. One place, zero friction.">
-  <meta property="og:url" content="https://toolapis.vercel.app/">
-  <meta property="og:site_name" content="TOOLAPIS">
-  <link rel="canonical" href="https://toolapis.vercel.app/">
-  <meta name="twitter:card" content="summary_large_image">
-  <meta name="twitter:title" content="TOOLAPIS — Web Tools Hub">
-  <meta name="twitter:description" content="Upscale TikTok clips to HD, tether your PC's internet to Android over USB, or open the social hub.">
-  <title>TOOLAPIS — Web Tools Hub</title>
+<!doctype html>
+<html lang="en" data-motion="on">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="description" content="TOOLAPIS is a focused hub for HD video enhancement, Android USB tethering, and social media tools." />
+    <meta name="theme-color" content="#05070a" />
+    <meta name="color-scheme" content="dark" />
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="TOOLAPIS — Web Tools Hub" />
+    <meta property="og:description" content="Upscale TikTok clips to HD, tether Android over USB, or open the social hub. One place, zero friction." />
+    <meta property="og:url" content="https://toolapis.vercel.app/" />
+    <meta property="og:site_name" content="TOOLAPIS" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="TOOLAPIS — Web Tools Hub" />
+    <meta name="twitter:description" content="HD enhancement, USB tethering, and social tools in one focused hub." />
+    <link rel="canonical" href="https://toolapis.vercel.app/" />
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='9' fill='%2305070a'/%3E%3Cpath d='M13.4 6 L10.2 6 L4.6 26 L7.8 26 Z' fill='%2300f0ff'/%3E%3Cpath d='M24.6 6 L21.4 6 L15.8 26 L19 26 Z' fill='%23fffce1'/%3E%3C/svg%3E" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@100..900&amp;display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="/src/styles.css" />
+    <title>TOOLAPIS — Web Tools Hub</title>
+  </head>
+  <body>
+    <a class="skip-link" href="#main-content">Skip to content</a>
+    <div id="fallback-portal" aria-hidden="true"></div>
+    <canvas id="webgl-canvas" aria-hidden="true"></canvas>
+    <div class="scene-veil" aria-hidden="true"></div>
 
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;600&display=swap" rel="stylesheet">
-
-  <link rel="stylesheet" href="style.css">
-
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/ScrollTrigger.min.js"></script>
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-  <script defer src="https://cdn.jsdelivr.net/npm/lenis@1/dist/lenis.min.js"></script>
-  <script defer src="script.js"></script>
-</head>
-<body class="loading">
-
-  <!-- ============ PRELOADER — cinematic cyber intro (~4.2s) ============ -->
-  <div id="preloader" aria-hidden="true">
-    <div class="loader-ambient" aria-hidden="true"></div>
-    <div class="loader-scanline" aria-hidden="true"></div>
-    <div class="loader-hud" aria-hidden="true">INITIALIZING SYSTEM // V2.0<span></span></div>
-    <div class="loader-content">
-      <div class="loader-brand" role="text" aria-label="TOOLAPIS">
-        <span class="loader-letter">T</span><span class="loader-letter">O</span><span class="loader-letter">O</span><span class="loader-letter">L</span><span class="loader-letter">A</span><span class="loader-letter">P</span><span class="loader-letter">I</span><span class="loader-letter">S</span>
-      </div>
-      <div class="loader-status">
-        <span class="loader-counter">00%</span>
-        <div class="loader-bar-wrap"><div class="loader-bar"></div></div>
-        <span class="loader-status-text">BOOTING CORE...</span>
-      </div>
-    </div>
-  </div>
-
-  <canvas id="webgl-canvas" aria-hidden="true"></canvas>
-
-  <a class="skip-link" href="#main-content">Skip to content</a>
-  <div id="nav-sentinel" aria-hidden="true"></div>
-
-  <header class="bar" id="navbar">
-    <a class="brand" href="#" aria-label="TOOLAPIS home">
-      <svg viewBox="0 0 23 17" aria-hidden="true">
-        <path d="M8.15 0.9 L4.55 0.9 L0.5 9.3 L4.1 9.3 Z"/>
-        <path d="M17.0 0 L13.4 0 L6.15 16.4 L9.75 16.4 Z"/>
-        <path d="M22.9 0 L19.3 0 L15.0 7.6 L18.6 7.6 Z"/>
-        <path d="M22.6 6.9 L19.0 6.9 L14.05 16.4 L17.65 16.4 Z"/>
-      </svg>
-      <span>TOOLAPIS</span>
-    </a>
-    <nav class="menu" aria-label="Primary">
-      <a href="#overview">About</a>
-      <a href="#features">Product</a>
-      <a href="#flow">Solutions</a>
-    </nav>
-    <button class="nav-toggle" type="button" aria-label="Open menu" aria-expanded="false" aria-controls="mobile-menu">
-      <span class="nav-toggle-line" aria-hidden="true"></span>
-      <span class="nav-toggle-line" aria-hidden="true"></span>
-      <span class="nav-toggle-line" aria-hidden="true"></span>
-    </button>
-  </header>
-
-  <!-- ============ MOBILE NAV DRAWER — fullscreen glass overlay ============ -->
-  <div class="nav-mobile-menu" id="mobile-menu" aria-hidden="true">
-    <div class="nav-mobile-glow" aria-hidden="true"></div>
-    <nav aria-label="Primary mobile">
-      <a href="#overview">About</a>
-      <a href="#features">Product</a>
-      <a href="#flow">Solutions</a>
-    </nav>
-  </div>
-
-  <!-- ============ HERO — massive carved type ============ -->
-  <section class="hero-wrap" id="main-content" tabindex="-1">
-    <div class="blob blob-a" aria-hidden="true"></div>
-    <div class="blob blob-b" aria-hidden="true"></div>
-    <main class="hero">
-      <div class="hero-copy">
-        <p class="eyebrow hero-eyebrow">Toolapis Hub</p>
-        <h1 class="title">
-          <div class="line-wrap"><div class="line">Web Tools For You,</div></div>
-          <div class="line-wrap"><div class="line">All in One Place.</div></div>
-        </h1>
-        <p class="sub">
-          <span class="line-wrap"><span class="line">Upscale TikTok clips to HD, tether your Android over USB,</span></span>
-          <span class="line-wrap"><span class="line">and jump into the social hub — zero friction.</span></span>
-        </p>
-        <a href="https://tiktok-hd-enhancer-by-apis-fgtkuxmpzmi7h8gifh4a8o.streamlit.app/" target="_blank" rel="noopener noreferrer" class="hero-cta">
-          <span>Open HD Enhancer</span>
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <path d="M5 12h14M12 5l7 7-7 7"/>
+    <header class="site-header">
+      <div class="header-inner">
+        <a class="brand" href="#overview" aria-label="TOOLAPIS home" data-entrance="brand">
+          <svg viewBox="0 0 23 17" aria-hidden="true">
+            <path d="M8.15 0.9 L4.55 0.9 L0.5 9.3 L4.1 9.3 Z" />
+            <path d="M17 0 L13.4 0 L6.15 16.4 L9.75 16.4 Z" />
+            <path d="M22.9 0 L19.3 0 L15 7.6 L18.6 7.6 Z" />
+            <path d="M22.6 6.9 L19 6.9 L14.05 16.4 L17.65 16.4 Z" />
           </svg>
+          <span>TOOLAPIS</span>
         </a>
-      </div>
-    </main>
-    <a class="scroll-cue" href="#overview" aria-label="Scroll to tools"><span class="l">Scroll</span></a>
-  </section>
 
-  <!-- ============ SECTIONS ============ -->
-  <div class="page">
+        <nav class="primary-nav" aria-label="Primary" data-entrance="nav">
+          <a href="#overview" aria-current="page">About</a>
+          <a href="#features">Tools</a>
+          <a href="#flow">How it works</a>
+        </nav>
 
-    <!-- Overview / Tool Cards -->
-    <section id="overview" class="sec">
-      <div class="wrap">
-        <div class="sec-head">
-          <p class="eyebrow">{ Toolapis Hub }</p>
-          <h2 class="head-reveal">One hub, three tools.</h2>
+        <div class="header-action" data-entrance="action">
+          <a class="glass-button" href="https://tiktok-hd-enhancer-by-apis-fgtkuxmpzmi7h8gifh4a8o.streamlit.app/" target="_blank" rel="noopener noreferrer">
+            <span>Open HD Enhancer</span>
+            <svg viewBox="0 0 16 12" aria-hidden="true">
+              <path d="M1 6H13M8 1.5L13 6L8 10.5" />
+            </svg>
+          </a>
         </div>
 
-        <div class="grid grid-3">
-          <article class="card" data-cat="gsap">
-            <p class="cat">GSAP Core</p>
-            <h3>TikTok HD Enhancer</h3>
-            <p>A Streamlit-based app designed to automatically boost the visual resolution and clarity of your TikTok video content.</p>
-            <a class="btn" href="https://tiktok-hd-enhancer-by-apis-fgtkuxmpzmi7h8gifh4a8o.streamlit.app/" target="_blank" rel="noopener noreferrer">
+        <button class="nav-toggle" type="button" aria-label="Open menu" aria-expanded="false" aria-controls="mobile-menu" data-entrance="menu">
+          <span class="nav-toggle-lines" aria-hidden="true">
+            <span></span>
+            <span></span>
+            <span></span>
+          </span>
+        </button>
+      </div>
+    </header>
+
+    <dialog class="mobile-menu" id="mobile-menu" aria-labelledby="mobile-menu-title">
+      <div class="mobile-menu-head">
+        <span id="mobile-menu-title">Navigate</span>
+        <button class="icon-button" type="button" aria-label="Close menu" data-menu-close>
+          <svg viewBox="0 0 16 16" aria-hidden="true">
+            <path d="M3 3L13 13M13 3L3 13" />
+          </svg>
+        </button>
+      </div>
+      <nav aria-label="Mobile primary">
+        <a href="#overview">About</a>
+        <a href="#features">Tools</a>
+        <a href="#flow">How it works</a>
+        <a href="#clarity">Open hub</a>
+      </nav>
+    </dialog>
+
+    <main class="page" id="main-content">
+      <section class="hero" id="overview" aria-labelledby="hero-title">
+        <div class="hero-grid">
+          <div class="hero-copy">
+            <p class="hero-eyebrow" data-entrance="eyebrow">// 03 Tools · 0 Friction</p>
+
+            <div class="hero-title-wrap">
+              <div class="hero-aperture" aria-hidden="true"></div>
+
+              <h1 class="hero-title" id="hero-title">
+                <span class="hero-line"><span>Web Tools</span></span>
+                <span class="hero-line"><span>For You</span></span>
+                <span class="hero-line"><span>All in One Place.</span></span>
+              </h1>
+
+              <span class="hero-title-lit" aria-hidden="true">
+                <span class="hero-line"><span>Web Tools</span></span>
+                <span class="hero-line"><span>For You</span></span>
+                <span class="hero-line"><span>All in One Place.</span></span>
+              </span>
+
+              <div class="hero-orbit" aria-hidden="true">
+                <span class="hero-chip" style="--r: 58deg">HD Enhancer</span>
+                <span class="hero-chip" style="--r: 90deg">USB Tether</span>
+                <span class="hero-chip" style="--r: 122deg">Social Hub</span>
+              </div>
+            </div>
+
+            <p class="hero-subtitle" data-entrance="subtitle">Upscale TikTok clips to HD, tether your Android over USB, and jump into the social hub — zero friction.</p>
+
+            <div class="hero-actions" data-entrance="cta">
+              <a class="glass-button hero-cta" href="https://tiktok-hd-enhancer-by-apis-fgtkuxmpzmi7h8gifh4a8o.streamlit.app/" target="_blank" rel="noopener noreferrer" data-magnetic data-specular>
+                <span>Open HD Enhancer</span>
+                <svg viewBox="0 0 16 12" aria-hidden="true">
+                  <path d="M1 6H13M8 1.5L13 6L8 10.5" />
+                </svg>
+              </a>
+            </div>
+          </div>
+          <a class="scroll-cue" href="#features" aria-label="Scroll to tools" data-entrance="scroll">Scroll</a>
+        </div>
+      </section>
+
+      <section class="section section-rule" id="features" aria-labelledby="tools-title">
+        <div class="layout-grid">
+          <div class="section-intro" data-reveal>
+            <h2 id="tools-title">One hub. Three useful tools.</h2>
+            <p>Open what you need, use it, and move on. No account setup or unnecessary interface between intention and result.</p>
+          </div>
+
+          <div class="tool-list">
+            <article class="tool-row" data-reveal data-magnetic>
+              <span class="tool-index">01</span>
+              <div class="tool-copy">
+                <h3>TikTok HD Enhancer</h3>
+                <p>Increase the resolution and clarity of low-quality TikTok clips automatically, with no manual settings or sliders.</p>
+              </div>
+              <div class="tool-action">
+                <a class="solid-button" href="https://tiktok-hd-enhancer-by-apis-fgtkuxmpzmi7h8gifh4a8o.streamlit.app/" target="_blank" rel="noopener noreferrer" data-magnetic>
+                  <span>Open HD Enhancer</span>
+                  <svg viewBox="0 0 16 12" aria-hidden="true">
+                    <path d="M1 6H13M8 1.5L13 6L8 10.5" />
+                  </svg>
+                </a>
+              </div>
+            </article>
+
+            <article class="tool-row" data-reveal data-magnetic>
+              <span class="tool-index">02</span>
+              <div class="tool-copy">
+                <h3>Gnirehtet Tethering</h3>
+                <p>Share your PC internet connection with an Android phone over USB without requiring an additional modem or router.</p>
+              </div>
+              <div class="tool-action">
+                <a class="text-button" href="https://drive.google.com/file/d/1gH_huKs7Pf9XP2uJcRfMaLqJonLfJcbI/view" target="_blank" rel="noopener noreferrer">
+                  <span>Open Gnirehtet</span>
+                  <svg viewBox="0 0 16 12" aria-hidden="true">
+                    <path d="M1 6H13M8 1.5L13 6L8 10.5" />
+                  </svg>
+                </a>
+              </div>
+            </article>
+
+            <article class="tool-row" data-reveal data-magnetic>
+              <span class="tool-index">03</span>
+              <div class="tool-copy">
+                <h3>Social Media Hub</h3>
+                <p>Open a focused collection of social media tools and links from one clean, distraction-free destination.</p>
+              </div>
+              <div class="tool-action">
+                <a class="text-button" href="https://newsocapis.vercel.app" target="_blank" rel="noopener noreferrer">
+                  <span>Open Social Media</span>
+                  <svg viewBox="0 0 16 12" aria-hidden="true">
+                    <path d="M1 6H13M8 1.5L13 6L8 10.5" />
+                  </svg>
+                </a>
+              </div>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <section class="section section-rule" id="flow" aria-labelledby="flow-title">
+        <div class="layout-grid">
+          <div class="section-intro" data-reveal>
+            <h2 id="flow-title">Pick it up in a minute.</h2>
+            <p>The entire flow is intentionally direct: choose a tool, open it, and get back to what matters.</p>
+          </div>
+
+          <div class="process-grid">
+            <article class="process-step" data-reveal>
+              <span>01</span>
+              <h3>Pick a tool</h3>
+              <p>Choose HD enhancement, Android tethering, or the social hub.</p>
+            </article>
+            <article class="process-step" data-reveal>
+              <span>02</span>
+              <h3>Open it</h3>
+              <p>Launch the selected tool directly in your browser.</p>
+            </article>
+            <article class="process-step" data-reveal>
+              <span>03</span>
+              <h3>Get it done</h3>
+              <p>Upscale the clip, share the connection, or continue in the hub.</p>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <section class="section section-rule clarity-section" id="clarity" aria-labelledby="clarity-title">
+        <div class="layout-grid">
+          <div class="clarity-copy" data-reveal>
+            <h2 id="clarity-title">Clear tools. Zero clutter.</h2>
+            <p>One dependable place for the tools you actually use. Open the link you need and keep moving.</p>
+          </div>
+          <div class="clarity-actions" data-reveal>
+            <a class="solid-button" href="https://tiktok-hd-enhancer-by-apis-fgtkuxmpzmi7h8gifh4a8o.streamlit.app/" target="_blank" rel="noopener noreferrer">
               <span>Open HD Enhancer</span>
-              <svg viewBox="0 0 16 12" width="14" height="11" aria-hidden="true"><path d="M1 6 H13 M8 1.5 L13 6 L8 10.5"/></svg>
+              <svg viewBox="0 0 16 12" aria-hidden="true">
+                <path d="M1 6H13M8 1.5L13 6L8 10.5" />
+              </svg>
             </a>
-          </article>
-
-          <article class="card" data-cat="svg">
-            <p class="cat">SVG</p>
-            <h3>Gnirehtet Tethering</h3>
-            <p>Share your PC's internet connection with your Android phone over USB. Fast, easy, and with no extra modem required.</p>
-            <a class="btn" href="https://drive.google.com/file/d/1gH_huKs7Pf9XP2uJcRfMaLqJonLfJcbI/view" target="_blank" rel="noopener noreferrer">
-              <span>Open Gnirehtet</span>
-              <svg viewBox="0 0 16 12" width="14" height="11" aria-hidden="true"><path d="M1 6 H13 M8 1.5 L13 6 L8 10.5"/></svg>
-            </a>
-          </article>
-
-          <article class="card" data-cat="ui">
-            <p class="cat">UI</p>
-            <h3>Social Media Hub</h3>
-            <p>A dedicated hub that brings your social media tools and links together in one clean, easy-to-use place.</p>
-            <a class="btn" href="https://newsocapis.vercel.app" target="_blank" rel="noopener noreferrer">
-              <span>Open Social Media</span>
-              <svg viewBox="0 0 16 12" width="14" height="11" aria-hidden="true"><path d="M1 6 H13 M8 1.5 L13 6 L8 10.5"/></svg>
-            </a>
-          </article>
-        </div>
-      </div>
-    </section>
-
-    <!-- Features -->
-    <section id="features" class="sec">
-      <div class="wrap">
-        <div class="sec-head">
-          <p class="eyebrow">{ Capabilities }</p>
-          <h2 class="head-reveal">Small hub. Real tools.</h2>
-          <p class="lead">No installs, no accounts, no filler. Just a few tools that do the job and get out of your way.</p>
-        </div>
-
-        <div class="grid grid-2">
-          <article class="card feature" data-cat="gsap">
-            <h3>HD upscaling</h3>
-            <p>Raises the resolution and sharpness of low-quality TikTok clips automatically. No sliders, no settings, no guesswork.</p>
-          </article>
-          <article class="card feature" data-cat="svg">
-            <h3>USB tethering</h3>
-            <p>Shares your PC's internet with an Android phone over a USB cable, no extra modem or router setup.</p>
-          </article>
-          <article class="card feature" data-cat="ui">
-            <h3>Web-first</h3>
-            <p>Every tool launches straight from the browser. Grab a link, share it, and you're done.</p>
-          </article>
-        </div>
-      </div>
-    </section>
-
-    <!-- Flow -->
-    <section id="flow" class="sec">
-      <div class="wrap">
-        <div class="sec-head">
-          <p class="eyebrow">{ How It Works }</p>
-          <h2 class="head-reveal">Pick it up in a minute.</h2>
-        </div>
-
-        <div class="flow">
-          <div class="step">
-            <h3>Pick a tool</h3>
-            <p>Enhancer for your videos, tethering for your connection, social hub for everything else.</p>
-          </div>
-          <div class="step">
-            <h3>Launch it</h3>
-            <p>One click opens the app in your browser.</p>
-          </div>
-          <div class="step">
-            <h3>You're done</h3>
-            <p>Upscale the clip or share the connection right away.</p>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <!-- Clarity / closing band -->
-    <section id="clarity" class="sec">
-      <div class="wrap">
-        <div class="panel">
-          <p class="eyebrow">{ Clarity }</p>
-          <h2 class="head-reveal">Clear tools, zero clutter.</h2>
-          <p>One hub for the tools you actually use. Open it, use it, move on.</p>
-          <div class="band">
-            <a class="cta" href="https://tiktok-hd-enhancer-by-apis-fgtkuxmpzmi7h8gifh4a8o.streamlit.app/" target="_blank" rel="noopener noreferrer">
-              <span>Open HD Enhancer</span>
-              <svg viewBox="0 0 16 12" width="15" height="12" aria-hidden="true"><path d="M1 6 H13 M8 1.5 L13 6 L8 10.5"/></svg>
-            </a>
-            <button type="button" class="btn btn-ghost" onclick="copyToClipboard('https://tiktok-hd-enhancer-by-apis-fgtkuxmpzmi7h8gifh4a8o.streamlit.app/', 'Enhancer link copied!')">
+            <button class="glass-button" type="button" data-magnetic data-copy-url="https://tiktok-hd-enhancer-by-apis-fgtkuxmpzmi7h8gifh4a8o.streamlit.app/">
               <span>Copy enhancer link</span>
             </button>
-            <a class="btn btn-ghost" href="https://newsocapis.vercel.app" target="_blank" rel="noopener noreferrer">
+            <a class="text-button" href="https://newsocapis.vercel.app" target="_blank" rel="noopener noreferrer">
               <span>Social Media</span>
+              <svg viewBox="0 0 16 12" aria-hidden="true">
+                <path d="M1 6H13M8 1.5L13 6L8 10.5" />
+              </svg>
             </a>
           </div>
         </div>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <div class="footer-inner">
+        <div class="footer-brand">
+          <a class="brand" href="#overview" aria-label="TOOLAPIS home">
+            <svg viewBox="0 0 23 17" aria-hidden="true">
+              <path d="M8.15 0.9 L4.55 0.9 L0.5 9.3 L4.1 9.3 Z" />
+              <path d="M17 0 L13.4 0 L6.15 16.4 L9.75 16.4 Z" />
+              <path d="M22.9 0 L19.3 0 L15 7.6 L18.6 7.6 Z" />
+              <path d="M22.6 6.9 L19 6.9 L14.05 16.4 L17.65 16.4 Z" />
+            </svg>
+            <span>TOOLAPIS</span>
+          </a>
+          <p>© 2026 TOOLAPIS. All rights reserved.</p>
+        </div>
+        <nav class="footer-nav" aria-label="Footer">
+          <a href="#overview">Overview</a>
+          <a href="#features">Tools</a>
+          <a href="#flow">Process</a>
+          <a href="#clarity">Clarity</a>
+        </nav>
+        <div class="status">All systems operational</div>
       </div>
-    </section>
+    </footer>
 
-  </div>
+    <button id="back-to-top" type="button" aria-label="Back to top">
+      <svg viewBox="0 0 16 16" aria-hidden="true">
+        <path d="M8 13V3M4 7L8 3L12 7" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" />
+      </svg>
+    </button>
 
-  <!-- Footer -->
-  <footer class="site-foot">
-    <div class="wrap">
-      <div>
-        <a href="#" class="brand-mark">TOOLAPIS</a>
-        <p>&copy; 2026 TOOLAPIS. All rights reserved.</p>
-      </div>
-      <nav aria-label="Footer">
-        <a href="#overview">Overview</a>
-        <a href="#features">Features</a>
-        <a href="#flow">Flow</a>
-        <a href="#clarity">Clarity</a>
-      </nav>
-      <div class="status"><span class="lamp" aria-hidden="true"></span> All systems operational</div>
-    </div>
-  </footer>
+    <div id="toast" role="status" aria-live="polite"></div>
 
-  <!-- Back to top -->
-  <button id="back-to-top" type="button" aria-label="Back to top">
-    <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><path d="M8 13 V3 M4 7 L8 3 L12 7"/></svg>
-  </button>
-
-  <!-- Toast -->
-  <div id="toast" role="status" aria-live="polite">
-    <div class="tbox">
-      <svg viewBox="0 0 16 16" width="15" height="15" aria-hidden="true"><circle cx="8" cy="8" r="6.5" fill="none"/><path d="M5 8.2 L7.3 10.4 L11 5.7"/></svg>
-      <span id="toast-message">Link Copied!</span>
-    </div>
-  </div>
-</body>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
 </html>
