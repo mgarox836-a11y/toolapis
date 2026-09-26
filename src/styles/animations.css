@@ -64,6 +64,20 @@
   }
 }
 
+@keyframes reveal-in {
+  from {
+    opacity: 0;
+    translate: 0 36px;
+    rotate: -1deg;
+  }
+
+  to {
+    opacity: 1;
+    translate: 0 0;
+    rotate: 0deg;
+  }
+}
+
 .scroll-arrow {
   animation: scroll-drop 1.8s ease-in-out infinite;
   transform-origin: top;
@@ -85,29 +99,29 @@
    nothing to add .revealed, so the sections would stay at opacity 0 forever. */
 .js [data-reveal] {
   opacity: 0;
-  transform: translateY(36px) rotate(-1deg);
+  translate: 0 36px;
+  rotate: -1deg;
 }
 
-/* The transition lives on the not-yet-settled state only. Once the element has
-   landed, .settled hands the transform back to the component's own rule, which
-   is what keeps the brutalist hover at 0.12s instead of inheriting 0.65s. */
-.js [data-reveal].revealed:not(.settled) {
-  opacity: 1;
-  transform: none;
-  transition: opacity 0.65s cubic-bezier(0.16, 1, 0.3, 1),
-    transform 0.65s cubic-bezier(0.16, 1, 0.3, 1);
+/* The reveal is a keyframe animation rather than a transition on purpose. A
+   transition would have to live on the destination rule, and `transition` is a
+   shorthand, so the reveal's 0.65s would replace the card's own 0.12s and the
+   brutalist hover would crawl. An animation also only ever touches opacity,
+   translate and rotate, leaving the component's `transform` entirely alone. */
+.js [data-reveal].revealed {
+  animation: reveal-in 0.65s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
-.js [data-reveal][data-delay="1"].revealed:not(.settled) {
-  transition-delay: 0.08s;
+.js [data-reveal][data-delay="1"].revealed {
+  animation-delay: 0.08s;
 }
 
-.js [data-reveal][data-delay="2"].revealed:not(.settled) {
-  transition-delay: 0.16s;
+.js [data-reveal][data-delay="2"].revealed {
+  animation-delay: 0.16s;
 }
 
-.js [data-reveal][data-delay="3"].revealed:not(.settled) {
-  transition-delay: 0.24s;
+.js [data-reveal][data-delay="3"].revealed {
+  animation-delay: 0.24s;
 }
 
 /* ── Reduced motion ─────────────────────────────────────────────────────── */
@@ -127,7 +141,8 @@
      observer ever ran. */
   .js [data-reveal] {
     opacity: 1;
-    transform: none;
+    translate: 0 0;
+    rotate: 0deg;
   }
 
   *,
@@ -135,6 +150,7 @@
   *::after {
     transition-duration: 0.01ms !important;
     animation-duration: 0.01ms !important;
+    animation-delay: 0.01ms !important;
     animation-iteration-count: 1 !important;
   }
 }

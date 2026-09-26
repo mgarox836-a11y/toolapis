@@ -77,12 +77,12 @@ h3 {
   color: var(--black);
 }
 
-/* The fixed header is 64px, so every anchor target stops underneath it. Lenis
-   reads this value natively, which is why the scroll offset is one declaration
-   and not a second offset option in JavaScript. */
+/* Every anchor target stops clear of the fixed header, plus a little air.
+   Lenis reads scroll-margin-top off the target, so this stays the one place the
+   clearance is declared rather than a second offset option in JavaScript. */
 :target,
 section[id] {
-  scroll-margin-top: var(--nav-h);
+  scroll-margin-top: calc(var(--nav-h) + 12px);
 }
 
 /* Visible on focus, off the canvas otherwise. */

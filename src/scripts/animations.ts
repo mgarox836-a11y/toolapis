@@ -63,9 +63,9 @@ export const scramble = (
 };
 
 const initSmoothScroll = (): void => {
-  /* anchors: true lets Lenis handle every same-page hash link itself, and it
-     reads scroll-margin-top off the target, so the fixed header offset is one
-     CSS declaration rather than a second offset in JavaScript. */
+  /* anchors lets Lenis handle every same-page hash link itself, and it reads
+     scroll-margin-top off the target, so the fixed-header clearance is one CSS
+     declaration and not a second offset to keep in step here. */
   const lenis = new Lenis({
     lerp: 0.08,
     duration: 1.4,
@@ -98,7 +98,7 @@ const initReveals = (): void => {
   /* Without the observer the elements would stay at opacity 0, so show them
      rather than shipping a blank page. */
   if (!("IntersectionObserver" in window)) {
-    targets.forEach((el) => el.classList.add("revealed", "settled"));
+    targets.forEach((el) => el.classList.add("revealed"));
     return;
   }
 
@@ -108,14 +108,11 @@ const initReveals = (): void => {
         if (!entry.isIntersecting) {
           continue;
         }
-        const el = entry.target as HTMLElement;
-        el.classList.add("revealed");
-        /* Release the transform back to the component once the reveal has
-           landed, otherwise the card would hover at the reveal's easing. */
-        el.addEventListener("transitionend", () => el.classList.add("settled"), {
-          once: true,
-        });
-        observer.unobserve(el);
+        /* The reveal offset lives on the independent translate/rotate
+           properties, so there is nothing to hand back to the component
+           afterwards and no cleanup to schedule. */
+        entry.target.classList.add("revealed");
+        observer.unobserve(entry.target);
       }
     },
     { threshold: 0.12 },
