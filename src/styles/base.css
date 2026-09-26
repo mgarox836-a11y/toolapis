@@ -1,0 +1,128 @@
+/* Reset, document defaults and the two primitives every section relies on:
+   the skip link and the focus ring. */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  /* Strict brutalism: no rounded corners anywhere, including form controls. */
+  border-radius: 0;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  /* Lenis drives the scroll position, so the native smooth behaviour would
+     fight it. Anchor targets are offset by the fixed header in CSS instead. */
+  scroll-behavior: auto;
+}
+
+body {
+  background: var(--bg);
+  color: var(--black);
+  font-family: var(--font-mono);
+  font-size: 15px;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  overflow-x: hidden;
+}
+
+img,
+svg {
+  display: block;
+  max-width: 100%;
+}
+
+ul,
+ol {
+  list-style: none;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+button {
+  font: inherit;
+  color: inherit;
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+
+h1,
+h2,
+h3 {
+  font-family: var(--font-display);
+  font-weight: 900;
+  line-height: 1;
+  letter-spacing: -0.02em;
+  text-transform: uppercase;
+}
+
+::selection {
+  background: var(--yellow);
+  color: var(--black);
+}
+
+/* The fixed header is 64px, so every anchor target stops underneath it. Lenis
+   reads this value natively, which is why the scroll offset is one declaration
+   and not a second offset option in JavaScript. */
+:target,
+section[id] {
+  scroll-margin-top: var(--nav-h);
+}
+
+/* Visible on focus, off the canvas otherwise. */
+.skip-link {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 10000;
+  padding: 14px 22px;
+  background: var(--yellow);
+  border: var(--border);
+  font-family: var(--font-mono);
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: var(--tracking);
+  text-transform: uppercase;
+  transform: translateY(-110%);
+}
+
+.skip-link:focus-visible {
+  transform: translateY(0);
+}
+
+:focus-visible {
+  outline: 3px solid var(--yellow);
+  outline-offset: 3px;
+}
+
+/* A yellow ring vanishes on the yellow card and the yellow stat band, so
+   anything sitting on an accent surface rings in black instead. */
+.tool-card :focus-visible,
+.stats :focus-visible,
+.btn--yellow:focus-visible,
+.mega-cta:focus-visible {
+  outline-color: var(--black);
+}
+
+/* The brutalist cursor only replaces the system one where a real pointing
+   device exists, so touch and keyboard users keep their native cursor. */
+@media (hover: hover) and (pointer: fine) {
+  body {
+    cursor: none;
+  }
+
+  a,
+  button,
+  [data-cursor] {
+    cursor: none;
+  }
+}

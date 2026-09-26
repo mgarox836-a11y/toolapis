@@ -1,0 +1,44 @@
+/* Design tokens. Every colour, border, shadow and font in the neo-brutalist
+   layer resolves through a custom property here, so a palette change is a
+   one-file edit and nothing hardcodes a hex value twice. */
+
+:root {
+  /* Palette */
+  --yellow: #ffec00;
+  --black: #0a0a0a;
+  --red: #ff3f00;
+  --cyan: #00d4ff;
+  --green: #39ff14;
+  --bg: #f2ede4;
+  --white: #ffffff;
+
+  /* Tints on the dark sections. Named by role, not by value, so a contrast
+     change lands everywhere at once. */
+  --ink: #666666; /* body copy on black */
+  --ink-faint: #555555; /* footer sub-copy */
+  --ink-line: #222222; /* dashed connectors on black */
+  --ink-line-soft: #1a1a1a; /* footer hairline */
+  --ink-line-mid: #333333; /* footer icon borders */
+
+  /* Borders. Held as full shorthand values so components read `border: var(--border)`
+     and shadows read `box-shadow: var(--shadow)` without repeating geometry. */
+  --border: 3px solid var(--black);
+  --border-heavy: 4px solid var(--black);
+  --border-dark: 3px solid var(--ink-line);
+
+  /* Offset shadows. Brutalism's signature: hard edges, no blur, never rounded. */
+  --shadow: 7px 7px 0px var(--black);
+  --shadow-lg: 12px 12px 0px var(--black);
+  --shadow-sm: 4px 4px 0px var(--black);
+  --shadow-press: 3px 3px 0px var(--black);
+
+  /* Type */
+  --font-display: "Space Grotesk", sans-serif;
+  --font-mono: "IBM Plex Mono", monospace;
+  --tracking: 0.08em;
+  --tracking-wide: 0.12em;
+
+  /* Metrics */
+  --nav-h: 64px;
+  --pad-x: 32px;
+}
