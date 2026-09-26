@@ -681,6 +681,13 @@ html:not(.js) .rail-meta {
   display: none;
 }
 
+/* --flow-p is published by the script, so without it the line is stuck at zero
+   and the marker is parked at the far left: a stray rule and a stray square
+   above the steps, pointing at nothing. */
+html:not(.js) .flow-connector {
+  display: none;
+}
+
 .rail-panel {
   display: flex;
   flex: 0 0 100%;
@@ -846,6 +853,39 @@ html:not(.js) .rail-meta {
 
 .flow .section-title {
   color: var(--yellow);
+}
+
+/* ── Flow connector ──────────────────────────────────────────────────────── */
+
+/* Sits in flow between the section head and the steps, so it aligns with the
+   steps grid for free and cannot end up overlapping a card. A quiet full-width
+   track with a yellow draw on top and a marker riding the draw. */
+.flow-connector {
+  position: relative;
+  height: 3px;
+  margin-bottom: 28px;
+  background: var(--ink-line-mid);
+}
+
+.flow-line {
+  position: absolute;
+  inset: 0;
+  background: var(--yellow);
+  transform: scaleX(var(--flow-p, 0));
+  transform-origin: left;
+}
+
+/* Straddles the line rather than sitting on it, so it reads as travelling
+   along the wire instead of resting on top of it. */
+.flow-marker {
+  position: absolute;
+  top: 50%;
+  left: calc(var(--flow-p, 0) * 100%);
+  width: 15px;
+  height: 15px;
+  margin: -7.5px 0 0 -7.5px;
+  background: var(--yellow);
+  border: var(--border-dark);
 }
 
 .steps {
@@ -1188,6 +1228,12 @@ html:not(.js) .rail-meta {
 
   .steps {
     grid-template-columns: 1fr;
+  }
+
+  /* The steps stack on a phone, so a horizontal wire between them would connect
+     nothing. The 01/02/03 numbering already carries the sequence. */
+  .flow-connector {
+    display: none;
   }
 
   .step {

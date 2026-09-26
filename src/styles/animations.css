@@ -213,6 +213,14 @@
     transform: scaleX(1);
   }
 
+  /* The connector is a marker riding a line that only exists to be ridden. With
+     no scroll progress published there is nothing to ride it along, and a line
+     frozen at zero is just a stray rule above the steps. The numbering carries
+     the sequence on its own. */
+  .flow-connector {
+    display: none;
+  }
+
   *,
   *::before,
   *::after {

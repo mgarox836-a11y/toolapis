@@ -444,6 +444,36 @@ const initRail = (): void => {
   });
 };
 
+/* The flow connector.
+
+   Same shape as the rail: one 0..1 number, and the line and the marker are both
+   derived from it in CSS, so there is no second rAF and no pixel arithmetic.
+   The draw is scaleX on the line and a percentage left on the marker.
+
+   The window is the steps rising from the bottom of the screen to the top of
+   it, not the section's whole traverse through the viewport. Two reasons. Only
+   about 800px of page follow the flow section, so it can never fully leave a
+   900px screen and the traverse mapping tops out around 0.94 with the wire
+   permanently a few percent short of its own end. And a wire should be finished
+   while you are still looking at the steps it connects, not after they have
+   scrolled away. */
+const initFlow = (): void => {
+  const section = document.querySelector<HTMLElement>(".flow");
+  const steps = document.querySelector<HTMLElement>(".steps");
+
+  if (!section || !steps) {
+    return;
+  }
+
+  trackSection(steps, (_progress, top) => {
+    const p = Math.min(1, Math.max(0, (scroll.viewport - top) / scroll.viewport));
+    /* Written to the section, not the steps: a custom property inherits down to
+       its descendants, and the connector is a sibling of the steps that comes
+       before it, so the steps are the one element that cannot see this. */
+    section.style.setProperty("--flow-p", p.toFixed(4));
+  });
+};
+
 export const initAnimations = (): void => {
   /* The bus starts before Lenis so it is already live when Lenis's first scroll
      event asks it to sample. */
@@ -453,6 +483,7 @@ export const initAnimations = (): void => {
   initCounters();
   initPointerLayer();
   initRail();
+  initFlow();
   initNavShadow();
   initSound();
 };
