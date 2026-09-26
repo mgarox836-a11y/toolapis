@@ -40,15 +40,23 @@ const scrambleChar = (el: HTMLElement, finalChar: string): void => {
 };
 
 /* Fires each step once its offset has passed, then hands the total elapsed time
-   back so the caller can land on an exact finish. */
+   back so the caller can land on an exact finish. `stopped` is asked before
+   anything is fired, so a skip that lands between two steps kills the loop
+   instead of leaving it mutating an element that has already come off the
+   page. */
 const runTimeline = (
   steps: [number, () => void][],
   done: (elapsed: number) => void,
+  stopped: () => boolean,
 ): void => {
   const start = performance.now();
   let next = 0;
 
   const tick = (now: number): void => {
+    if (stopped()) {
+      return;
+    }
+
     const elapsed = now - start;
     while (next < steps.length && steps[next][0] <= elapsed) {
       steps[next][1]();
@@ -65,8 +73,34 @@ const runTimeline = (
   requestAnimationFrame(tick);
 };
 
+const SHOWN = "toolapis:loader";
+
+/* Once per session, so a reload lands on the page rather than behind five more
+   seconds of intro. sessionStorage rather than localStorage, so closing the tab
+   earns the intro again and reloading inside it does not.
+
+   Both calls are wrapped because storage throws rather than returning null when
+   a privacy setting blocks it, and the failure to record is the one case where
+   playing the intro again is the better answer. */
+const shownThisSession = (): boolean => {
+  try {
+    return sessionStorage.getItem(SHOWN) !== null;
+  } catch {
+    return false;
+  }
+};
+
+const rememberIntro = (): void => {
+  try {
+    sessionStorage.setItem(SHOWN, "1");
+  } catch {
+    /* Nothing to say: the intro simply plays once per page load instead. */
+  }
+};
+
 export const runLoader = (): Promise<void> => {
   const loader = document.getElementById("loader");
+  let ended = false;
   const release = (): void => {
     loader?.remove();
     document.documentElement.classList.remove("is-loading");
@@ -76,15 +110,53 @@ export const runLoader = (): Promise<void> => {
     document.documentElement.classList.add("is-ready");
     playHeroScramble();
   };
-
-  /* No loader, or motion is off: release straight away rather than gating the
-     page behind a five second wait for something the user opted out of. */
-  if (!loader || window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+  /* The intro has four ways out now: it finishes, the user skips it, a step
+     throws, or something throws on the way to any of those. All four have to
+     land on the page exactly once, because the loader holds the scroll lock and
+     covers the site: a missed release is a black page that cannot be scrolled,
+     and a second one scrambles the hero again. */
+  const end = (): void => {
+    if (ended) {
+      return;
+    }
+    ended = true;
     release();
+  };
+
+  /* No loader, motion off, or it has already played this session: straight
+     through, rather than gating the page behind a five second wait for something
+     the user opted out of or has already sat through. */
+  if (
+    !loader ||
+    window.matchMedia("(prefers-reduced-motion: reduce)").matches ||
+    shownThisSession()
+  ) {
+    end();
     return Promise.resolve();
   }
 
+  /* Marked before the first frame rather than after the last one, so that a skip
+     counts as having seen it. That is most of the point of skipping. */
+  rememberIntro();
+
   return new Promise<void>((resolve) => {
+    const onSkip = (): void => {
+      finish();
+    };
+    /* pointerdown rather than click, so the gesture lands the same frame the
+       finger does, and passive because nothing here cancels the event. The
+       listeners come off on every path, including the natural finish, so a
+       finished intro leaves nothing bound to the document. */
+    const finish = (): void => {
+      document.removeEventListener("keydown", onSkip);
+      document.removeEventListener("pointerdown", onSkip);
+      end();
+      resolve();
+    };
+
+    document.addEventListener("keydown", onSkip);
+    document.addEventListener("pointerdown", onSkip, { passive: true });
+
     const pct = document.getElementById("loader-pct");
     const status = document.getElementById("loader-status");
     const letters = Array.from(
@@ -146,19 +218,16 @@ export const runLoader = (): Promise<void> => {
        screen is a black page with the scroll locked, which is the one failure
        mode worth guarding against. */
     try {
-      runTimeline(steps, (elapsed) => {
-        window.setTimeout(
-          () => {
-            release();
-            resolve();
-          },
-          Math.max(0, T.done - elapsed),
-        );
-      });
+      runTimeline(
+        steps,
+        (elapsed) => {
+          window.setTimeout(finish, Math.max(0, T.done - elapsed));
+        },
+        () => ended,
+      );
     } catch (error) {
       console.error(error);
-      release();
-      resolve();
+      finish();
     }
   });
 };
