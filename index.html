@@ -20,13 +20,51 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;700&amp;family=Space+Grotesk:wght@700;900&amp;display=swap" rel="stylesheet" />
     <title>TOOLAPIS — Web Tools Hub</title>
-    <!-- Set before first paint, so the reveal styles only ever apply on a page
-         that has the script able to undo them. -->
+    <!-- Set before first paint, so the reveal styles and the intro's scroll
+         lock only ever apply on a page that has the script able to undo them. -->
     <script>
-      document.documentElement.classList.add("js");
+      document.documentElement.classList.add("js", "is-loading");
     </script>
   </head>
   <body>
+    <div id="loader" aria-hidden="true">
+      <div id="loader-top"></div>
+      <div id="loader-bottom"></div>
+      <div id="loader-flash"></div>
+
+      <div id="loader-line"></div>
+
+      <div id="loader-center">
+        <div id="loader-logo">
+          <span class="loader-char" data-char="T">T</span>
+          <span class="loader-char" data-char="O">O</span>
+          <span class="loader-char" data-char="O">O</span>
+          <span class="loader-char" data-char="L">L</span>
+          <span class="loader-char" data-char="A">A</span>
+          <span class="loader-char" data-char="P">P</span>
+          <span class="loader-char" data-char="I">I</span>
+          <span class="loader-char" data-char="S">S</span>
+        </div>
+        <div id="loader-tagline">
+          <span>WEB</span>
+          <span>TOOLS</span>
+          <span>HUB</span>
+        </div>
+        <div id="loader-status">LOADING TOOLS... <span id="loader-pct">00%</span></div>
+      </div>
+
+      <div id="loader-progress-track">
+        <div id="loader-progress-fill"></div>
+      </div>
+
+      <div id="loader-shape-square"></div>
+      <div id="loader-shape-circle"></div>
+      <div id="loader-shape-cross">
+        <div></div>
+        <div></div>
+      </div>
+    </div>
+
     <a class="skip-link" href="#main">Skip to content</a>
 
     <div id="cursor" aria-hidden="true"></div>

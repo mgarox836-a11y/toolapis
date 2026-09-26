@@ -197,25 +197,31 @@ const initNavShadow = (): void => {
   sync();
 };
 
+/* Fired by the loader once the intro wipes away, so the hero decodes as the
+   site is revealed rather than behind the overlay. */
+export const playHeroScramble = (): void => {
+  if (!isMotionAllowed()) {
+    return;
+  }
+
+  const lines: [string, string, number][] = [
+    ["hero-line-1", "WEB TOOLS", 100],
+    ["hero-line-2", "FOR YOU", 420],
+    ["hero-line-3", "ALL IN ONE.", 720],
+  ];
+
+  for (const [id, text, delay] of lines) {
+    const el = document.getElementById(id);
+    if (el) {
+      scramble(el, text, delay);
+    }
+  }
+};
+
 export const initAnimations = (): void => {
   initSmoothScroll();
   initReveals();
   initCounters();
   initCursor();
   initNavShadow();
-
-  if (isMotionAllowed()) {
-    const lines: [string, string, number][] = [
-      ["hero-line-1", "WEB TOOLS", 100],
-      ["hero-line-2", "FOR YOU", 420],
-      ["hero-line-3", "ALL IN ONE.", 720],
-    ];
-
-    for (const [id, text, delay] of lines) {
-      const el = document.getElementById(id);
-      if (el) {
-        scramble(el, text, delay);
-      }
-    }
-  }
 };

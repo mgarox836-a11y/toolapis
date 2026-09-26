@@ -1,8 +1,10 @@
 import "./styles/tokens.css";
+import "./styles/loader.css";
 import "./styles/base.css";
 import "./styles/components.css";
 import "./styles/animations.css";
 import { initAnimations } from "./scripts/animations";
+import { runLoader } from "./loader";
 
 /* The mobile menu is behaviour, not decoration, so it lives here rather than in
    the motion layer: it has to keep working on a page where motion is switched
@@ -37,3 +39,8 @@ menu?.addEventListener("click", (event) => {
 });
 
 initAnimations();
+
+/* The intro gates the reveal, so the hero scramble is fired by the loader when
+   it finishes rather than on load. Everything else in initAnimations is
+   observer-driven and runs either side of the overlay. */
+runLoader();
