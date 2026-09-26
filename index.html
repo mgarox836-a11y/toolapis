@@ -20,6 +20,11 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;700&amp;family=Space+Grotesk:wght@700;900&amp;display=swap" rel="stylesheet" />
     <title>TOOLAPIS — Web Tools Hub</title>
+    <!-- Set before first paint, so the reveal styles only ever apply on a page
+         that has the script able to undo them. -->
+    <script>
+      document.documentElement.classList.add("js");
+    </script>
   </head>
   <body>
     <a class="skip-link" href="#main">Skip to content</a>

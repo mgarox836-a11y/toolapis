@@ -81,7 +81,9 @@
 
 /* ── Reveal ─────────────────────────────────────────────────────────────── */
 
-[data-reveal] {
+/* Gated on .js, which index.html sets in the head. Without the script there is
+   nothing to add .revealed, so the sections would stay at opacity 0 forever. */
+.js [data-reveal] {
   opacity: 0;
   transform: translateY(36px) rotate(-1deg);
 }
@@ -89,21 +91,50 @@
 /* The transition lives on the not-yet-settled state only. Once the element has
    landed, .settled hands the transform back to the component's own rule, which
    is what keeps the brutalist hover at 0.12s instead of inheriting 0.65s. */
-[data-reveal].revealed:not(.settled) {
+.js [data-reveal].revealed:not(.settled) {
   opacity: 1;
   transform: none;
   transition: opacity 0.65s cubic-bezier(0.16, 1, 0.3, 1),
     transform 0.65s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-[data-reveal][data-delay="1"].revealed:not(.settled) {
+.js [data-reveal][data-delay="1"].revealed:not(.settled) {
   transition-delay: 0.08s;
 }
 
-[data-reveal][data-delay="2"].revealed:not(.settled) {
+.js [data-reveal][data-delay="2"].revealed:not(.settled) {
   transition-delay: 0.16s;
 }
 
-[data-reveal][data-delay="3"].revealed:not(.settled) {
+.js [data-reveal][data-delay="3"].revealed:not(.settled) {
   transition-delay: 0.24s;
+}
+
+/* ── Reduced motion ─────────────────────────────────────────────────────── */
+
+@media (prefers-reduced-motion: reduce) {
+  .marquee-inner,
+  .geo--square,
+  .geo--circle,
+  .geo--triangle,
+  .scroll-arrow,
+  .hero-sub,
+  .hero-actions {
+    animation: none;
+  }
+
+  /* Every revealed element is already in its final position, whether or not the
+     observer ever ran. */
+  .js [data-reveal] {
+    opacity: 1;
+    transform: none;
+  }
+
+  *,
+  *::before,
+  *::after {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
 }

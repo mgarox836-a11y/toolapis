@@ -90,8 +90,15 @@ const initSmoothScroll = (): void => {
 };
 
 const initReveals = (): void => {
-  const targets = document.querySelectorAll<HTMLElement>("[data-reveal]");
-  if (!targets.length || !("IntersectionObserver" in window)) {
+  const targets = Array.from(document.querySelectorAll<HTMLElement>("[data-reveal]"));
+  if (!targets.length) {
+    return;
+  }
+
+  /* Without the observer the elements would stay at opacity 0, so show them
+     rather than shipping a blank page. */
+  if (!("IntersectionObserver" in window)) {
+    targets.forEach((el) => el.classList.add("revealed", "settled"));
     return;
   }
 

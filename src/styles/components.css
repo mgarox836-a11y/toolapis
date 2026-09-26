@@ -132,6 +132,7 @@
   display: block;
   height: 3px;
   background: var(--yellow);
+  transition: transform 0.15s, opacity 0.15s;
 }
 
 .nav-burger[aria-expanded="true"] span:nth-child(1) {
@@ -144,10 +145,6 @@
 
 .nav-burger[aria-expanded="true"] span:nth-child(3) {
   transform: translateY(-8px) rotate(-45deg);
-}
-
-.nav-burger span {
-  transition: transform 0.15s, opacity 0.15s;
 }
 
 /* ── Mobile menu ────────────────────────────────────────────────────────── */
@@ -778,4 +775,139 @@
   border-color: var(--white);
   color: var(--black);
   box-shadow: 3px 3px 0 var(--white);
+}
+
+/* ── Touch ──────────────────────────────────────────────────────────────── */
+
+/* A tapped element keeps :hover until the next tap elsewhere, so the lift would
+   stick under the finger. On touch the resting offset is the correct resting
+   state and :active is the feedback. */
+@media (hover: none) {
+  .tool-card:hover {
+    transform: none;
+    box-shadow: none;
+  }
+
+  .btn--yellow:hover {
+    transform: none;
+    box-shadow: 5px 5px 0 var(--white);
+  }
+
+  .nav-cta:hover {
+    transform: none;
+    box-shadow: var(--shadow-sm);
+  }
+
+  .mega-cta:hover {
+    transform: none;
+    box-shadow: 8px 8px 0 var(--yellow);
+  }
+}
+
+@media (hover: none) {
+  body,
+  a,
+  button,
+  [data-cursor] {
+    cursor: auto;
+  }
+
+  #cursor,
+  #cursor-trail {
+    display: none;
+  }
+}
+
+/* ── Mobile ─────────────────────────────────────────────────────────────── */
+
+@media (max-width: 768px) {
+  .nav-inner {
+    gap: 12px;
+  }
+
+  .logo {
+    font-size: 18px;
+  }
+
+  .nav-links {
+    display: none;
+  }
+
+  .nav-cta {
+    margin-left: auto;
+    padding: 8px 12px;
+    font-size: 11px;
+    white-space: nowrap;
+  }
+
+  .nav-burger {
+    display: flex;
+  }
+
+  .hero-inner {
+    padding-block: 40px 80px;
+  }
+
+  .hero-title {
+    font-size: clamp(40px, 10vw, 80px);
+  }
+
+  .hero-actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .btn {
+    justify-content: center;
+  }
+
+  .tools,
+  .flow,
+  .stats,
+  .cta,
+  .footer {
+    padding-inline: 20px;
+  }
+
+  /* Stacked, so the 3px dividers turn from vertical to horizontal. */
+  .tools-grid,
+  .steps {
+    grid-template-columns: 1fr;
+  }
+
+  .tool-card {
+    border-right: 0;
+    border-bottom: var(--border);
+  }
+
+  .tool-card:last-child {
+    border-bottom: 0;
+  }
+
+  .step {
+    border-right: 0;
+    border-bottom: var(--border-dark);
+  }
+
+  .step:last-child {
+    border-bottom: 0;
+  }
+
+  .stats {
+    grid-template-columns: repeat(2, 1fr);
+    row-gap: 32px;
+  }
+
+  .stat:nth-child(3) {
+    border-left: 0;
+  }
+
+  .stat:nth-child(n + 3) {
+    padding-top: 32px;
+    border-top: 2px solid var(--black);
+  }
+
+  .mega-cta {
+    padding-inline: 24px;
+  }
 }
