@@ -29,6 +29,67 @@ export const getMarqueeDirection = (velocity: number): "reverse" | "normal" =>
 
 export const easeOutCubic = (progress: number): number => 1 - (1 - progress) ** 3;
 
+/* Replaces a value with one wheel per digit, each a column of digits translated
+   to wherever the current number puts it.
+
+   A wheel for place p turns by value / p steps, and that ratio is the whole
+   difference between an odometer and four counters running side by side: the
+   low wheels carry through their full revolutions on the way to 100 and come to
+   rest on zero, exactly as a mechanical one does, and the carry falls out of the
+   arithmetic rather than being tracked per digit.
+
+   A wheel whose place is above the value never turns, so the leading zero in 03
+   stays put while the ones wheel rolls.
+
+   The column runs one step past the final value plus a whole extra cycle, since
+   the last step has to be reachable, and the real number is left behind as
+   visually hidden text, because a hundred characters of 0 to 9 is not something
+   to hand a screen reader. */
+const buildOdometer = (
+  el: HTMLElement,
+  target: number,
+  suffix: string,
+): [number, HTMLElement][] => {
+  const odometer = document.createElement("span");
+  odometer.className = "odometer";
+  odometer.setAttribute("aria-hidden", "true");
+
+  const digits = (target < 10 ? `0${target}` : String(target)).length;
+  const wheels: [number, HTMLElement][] = [];
+
+  for (let i = digits - 1; i >= 0; i -= 1) {
+    const place = 10 ** i;
+    const steps = place <= target ? target / place : 0;
+    const length = steps + 11;
+    const strip = document.createElement("span");
+    strip.className = "odometer-strip";
+    /* One digit per line. Newlines rather than elements, because line-height 1
+       already supplies the row spacing that a hundred spans would have to. */
+    strip.textContent = "0123456789"
+      .repeat(Math.ceil(length / 10))
+      .slice(0, length)
+      .split("")
+      .join("\n");
+
+    const wheel = document.createElement("span");
+    wheel.className = "odometer-wheel";
+    wheel.append(strip);
+    odometer.append(wheel);
+    wheels.push([steps, strip]);
+  }
+
+  if (suffix) {
+    odometer.append(suffix);
+  }
+
+  const spoken = document.createElement("span");
+  spoken.className = "sr-only";
+  spoken.textContent = (target < 10 ? `0${target}` : String(target)) + suffix;
+
+  el.replaceChildren(odometer, spoken);
+  return wheels;
+};
+
 export const countUp = (
   el: HTMLElement,
   target: number,
@@ -36,12 +97,31 @@ export const countUp = (
   duration = 1200,
 ): void => {
   const start = performance.now();
+  /* One tween either way. The wheels are not a second loop layered on the count,
+     they are what the count writes to. */
+  const wheels = el.hasAttribute("data-odometer") ? buildOdometer(el, target, suffix) : null;
+
   const tick = (now: number): void => {
     const progress = Math.min((now - start) / duration, 1);
-    el.textContent = Math.floor(easeOutCubic(progress) * target) + suffix;
+    const fraction = easeOutCubic(progress);
+
+    if (wheels) {
+      /* Interpolated to the wheel's own final step count, not divided by its
+         place per frame. That is what keeps a leading zero still while the ones
+         wheel rolls, instead of drifting three tenths of a step. */
+      /* transform directly rather than through a custom property: a running
+         animation re-resolving a custom property is engine behaviour that
+         differs between browsers, and this has to be dependable. */
+      for (const [steps, strip] of wheels) {
+        strip.style.transform = `translateY(${-steps * fraction}em)`;
+      }
+    } else {
+      el.textContent = Math.floor(fraction * target) + suffix;
+    }
+
     if (progress < 1) {
       requestAnimationFrame(tick);
-    } else {
+    } else if (!wheels) {
       el.textContent = (target < 10 ? `0${target}` : target) + suffix;
     }
   };

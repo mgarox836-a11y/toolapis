@@ -984,6 +984,26 @@ html:not(.js) .flow-connector {
   font-size: clamp(40px, 6vw, 80px);
   font-weight: 900;
   line-height: 1;
+  /* The wheels would otherwise change width on every digit and shove the label
+     sideways for the whole second the count takes. */
+  font-variant-numeric: tabular-nums;
+}
+
+/* One odometer wheel: a one-line window with a column of digits behind it. The
+   column is text with newlines rather than a digit per element, because
+   line-height 1 already supplies the spacing that a hundred spans would have
+   to. overflow: hidden is what makes it a window. */
+.odometer-wheel {
+  display: inline-block;
+  overflow: hidden;
+  height: 1em;
+  line-height: 1;
+}
+
+.odometer-strip {
+  display: block;
+  white-space: pre;
+  will-change: transform;
 }
 
 .stat-label {
