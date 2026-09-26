@@ -2,10 +2,20 @@ import Lenis from "lenis";
 /* The .ts extension is explicit so `node --test` can resolve this graph without
    a bundler; vite resolves it the same way. */
 import { getMagneticOffset, isMotionAllowed } from "../motion.ts";
-import { initScrollBus, sampleScroll } from "../scroll.ts";
+import {
+  getStickyProgress,
+  initScrollBus,
+  sampleScroll,
+  scroll,
+  trackSection,
+} from "../scroll.ts";
 import { clack, restoreSoundPreference, setSoundEnabled } from "../sound.ts";
 
 const CHARS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789#@$%!";
+
+/* Matches the panel count in the markup, and the runway in components.css is
+   sized from it: three panels means two stage widths of travel. */
+const PANEL_COUNT = 3;
 
 /* Marquee cycle length in seconds. Scrolling harder shortens the cycle, so the
    ticker visibly reacts to the gesture instead of running at a fixed rate. */
@@ -393,6 +403,47 @@ const initSound = (): void => {
   );
 };
 
+/* The tool rail.
+
+   The bus reports how far the runway has travelled through the viewport, which
+   is the wrong window for a pin: it runs from the section touching the bottom of
+   the screen to it clearing the top, but the stage is only actually stuck
+   between the section reaching the top and the section's own height running
+   out. Mapping to the generic progress directly is what makes a pinned rail
+   stop moving three quarters of the way down and then leave a long stretch of
+   dead scroll underneath it.
+
+   So the sticky window is computed from the raw geometry instead. The track
+   itself is pure CSS: a 0..1 number times -200% is two stage widths, which is
+   the whole width of three panels. The only thing JavaScript owns here is that
+   one custom property. */
+const initRail = (): void => {
+  const rail = document.querySelector<HTMLElement>("[data-rail]");
+  const indexEl = document.querySelector<HTMLElement>("[data-rail-index]");
+
+  if (!rail) {
+    return;
+  }
+
+  let lastIndex = 0;
+
+  trackSection(rail, (_progress, top, height) => {
+    const p = getStickyProgress(top, height, scroll.viewport);
+
+    rail.style.setProperty("--rail-p", p.toFixed(4));
+
+    /* The counter is the only part that costs a text write, so it is written
+       only when the panel actually changes rather than every frame. */
+    const index = Math.min(PANEL_COUNT, Math.round(p * (PANEL_COUNT - 1)) + 1);
+    if (index !== lastIndex) {
+      lastIndex = index;
+      if (indexEl) {
+        indexEl.textContent = String(index).padStart(2, "0");
+      }
+    }
+  });
+};
+
 export const initAnimations = (): void => {
   /* The bus starts before Lenis so it is already live when Lenis's first scroll
      event asks it to sample. */
@@ -401,6 +452,7 @@ export const initAnimations = (): void => {
   initReveals();
   initCounters();
   initPointerLayer();
+  initRail();
   initNavShadow();
   initSound();
 };

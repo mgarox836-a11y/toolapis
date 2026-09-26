@@ -42,8 +42,11 @@ export const scroll: ScrollState = {
    would otherwise flick them clean off screen. */
 const VELOCITY_CAP = 40;
 
+/* The trailing +0 is deliberate. Negating zero produces -0, which is equal to 0
+   under === but distinct under Object.is, so a caller or a test comparing the
+   result would see a difference out of nowhere. */
 const clamp = (value: number, min: number, max: number): number =>
-  value < min ? min : value > max ? max : value;
+  (value < min ? min : value > max ? max : value) + 0;
 
 /**
  * How far an element has travelled through the viewport: 0 when its top edge
@@ -64,8 +67,48 @@ export const getSectionProgress = (
   return clamp((viewport - top) / span, 0, 1);
 };
 
+/**
+ * Progress across a pinned element's own sticky window, as opposed to its
+ * travel through the viewport.
+ *
+ * 0 is where a `position: sticky` child starts to stick, which is the section's
+ * top reaching the top of the screen. 1 is where it is released, which is the
+ * section's height running out. Between those two the stage is genuinely stuck,
+ * so that is the only window a pinned effect should be mapped to.
+ *
+ * getSectionProgress is the wrong tool for this and the difference is not
+ * subtle: for a 300vh section at the moment it reaches the top of the screen,
+ * getSectionProgress already reports 0.25 while the rail has not moved at all.
+ * A rail driven by that arrives a quarter of the way across, and then leaves two
+ * thirds of its travel in the last quarter of the runway, followed by a stretch
+ * of dead scroll once the stage is released.
+ */
+export const getStickyProgress = (
+  top: number,
+  height: number,
+  viewport: number,
+): number => {
+  const travel = height - viewport;
+  if (travel <= 0) {
+    return 1;
+  }
+  return clamp(-top / travel, 0, 1);
+};
+
 type FrameListener = (state: ScrollState) => void;
-type SectionListener = (progress: number) => void;
+
+/**
+ * Receives the generic 0..1 viewport travel, plus the element's raw top and
+ * height in px.
+ *
+ * The raw values are there because the generic mapping is wrong for a pinned
+ * section. It runs from the element touching the bottom of the viewport to it
+ * clearing the top, but a sticky stage is only pinned between the element
+ * reaching the top and the element's own height running out. Anything driving a
+ * pin needs that second window, and working it out here keeps the measurement
+ * inside the read pass rather than making a consumer read layout for itself.
+ */
+type SectionListener = (progress: number, top: number, height: number) => void;
 
 interface TrackedSection {
   el: HTMLElement;
@@ -109,6 +152,8 @@ const write = (): void => {
   for (const section of sections) {
     section.onProgress(
       getSectionProgress(section.top, section.height, scroll.viewport),
+      section.top,
+      section.height,
     );
   }
 

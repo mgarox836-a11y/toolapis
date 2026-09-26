@@ -586,19 +586,116 @@
   white-space: nowrap;
 }
 
-/* ── Tools ──────────────────────────────────────────────────────────────── */
+/* ── Tools: the rail ────────────────────────────────────────────────────── */
 
 .tools {
   --muted: #888;
-  padding: 100px var(--pad-x);
   background: var(--bg);
 }
 
-/* One border around the grid, 3px between the cells, no gap. */
-.tools-grid {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  border: var(--border);
+/* The runway. 100vh of pinned stage plus two viewport heights of travel, one
+   per panel transition. At -200% the track has crossed exactly two stage
+   widths, which is the whole width of three 100% panels, so the runway and the
+   track cannot drift out of step.
+
+   The height has to be on .rail rather than on the .tools section. A sticky
+   element is constrained by its own parent's box, so a tall section wrapped in a
+   short inner div pins nothing at all: the stage scrolls straight past. The
+   measured element and the constrained element have to be the same one. */
+.rail {
+  height: 300vh;
+}
+
+.rail-stage {
+  position: sticky;
+  top: var(--nav-h);
+  display: flex;
+  flex-direction: column;
+  height: calc(100vh - var(--nav-h));
+  padding: 40px var(--pad-x) 32px;
+}
+
+.section-head {
+  flex-shrink: 0;
+}
+
+/* `overflow: clip` rather than `hidden`, with a clip margin, because the cards
+   lift and throw a 12px hard shadow on hover. Hidden would shave that off, which
+   is the one thing this design cannot afford; the margin lets the shadow escape
+   while still clipping the neighbouring panels horizontally. Browsers without
+   clip-margin degrade to unclipped spill, which is far better than a sliced
+   shadow. */
+.rail-track {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+  overflow: clip;
+  overflow-clip-margin: 20px;
+  /* The entire signature mechanic, in one declaration: a 0..1 progress becomes
+     a two-stage-width slide. No pixel value is ever computed in JavaScript. */
+  transform: translate3d(calc(var(--rail-p, 0) * -200%), 0, 0);
+  will-change: transform;
+}
+
+/* Without the script, --rail-p is never published, so the slide would sit at
+   zero for the whole 300vh and panels two and three would be unreachable: the
+   track is clipped and there is nothing to scroll it. Two of the three tool
+   links would simply be gone.
+
+   So the no-JS state is a plain vertical stack rather than the phone's
+   carousel. It needs none of the carousel machinery, and a stack is what these
+   three cards were before the rail existed, so it degrades to something already
+   designed rather than something improvised here. */
+html:not(.js) .rail {
+  height: auto;
+}
+
+html:not(.js) .rail-stage {
+  position: static;
+  height: auto;
+  padding-block: 72px;
+}
+
+html:not(.js) .rail-track {
+  flex-wrap: wrap;
+  transform: none;
+  overflow: visible;
+  will-change: auto;
+}
+
+html:not(.js) .rail-panel {
+  flex: 0 0 100%;
+}
+
+html:not(.js) .rail-panel .tool-card {
+  border-right: var(--border);
+  border-bottom: var(--border);
+}
+
+html:not(.js) .rail-panel:last-child .tool-card {
+  border-bottom: 0;
+}
+
+html:not(.js) .rail-meta {
+  display: none;
+}
+
+.rail-panel {
+  display: flex;
+  flex: 0 0 100%;
+  min-width: 0;
+}
+
+/* Adjacent panels would otherwise show both their borders and read as a 6px
+   double rule, so only the leading edge of each one is drawn. */
+.rail-panel:not(:last-child) .tool-card {
+  border-right: 0;
+}
+
+.rail-panel .tool-card {
+  flex: 1;
+  padding: 36px 40px;
 }
 
 .tool-card {
@@ -606,14 +703,48 @@
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  padding: 44px 36px;
-  border-right: var(--border);
+  border: var(--border);
   overflow: hidden;
   transition: transform 0.12s ease, box-shadow 0.12s ease;
 }
 
-.tool-card:last-child {
-  border-right: 0;
+/* Pins the call to action to the bottom of the panel, so all three cards line
+   their primary action up on the same baseline. */
+.rail-panel .tool-cta {
+  margin-top: auto;
+  padding-top: 30px;
+}
+
+.rail-meta {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 18px;
+  margin-top: 22px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: var(--tracking);
+  text-transform: uppercase;
+}
+
+.rail-count {
+  flex-shrink: 0;
+}
+
+.rail-meter {
+  flex: 1;
+  height: 6px;
+  background: var(--white);
+  border: 2px solid var(--black);
+}
+
+.rail-meter > span {
+  display: block;
+  height: 100%;
+  background: var(--black);
+  transform: scaleX(var(--rail-p, 0));
+  transform-origin: left;
 }
 
 .tool-card--1 {
@@ -1008,19 +1139,55 @@
     padding-inline: 20px;
   }
 
-  /* Stacked, so the 3px dividers turn from vertical to horizontal. */
-  .tools-grid,
+  /* The rail becomes a native carousel rather than a pinned scrub. Touch gets
+     the OS gesture instead of a scroll position being rewritten under it, which
+     is the one thing a phone user cannot be forced to accept. */
+  .tools {
+    padding-block: 72px;
+  }
+
+  .rail {
+    height: auto;
+  }
+
+  .rail-stage {
+    position: static;
+    height: auto;
+    padding: 0;
+  }
+
+  .rail-track {
+    transform: none;
+    overflow-x: auto;
+    overflow-y: hidden;
+    overflow-clip-margin: 0;
+    scroll-snap-type: x mandatory;
+    scrollbar-width: none;
+    will-change: auto;
+    /* Bleeds to the screen edge so the next panel shows there is more. */
+    margin-inline: -20px;
+    padding-inline: 20px;
+  }
+
+  .rail-track::-webkit-scrollbar {
+    display: none;
+  }
+
+  .rail-panel {
+    flex: 0 0 88%;
+    scroll-snap-align: center;
+  }
+
+  .rail-panel:not(:last-child) .tool-card {
+    border-right: var(--border);
+  }
+
+  .rail-meta {
+    display: none;
+  }
+
   .steps {
     grid-template-columns: 1fr;
-  }
-
-  .tool-card {
-    border-right: 0;
-    border-bottom: var(--border);
-  }
-
-  .tool-card:last-child {
-    border-bottom: 0;
   }
 
   .step {
