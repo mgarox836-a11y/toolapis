@@ -18,6 +18,13 @@ html {
   /* Lenis drives the scroll position, so the native smooth behaviour would
      fight it. Anchor targets are offset by the fixed header in CSS instead. */
   scroll-behavior: auto;
+  /* Locking the body for the menu dialog would otherwise jump the page by the
+     width of the scrollbar it just removed. */
+  scrollbar-gutter: stable;
+}
+
+body.menu-open {
+  overflow: hidden;
 }
 
 body {

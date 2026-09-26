@@ -10,6 +10,9 @@
   left: 0;
   pointer-events: none;
   transform: translate(-50%, -50%);
+  /* Hidden until the first pointer event, so neither block sits in the corner
+     of the viewport on load. */
+  opacity: 0;
 }
 
 #cursor {
@@ -31,7 +34,9 @@
   z-index: 9998;
   width: 8px;
   height: 8px;
-  background: var(--black);
+  /* Red, not black: the trail has to read on the black hero as well as on the
+     light sections. */
+  background: var(--red);
 }
 
 /* ── Nav ────────────────────────────────────────────────────────────────── */
