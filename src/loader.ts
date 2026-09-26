@@ -106,7 +106,7 @@ export const runLoader = (): Promise<void> => {
     document.documentElement.classList.remove("is-loading");
     /* The single signal that the page is live. The hero clip-reveal, the sub
        copy and the CTAs are all parked behind it, so it has to be set on every
-       path out of the intro, including the reduced-motion bail. */
+       path out of the intro. */
     document.documentElement.classList.add("is-ready");
     playHeroScramble();
   };
@@ -123,14 +123,10 @@ export const runLoader = (): Promise<void> => {
     release();
   };
 
-  /* No loader, motion off, or it has already played this session: straight
-     through, rather than gating the page behind a five second wait for something
-     the user opted out of or has already sat through. */
-  if (
-    !loader ||
-    window.matchMedia("(prefers-reduced-motion: reduce)").matches ||
-    shownThisSession()
-  ) {
+  /* No loader element, or it has already played this session: straight
+     through, rather than gating the page behind a five second wait for
+     something the user has already sat through. */
+  if (!loader || shownThisSession()) {
     end();
     return Promise.resolve();
   }

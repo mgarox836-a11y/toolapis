@@ -60,7 +60,7 @@ const TORUS_OUTER_RADIUS = 1.75;
 
 /* The orb opens on the same frame the headline lands: the CSS entrance is a 0.22s
    delay plus a 1.05s line-in. One constant stands in for a JS timeline, so the
-   stagger survives reduced motion and a throttled tab for free. */
+   stagger survives a throttled tab for free. */
 const ENTER_DURATION = 1.27;
 
 export interface ScrollPhase {
@@ -129,10 +129,9 @@ export const getOrbMetrics = (
   r: Math.hypot((edge.x - centre.x) * (view.width / 2), (edge.y - centre.y) * (view.height / 2)),
 });
 
-/* Pure. Frozen means there is no entrance to sit through, so the orb opens fully
-   formed rather than at zero — the composition starts where it ends. */
-export const getEnterProgress = (elapsed: number, frozen: boolean): number =>
-  frozen ? 1 : 1 - Math.pow(1 - clamp(elapsed / ENTER_DURATION), 4);
+/* Pure. The orb opens fully formed once the entrance has run its course. */
+export const getEnterProgress = (elapsed: number): number =>
+  1 - Math.pow(1 - clamp(elapsed / ENTER_DURATION), 4);
 
 const vertexShader = `
   varying vec2 vUv;
@@ -323,7 +322,6 @@ export class PortalExperience {
   private suspended = false;
   private destroyed = false;
   private painted = false;
-  private readonly frozen: boolean;
   private lowPower: boolean;
   /* The headline box. Its rect is read on resize only, never per frame: the
      metrics published below are OFFSETS into this box, so they stay valid as the
@@ -339,7 +337,6 @@ export class PortalExperience {
 
   constructor(canvas: HTMLCanvasElement, state: PortalSceneState) {
     this.state = state;
-    this.frozen = !isPortalMotionEnabled();
 
     const navigatorWithMemory = navigator as Navigator & { deviceMemory?: number };
     this.lowPower = (navigator.hardwareConcurrency ?? 8) <= 4 || (navigatorWithMemory.deviceMemory ?? 8) <= 4;
@@ -479,19 +476,15 @@ export class PortalExperience {
 
     const delta = this.lastFrame > 0 ? Math.min(timeSeconds - this.lastFrame, 0.05) : 0.016;
     this.lastFrame = timeSeconds;
-    /* Frozen means reduced motion: time stands still, so the scene is a still
-       frame rather than something that has to be hidden. */
-    if (!this.frozen) {
-      this.elapsed += delta;
-    }
+    this.elapsed += delta;
 
-    const progress = this.frozen ? 0 : clamp(this.state.progress);
+    const progress = clamp(this.state.progress);
     const { centring, approach, departure, pointerFade, dissolve } = getScrollPhase(progress);
 
     this.pointer.x += (this.targetPointer.x - this.pointer.x) * Math.min(1, delta * 4.8);
     this.pointer.y += (this.targetPointer.y - this.pointer.y) * Math.min(1, delta * 4.8);
 
-    const enter = getEnterProgress(this.elapsed, this.frozen);
+    const enter = getEnterProgress(this.elapsed);
 
     this.portal.position.x = mix(this.config.portalX, 0, centring);
     this.portal.position.y = mix(this.config.portalY, 0, centring);
@@ -637,9 +630,7 @@ export class PortalExperience {
   };
 
   setPointer = (x: number, y: number): void => {
-    if (!this.frozen) {
-      this.targetPointer.set(x, y);
-    }
+    this.targetPointer.set(x, y);
   };
 
   setSuspended = (suspended: boolean): void => {
@@ -694,7 +685,5 @@ export const createPortalExperience = (canvas: HTMLCanvasElement, state: PortalS
     return null;
   }
 };
-
-export const isPortalMotionEnabled = (): boolean => document.documentElement.dataset.motion !== "off" && !window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
 export const isFinePointer = (): boolean => window.matchMedia("(hover: hover) and (pointer: fine)").matches;

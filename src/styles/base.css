@@ -121,11 +121,10 @@ section[id] {
 }
 
 /* The brutalist cursor only replaces the system one where a real pointing
-   device exists, so touch and keyboard users keep their native cursor. It is
-   also a lagging motion effect, so with motion off the native pointer stays:
+   device exists, so touch and keyboard users keep their native cursor.
    initCursor bails on the same condition, and both halves have to agree or
    there would be no cursor at all. */
-@media (hover: hover) and (pointer: fine) and (prefers-reduced-motion: no-preference) {
+@media (hover: hover) and (pointer: fine) {
   body {
     cursor: none;
   }

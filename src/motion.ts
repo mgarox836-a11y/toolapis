@@ -28,8 +28,3 @@ export const getMagneticOffset = (
   const scale = maxDistance / distance;
   return { x: x * scale, y: y * scale };
 };
-
-/* Queried per call rather than cached at module scope so the module stays
-   importable outside a browser. */
-export const isMotionAllowed = (): boolean =>
-  !window.matchMedia("(prefers-reduced-motion: reduce)").matches;

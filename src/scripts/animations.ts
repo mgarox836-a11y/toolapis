@@ -1,7 +1,7 @@
 import Lenis from "lenis";
 /* The .ts extension is explicit so `node --test` can resolve this graph without
    a bundler; vite resolves it the same way. */
-import { getMagneticOffset, isMotionAllowed } from "../motion.ts";
+import { getMagneticOffset } from "../motion.ts";
 import {
   getStickyProgress,
   initScrollBus,
@@ -156,24 +156,20 @@ export const scramble = (
 };
 
 const initSmoothScroll = (): void => {
-  /* The single bail for the whole smooth-scroll layer. With motion off there is
-     no Lenis and no rAF at all: the browser's own scrolling is already correct,
-     the bus never starts, and every scroll-linked effect sits on the resting
-     value declared in tokens.css. Native hash jumps stand in for Lenis's anchor
-     handling, and scroll-margin-top in base.css already carries the header
-     clearance, so nothing else has to change. */
-  if (!isMotionAllowed()) {
-    return;
-  }
-
   /* anchors lets Lenis handle every same-page hash link itself, and it reads
      scroll-margin-top off the target, so the fixed-header clearance is one CSS
-     declaration and not a second offset to keep in step here. */
+     declaration and not a second offset to keep in step here.
+
+     respectReducedMotion is off deliberately. It defaults to true, and all it
+     does is force scrollTo() to immediate, which would make every anchor jump
+     land instantly for OS-reduce users and animate for everyone else. That is
+     the last OS-gated motion path on the site, so it goes. */
   const lenis = new Lenis({
     lerp: 0.08,
     duration: 1.4,
     autoRaf: false,
     anchors: true,
+    respectReducedMotion: false,
   });
 
   const marquee = document.getElementById("marquee");
@@ -231,7 +227,7 @@ const initReveals = (): void => {
 
 const initCounters = (): void => {
   const targets = document.querySelectorAll<HTMLElement>("[data-count]");
-  if (!targets.length || !("IntersectionObserver" in window) || !isMotionAllowed()) {
+  if (!targets.length || !("IntersectionObserver" in window)) {
     return;
   }
 
@@ -307,13 +303,6 @@ const initPointerLayer = (): void => {
   const trailEl = document.getElementById("cursor-trail");
 
   if (!cursor || !trailEl || !window.matchMedia("(hover: hover) and (pointer: fine)").matches) {
-    return;
-  }
-
-  /* The custom cursor is a lagging motion effect, so motion off means the
-     native pointer instead. base.css gates `cursor: none` behind the same
-     condition, or nothing would be visible at all. */
-  if (!isMotionAllowed()) {
     return;
   }
 
@@ -480,8 +469,7 @@ const initPointerLayer = (): void => {
 
    The marker is the section with the most of itself on screen, not the last one
    entered, because a 300vh rail is entered long before it is read and a
-   last-entered rule would sit on the wrong link for most of the runway. It is
-   not a motion effect, so it runs with motion off. */
+   last-entered rule would sit on the wrong link for most of the runway. */
 const initNav = (): void => {
   const nav = document.getElementById("nav");
 
@@ -544,10 +532,6 @@ const initNav = (): void => {
 /* Fired by the loader once the intro wipes away, so the hero decodes as the
    site is revealed rather than behind the overlay. */
 export const playHeroScramble = (): void => {
-  if (!isMotionAllowed()) {
-    return;
-  }
-
   const lines: [string, string, number][] = [
     ["hero-line-1", "WEB TOOLS", 100],
     ["hero-line-2", "FOR YOU", 420],

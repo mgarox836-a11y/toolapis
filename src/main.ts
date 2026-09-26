@@ -7,9 +7,9 @@ import { initAnimations } from "./scripts/animations";
 import { runLoader } from "./loader";
 
 /* The mobile menu is behaviour, not decoration, so it lives here rather than in
-   the motion layer: it has to keep working on a page where motion is switched
-   off. The dialog carries data-lenis-prevent, which is what stops Lenis from
-   treating a scroll inside the drawer as a scroll of the page behind it. */
+   the motion layer. The dialog carries data-lenis-prevent, which is what stops
+   Lenis from treating a scroll inside the drawer as a scroll of the page behind
+   it. */
 const menuToggle = document.querySelector<HTMLButtonElement>("[data-menu-toggle]");
 const menu = document.querySelector<HTMLDialogElement>("#mobile-menu");
 const menuClose = document.querySelector<HTMLButtonElement>("[data-menu-close]");

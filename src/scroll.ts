@@ -1,5 +1,3 @@
-import { isMotionAllowed } from "./motion.ts";
-
 /* The scroll bus: one read pass and one write pass per frame.
 
    Every scroll-linked effect on the site reads from here rather than adding its
@@ -259,12 +257,13 @@ export const trackBox = (el: HTMLElement, onBox: BoxListener): (() => void) => {
 };
 
 /**
- * Start the bus. With motion switched off it never starts, so there is no rAF,
- * no measurement and no per-frame mutation at all: consumers fall back to the
- * resting values declared in tokens.css.
+ * Start the bus. This always runs, so --rail-p and --flow-p are published for
+ * every visitor and the rail always reaches all three panels. The resting
+ * values in tokens.css cover the one case where the bus never gets here at all,
+ * which is no script.
  */
 export const initScrollBus = (): void => {
-  if (running || !isMotionAllowed()) {
+  if (running) {
     return;
   }
   running = true;

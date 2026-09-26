@@ -40,21 +40,20 @@ test("radius mixes both axes, so a wide viewport does not inflate it", () => {
 });
 
 test("the entrance opens from a third scale to full and never overshoots", () => {
-  assert.ok(getEnterProgress(0, false) < 0.01);
-  assert.equal(getEnterProgress(1.27, false), 1);
-  assert.equal(getEnterProgress(99, false), 1);
+  assert.ok(getEnterProgress(0) < 0.01);
+  assert.equal(getEnterProgress(1.27), 1);
+  assert.equal(getEnterProgress(99), 1);
 
   let previous = 0;
   for (let step = 0; step <= 100; step += 1) {
-    const value = getEnterProgress((step / 100) * 1.27, false);
+    const value = getEnterProgress((step / 100) * 1.27);
     assert.ok(value >= 0 && value <= 1);
     assert.ok(value >= previous);
     previous = value;
   }
 });
 
-test("reduced motion opens the orb fully formed rather than at zero", () => {
-  assert.equal(getEnterProgress(0, true), 1);
-  assert.equal(getEnterProgress(Number.NaN, true), 1);
-  assert.ok(Number.isFinite(getEnterProgress(Number.NaN, false)));
+test("a non-finite elapsed clamps to zero rather than poisoning the scene", () => {
+  assert.ok(Number.isFinite(getEnterProgress(Number.NaN)));
+  assert.equal(getEnterProgress(Number.NaN), 0);
 });
