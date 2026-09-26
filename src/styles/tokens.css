@@ -41,4 +41,12 @@
   /* Metrics */
   --nav-h: 64px;
   --pad-x: 32px;
+
+  /* Scroll-linked state, republished every frame by src/scroll.ts. The resting
+     values are declared here rather than left implicit so that a consumer
+     resolves them even when the bus never runs: no script at all, or motion
+     switched off. Anything driven by these has to be safe to look at while
+     they all read zero. */
+  --scroll-progress: 0;
+  --scroll-velocity: 0;
 }

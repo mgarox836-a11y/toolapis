@@ -2,6 +2,7 @@ import Lenis from "lenis";
 /* The .ts extension is explicit so `node --test` can resolve this graph without
    a bundler; vite resolves it the same way. */
 import { getMagneticOffset, isMotionAllowed } from "../motion.ts";
+import { initScrollBus, sampleScroll } from "../scroll.ts";
 
 const CHARS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789#@$%!";
 
@@ -63,6 +64,16 @@ export const scramble = (
 };
 
 const initSmoothScroll = (): void => {
+  /* The single bail for the whole smooth-scroll layer. With motion off there is
+     no Lenis and no rAF at all: the browser's own scrolling is already correct,
+     the bus never starts, and every scroll-linked effect sits on the resting
+     value declared in tokens.css. Native hash jumps stand in for Lenis's anchor
+     handling, and scroll-margin-top in base.css already carries the header
+     clearance, so nothing else has to change. */
+  if (!isMotionAllowed()) {
+    return;
+  }
+
   /* anchors lets Lenis handle every same-page hash link itself, and it reads
      scroll-margin-top off the target, so the fixed-header clearance is one CSS
      declaration and not a second offset to keep in step here. */
@@ -75,12 +86,17 @@ const initSmoothScroll = (): void => {
 
   const marquee = document.getElementById("marquee");
 
-  if (marquee && isMotionAllowed()) {
-    lenis.on("scroll", (instance) => {
+  lenis.on("scroll", (instance) => {
+    /* One event drives the bus and the ticker, so the page never grows a second
+       rAF. The bus is sampled first so anything it publishes this frame is
+       already current by the time the ticker reads its own velocity. */
+    sampleScroll();
+
+    if (marquee) {
       marquee.style.animationDuration = `${getMarqueeSpeed(instance.velocity)}s`;
       marquee.style.animationDirection = getMarqueeDirection(instance.velocity);
-    });
-  }
+    }
+  });
 
   const raf = (time: number): void => {
     lenis.raf(time * 1000);
@@ -219,6 +235,9 @@ export const playHeroScramble = (): void => {
 };
 
 export const initAnimations = (): void => {
+  /* The bus starts before Lenis so it is already live when Lenis's first scroll
+     event asks it to sample. */
+  initScrollBus();
   initSmoothScroll();
   initReveals();
   initCounters();
