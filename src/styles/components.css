@@ -622,25 +622,39 @@
   flex-direction: column;
   height: calc(100vh - var(--nav-h));
   padding: 40px var(--pad-x) 32px;
+  /* The window the three panels slide through, so it is the stage that clips and
+     not the track. A clip travels with the element it belongs to, and the track
+     is the translated one: a clip on the track is a one-panel-wide window dragged
+     along behind the panels, leaving panels two and three permanently outside it
+     at every value of --rail-p, so they were never painted and the reveal
+     observer never fired for them either. The stage is the one box here that
+     does not move, so its border box is a window all three panels pass through.
+
+     `overflow: clip` rather than `hidden`, with a clip margin, because the cards
+     lift and throw a 12px hard shadow on hover. Hidden would shave that off,
+     which is the one thing this design cannot afford; the margin lets the
+     shadow escape while still clipping the neighbouring panels horizontally.
+     Browsers without clip-margin degrade to unclipped spill, which is far better
+     than a sliced shadow. The margin also has to stay 20px on the phone, where
+     the track bleeds past the stage to the screen edge to show there is more. */
+  overflow: clip;
+  overflow-clip-margin: 20px;
 }
 
 .section-head {
   flex-shrink: 0;
 }
 
-/* `overflow: clip` rather than `hidden`, with a clip margin, because the cards
-   lift and throw a 12px hard shadow on hover. Hidden would shave that off, which
-   is the one thing this design cannot afford; the margin lets the shadow escape
-   while still clipping the neighbouring panels horizontally. Browsers without
-   clip-margin degrade to unclipped spill, which is far better than a sliced
-   shadow. */
 .rail-track {
   display: flex;
   flex: 1;
   min-height: 0;
+  /* One stage wide, not three, and the panels are each 100% of this. That is
+     what makes the -200% below land on exactly two panel widths. Widening the
+     track to hold all three panels would widen the panels with it, since their
+     basis is a percentage of the track, and the slide would need three
+     percentages kept in step instead of one. The stage above is the clipper. */
   width: 100%;
-  overflow: clip;
-  overflow-clip-margin: 20px;
   /* The entire signature mechanic, in one declaration: a 0..1 progress becomes
      a two-stage-width slide. No pixel value is ever computed in JavaScript. */
   transform: translate3d(calc(var(--rail-p, 0) * -200%), 0, 0);
