@@ -18,7 +18,14 @@
     <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%230A0A0A'/%3E%3Crect x='5' y='5' width='22' height='22' fill='%23FFEC00'/%3E%3Crect x='11' y='11' width='10' height='3' fill='%230A0A0A'/%3E%3Crect x='14.5' y='11' width='3' height='10' fill='%230A0A0A'/%3E%3C/svg%3E" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;700&amp;family=Space+Grotesk:wght@700;900&amp;display=swap" rel="stylesheet" />
+    <!-- Non-render-blocking on purpose. As a plain stylesheet this link blocked
+         first paint on a third-party round trip, which meant the whole intro ran
+         and finished inside a window where the page could not be painted: the
+         mark appeared already assembled, with no motion. media="print" keeps it
+         off the critical path and the onload flips it to all once it has arrived.
+         The noscript copy covers a browser with no JS to run that handler. -->
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;700&amp;family=Space+Grotesk:wght@700;900&amp;display=swap" rel="stylesheet" media="print" onload="this.media='all'" />
+    <noscript><link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;700&amp;family=Space+Grotesk:wght@700;900&amp;display=swap" rel="stylesheet" /></noscript>
     <title>TOOLAPIS — Web Tools Hub</title>
     <!-- Set before first paint, so the reveal styles and the intro's scroll
          lock only ever apply on a page that has the script able to undo them. -->
