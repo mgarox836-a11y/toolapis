@@ -1,83 +1,23 @@
 import { playHeroScramble } from "./scripts/animations.ts";
 
-const CHARS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789#@$%!";
-
-/* Every beat is an absolute offset from the start of the intro, so the run
-   always ends at exactly 5s. Chaining one wait per phase instead would let each
-   phase's rounding error accumulate into the total. */
+/* Three beats, and every one of them is an absolute offset from the start of the
+   intro, so the run always ends at exactly T.done no matter how the browser
+   schedules the frames in between. */
 const T = {
-  line: 0,
-  logo: 550,
-  tagline: 1400,
-  progress: 2200,
-  flash: 3500,
-  burst: 3500,
-  flashOff: 3580,
-  exit: 4200,
-  done: 5000,
+  out: 520,
+  done: 740,
 } as const;
 
-const LETTER_STAGGER = 70;
-const LETTER_FRAMES = 22;
-const LETTER_TICK = 18;
-const WORD_STAGGER = 150;
-const PROGRESS_MS = 1300;
-
-/* Resolves through random glyphs, then lands on the real one. */
-const scrambleChar = (el: HTMLElement, finalChar: string): void => {
-  el.classList.add("lit");
-  let frame = 0;
-  const id = window.setInterval(() => {
-    el.textContent =
-      frame / LETTER_FRAMES > 0.7
-        ? finalChar
-        : CHARS[Math.floor(Math.random() * CHARS.length)];
-    if (++frame > LETTER_FRAMES) {
-      el.textContent = finalChar;
-      window.clearInterval(id);
-    }
-  }, LETTER_TICK);
-};
-
-/* Fires each step once its offset has passed, then hands the total elapsed time
-   back so the caller can land on an exact finish. `stopped` is asked before
-   anything is fired, so a skip that lands between two steps kills the loop
-   instead of leaving it mutating an element that has already come off the
-   page. */
-const runTimeline = (
-  steps: [number, () => void][],
-  done: (elapsed: number) => void,
-  stopped: () => boolean,
-): void => {
-  const start = performance.now();
-  let next = 0;
-
-  const tick = (now: number): void => {
-    if (stopped()) {
-      return;
-    }
-
-    const elapsed = now - start;
-    while (next < steps.length && steps[next][0] <= elapsed) {
-      steps[next][1]();
-      next += 1;
-    }
-
-    if (next < steps.length) {
-      requestAnimationFrame(tick);
-    } else {
-      done(elapsed);
-    }
-  };
-
-  requestAnimationFrame(tick);
-};
+/* The longest the font gate is allowed to hold the page. A blocked or slow font
+   CDN must never turn a 740ms intro into a stall, so this is a hard ceiling on
+   the wait rather than a timeout on the promise. */
+const FONTS_CAP = 600;
 
 const SHOWN = "toolapis:loader";
 
-/* Once per session, so a reload lands on the page rather than behind five more
-   seconds of intro. sessionStorage rather than localStorage, so closing the tab
-   earns the intro again and reloading inside it does not.
+/* Once per session, so a reload lands on the page rather than behind the intro
+   again. sessionStorage rather than localStorage, so closing the tab earns the
+   intro back and reloading inside it does not.
 
    Both calls are wrapped because storage throws rather than returning null when
    a privacy setting blocks it, and the failure to record is the one case where
@@ -124,8 +64,8 @@ export const runLoader = (): Promise<void> => {
   };
 
   /* No loader element, or it has already played this session: straight
-     through, rather than gating the page behind a five second wait for
-     something the user has already sat through. */
+     through, rather than gating the page behind a wait for something the user
+     has already sat through. */
   if (!loader || shownThisSession()) {
     end();
     return Promise.resolve();
@@ -136,14 +76,24 @@ export const runLoader = (): Promise<void> => {
   rememberIntro();
 
   return new Promise<void>((resolve) => {
-    const onSkip = (): void => {
-      finish();
-    };
+    const start = performance.now();
+    /* Everything below is measured against the start, so the font gate can
+       shorten the wait rather than add to it. */
+    const remaining = (): number =>
+      Math.max(0, T.done - (performance.now() - start));
+
+    let exit = 0;
+    let cap = 0;
     /* pointerdown rather than click, so the gesture lands the same frame the
        finger does, and passive because nothing here cancels the event. The
        listeners come off on every path, including the natural finish, so a
        finished intro leaves nothing bound to the document. */
+    const onSkip = (): void => {
+      finish();
+    };
     const finish = (): void => {
+      window.clearTimeout(exit);
+      window.clearTimeout(cap);
       document.removeEventListener("keydown", onSkip);
       document.removeEventListener("pointerdown", onSkip);
       end();
@@ -153,77 +103,28 @@ export const runLoader = (): Promise<void> => {
     document.addEventListener("keydown", onSkip);
     document.addEventListener("pointerdown", onSkip, { passive: true });
 
-    const pct = document.getElementById("loader-pct");
-    const status = document.getElementById("loader-status");
-    const letters = Array.from(
-      loader.querySelectorAll<HTMLElement>(".loader-char"),
-    );
-    const words = Array.from(
-      loader.querySelectorAll<HTMLElement>("#loader-tagline span"),
-    );
+    /* The assembly is pure CSS: the slab and both bars carry their own
+       durations and delays, so this one class is the whole entrance. */
+    loader.classList.add("in");
+    exit = window.setTimeout(() => {
+      loader.classList.add("out");
+    }, T.out);
 
-    const steps: [number, () => void][] = [
-      [T.line, () => loader.classList.add("phase-1")],
-      [
-        T.logo,
-        () =>
-          letters.forEach((el, i) =>
-            window.setTimeout(
-              () => scrambleChar(el, el.dataset.char ?? el.textContent ?? ""),
-              i * LETTER_STAGGER,
-            ),
-          ),
-      ],
-      [
-        T.tagline,
-        () =>
-          words.forEach((el, i) =>
-            window.setTimeout(() => el.classList.add("lit"), i * WORD_STAGGER),
-          ),
-      ],
-      [
-        T.progress,
-        () => {
-          loader.classList.add("phase-4");
-
-          const started = performance.now();
-          const count = (now: number): void => {
-            const progress = Math.min((now - started) / PROGRESS_MS, 1);
-            if (pct) {
-              pct.textContent = `${String(Math.floor(progress * 100)).padStart(2, "0")}%`;
-            }
-
-            if (progress < 1) {
-              requestAnimationFrame(count);
-            } else if (status) {
-              status.textContent = "READY.";
-              status.classList.add("ready");
-            }
-          };
-
-          requestAnimationFrame(count);
-        },
-      ],
-      [T.flash, () => loader.classList.add("flash")],
-      [T.burst, () => loader.classList.add("burst")],
-      [T.flashOff, () => loader.classList.remove("flash")],
-      [T.exit, () => loader.classList.add("exiting")],
-    ];
-
-    /* Cleanup runs on every path, including a thrown step: a loader left on
-       screen is a black page with the scroll locked, which is the one failure
-       mode worth guarding against. */
-    try {
-      runTimeline(
-        steps,
-        (elapsed) => {
-          window.setTimeout(finish, Math.max(0, T.done - elapsed));
-        },
-        () => ended,
-      );
-    } catch (error) {
-      console.error(error);
-      finish();
+    /* The hero's own entrance is parked behind .is-ready, and it plays for
+       about two seconds. Letting it start before Space Grotesk has landed means
+       that whole sequence runs in the fallback face and then reflows on the
+       swap, which is far more visible than the loader being on screen a beat
+       longer. So the release waits on the fonts, bounded by FONTS_CAP. */
+    const fonts = document.fonts?.ready;
+    if (fonts) {
+      const settle = (): void => {
+        window.clearTimeout(cap);
+        window.setTimeout(finish, remaining());
+      };
+      fonts.then(settle, settle);
+      cap = window.setTimeout(finish, remaining() + FONTS_CAP);
+    } else {
+      cap = window.setTimeout(finish, remaining());
     }
   });
 };

@@ -1,5 +1,7 @@
-/* The 5s intro overlay. Hidden unless the head script proved JS is available,
-   so a script failure can never leave a black screen over the site. */
+/* The intro overlay. The brand mark assembles from blocks, holds for 140ms, then
+   the whole field lifts off the top. One mechanic, three animated elements,
+   ~740ms. Hidden unless the head script proved JS is available, so a script
+   failure can never leave a black screen over the site. */
 
 /* Hidden by default and opted into by the head script's `js` class, so a script
    failure or a JS-disabled browser cannot leave a black screen over the site.
@@ -17,6 +19,18 @@
   overflow: hidden;
   background: var(--black);
   pointer-events: all;
+  /* One length drives the whole mark, so the bar proportions below cannot drift
+     away from the slab they sit on. 26vmin keeps it clear of a phone's width
+     and off a desktop's edges at the same time. */
+  --mark: clamp(96px, 26vmin, 240px);
+  /* The exit. Runs on the field rather than on a panel so the mark travels out
+     with it, which is what makes the wipe one gesture instead of two. */
+  transform: translateY(0);
+  transition: transform 220ms cubic-bezier(0.76, 0, 0.24, 1);
+}
+
+.js #loader.out {
+  transform: translateY(-100%);
 }
 
 /* Scroll lock for the duration of the intro. Set by the head script alongside
@@ -26,311 +40,60 @@
   overflow: hidden;
 }
 
-/* ── Split panels for the exit wipe ─────────────────────────────────────── */
+/* ── The mark ───────────────────────────────────────────────────────────── */
 
-#loader-top,
-#loader-bottom {
-  position: absolute;
-  left: 0;
-  right: 0;
-  height: 50%;
-  z-index: 2;
-  background: var(--black);
-  transition: transform 0.8s cubic-bezier(0.76, 0, 0.24, 1);
-}
-
-#loader-top {
-  top: 0;
-}
-
-#loader-bottom {
-  bottom: 0;
-}
-
-#loader.exiting #loader-top {
-  transform: translateY(-100%);
-}
-
-#loader.exiting #loader-bottom {
-  transform: translateY(100%);
-}
-
-/* Sits above the panels, which is why the green flash needs its own element
-   rather than a background on #loader: the panels already cover it. */
-#loader-flash {
-  position: absolute;
-  inset: 0;
-  z-index: 5;
-  background: var(--green);
-  opacity: 0;
-  pointer-events: none;
-  /* Half the 80ms the class is held for, so the green is up and gone inside
-     the beat the timeline allots it. */
-  transition: opacity 0.04s linear;
-}
-
-#loader.flash #loader-flash {
-  opacity: 1;
-}
-
-/* ── Phase 1: line draw ─────────────────────────────────────────────────── */
-
-#loader-line {
+#loader-mark {
   position: absolute;
   top: 50%;
-  left: 0;
-  z-index: 3;
-  width: 0;
-  height: 3px;
-  background: var(--yellow);
-  transform: translateY(-50%);
-  transition: width 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+  left: 50%;
+  width: var(--mark);
+  height: var(--mark);
+  translate: -50% -50%;
 }
 
-#loader.phase-1 #loader-line {
+#loader-slab {
   width: 100%;
-}
-
-/* ── Centre column ──────────────────────────────────────────────────────── */
-
-#loader-center {
-  position: absolute;
-  inset: 0;
-  z-index: 4;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 20px;
-}
-
-#loader-logo {
-  display: flex;
-  overflow: hidden;
-  font-family: var(--font-display);
-  font-size: clamp(48px, 8vw, 72px);
-  font-weight: 900;
-  letter-spacing: -0.02em;
-  color: var(--yellow);
-}
-
-.loader-char {
-  display: inline-block;
-  opacity: 0;
-  transition: opacity 0.1s;
-}
-
-.loader-char.lit {
-  opacity: 1;
-}
-
-/* ── Phase 3: tagline slam ──────────────────────────────────────────────── */
-
-#loader-tagline {
-  display: flex;
-  gap: 16px;
-  font-family: var(--font-mono);
-  font-size: 15px;
-  font-weight: 700;
-  letter-spacing: 0.22em;
-  text-transform: uppercase;
-  color: var(--white);
-}
-
-#loader-tagline span {
-  opacity: 0;
-  transform: translateY(30px);
-  transition: opacity 0.3s, transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
-}
-
-#loader-tagline span.lit {
-  opacity: 1;
-  transform: translateY(0);
-}
-
-/* ── Phase 4: counter ───────────────────────────────────────────────────── */
-
-#loader-status {
-  font-family: var(--font-mono);
-  font-size: 13px;
-  font-weight: 700;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  color: var(--ink-faint);
-}
-
-#loader-status.ready {
-  color: var(--green);
-}
-
-/* ── Phase 4: progress bar ──────────────────────────────────────────────── */
-
-#loader-progress-track {
-  position: absolute;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  z-index: 4;
-  height: 4px;
-  background: var(--ink-line-soft);
-}
-
-#loader-progress-fill {
-  width: 0;
   height: 100%;
   background: var(--yellow);
-  transition: width 1.3s linear;
+  transform: scale(0);
+  transition: transform 320ms cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-#loader.phase-4 #loader-progress-fill {
-  width: 100%;
+.js #loader.in #loader-slab {
+  transform: scale(1);
 }
 
-/* ── Phase 5: geometric burst ───────────────────────────────────────────── */
-
-#loader-shape-square,
-#loader-shape-circle,
-#loader-shape-cross {
+/* The cross. Length and thickness are both fractions of the mark, so it stays
+   centred at any viewport. The delays are the whole point: without them the two
+   bars arrive as one blur, and with them they read as two deliberate beats.
+   Centring rides the `translate` property and the scale rides `transform`, so
+   the two never have to be composed into one longhand chain. */
+.loader-bar {
   position: absolute;
   top: 50%;
   left: 50%;
-  z-index: 4;
-  pointer-events: none;
-  opacity: 0;
+  background: var(--black);
+  translate: -50% -50%;
+  transform: scale(0);
+  transition: transform 180ms cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-#loader-shape-square {
-  --x: 220px;
-  --y: -180px;
-  width: 80px;
-  height: 80px;
-  border: var(--border) var(--yellow);
+.loader-bar--h {
+  width: 50%;
+  height: 14%;
 }
 
-#loader-shape-circle {
-  --x: -200px;
-  --y: 160px;
-  width: 60px;
-  height: 60px;
-  border: var(--border) var(--red);
-  border-radius: 50%;
+.loader-bar--v {
+  width: 14%;
+  height: 50%;
 }
 
-#loader-shape-cross {
-  --x: 190px;
-  --y: 170px;
-  width: 60px;
-  height: 60px;
+.js #loader.in .loader-bar--h {
+  transform: scale(1);
+  transition-delay: 200ms;
 }
 
-#loader-shape-cross div {
-  position: absolute;
-  background: var(--cyan);
-}
-
-#loader-shape-cross div:first-child {
-  top: 50%;
-  left: 0;
-  width: 60px;
-  height: 3px;
-  transform: translateY(-50%);
-}
-
-#loader-shape-cross div:last-child {
-  top: 0;
-  left: 50%;
-  width: 3px;
-  height: 60px;
-  transform: translateX(-50%);
-}
-
-/* Keyframes rather than scripted transitions: the three shapes have to start
-   from scale(0) and be visible while they travel, and a transition needs both
-   states set across two frames to animate at all. */
-@keyframes burst-square {
-  from {
-    transform: translate(-50%, -50%) scale(0) rotate(0deg);
-    opacity: 0;
-  }
-
-  15% {
-    opacity: 1;
-  }
-
-  to {
-    transform: translate(calc(-50% + var(--x)), calc(-50% + var(--y))) scale(1)
-      rotate(45deg);
-    opacity: 0;
-  }
-}
-
-@keyframes burst-circle {
-  from {
-    transform: translate(-50%, -50%) scale(0);
-    opacity: 0;
-  }
-
-  15% {
-    opacity: 1;
-  }
-
-  to {
-    transform: translate(calc(-50% + var(--x)), calc(-50% + var(--y))) scale(1.5);
-    opacity: 0;
-  }
-}
-
-@keyframes burst-cross {
-  from {
-    transform: translate(-50%, -50%) scale(0) rotate(0deg);
-    opacity: 0;
-  }
-
-  15% {
-    opacity: 1;
-  }
-
-  to {
-    transform: translate(calc(-50% + var(--x)), calc(-50% + var(--y))) scale(1)
-      rotate(90deg);
-    opacity: 0;
-  }
-}
-
-#loader.burst #loader-shape-square {
-  animation: burst-square 0.7s cubic-bezier(0.16, 1, 0.3, 1) both;
-}
-
-#loader.burst #loader-shape-circle {
-  animation: burst-circle 0.7s cubic-bezier(0.16, 1, 0.3, 1) both;
-}
-
-#loader.burst #loader-shape-cross {
-  animation: burst-cross 0.7s cubic-bezier(0.16, 1, 0.3, 1) both;
-}
-
-/* ── Mobile ─────────────────────────────────────────────────────────────── */
-
-@media (max-width: 768px) {
-  #loader-tagline {
-    gap: 10px;
-    font-size: 12px;
-  }
-
-  /* The desktop offsets would put the shapes off a phone's edge before they
-     finish fading, so they travel a shorter distance. */
-  #loader-shape-square {
-    --x: 120px;
-    --y: -150px;
-  }
-
-  #loader-shape-circle {
-    --x: -110px;
-    --y: 130px;
-  }
-
-  #loader-shape-cross {
-    --x: 100px;
-    --y: 140px;
-  }
+.js #loader.in .loader-bar--v {
+  transform: scale(1);
+  transition-delay: 240ms;
 }
