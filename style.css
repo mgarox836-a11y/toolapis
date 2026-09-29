@@ -533,3 +533,63 @@
       0%, 100% { opacity: 0.25; transform: scale(0.7); }
       50%      { opacity: 1; transform: scale(1.15); }
     }
+
+    /* ===================================================================
+       Floating 3D layer (js/scene3d.js)
+       -------------------------------------------------------------------
+       The canvas is created with `alpha: true` and a fully transparent clear,
+       so WebGL never owns the page background — `html` keeps #0B0F12 and the
+       props composite over it. That matters because the clear colour in an
+       EffectComposer chain is ACES tone-mapped, which pushes #0B0F12 to about
+       rgb(50,64,73) and drifts with toneMappingExposure: an opaque canvas
+       would show a slate rectangle that changes as you scroll.
+
+       The canvas sits at z-index: -1, so it renders underneath every existing
+       layer (spotlight 30, navbar 40, progress 45, back-to-top 55, grain 60,
+       toast 70, page transition 100). pointer-events: none guarantees it can
+       never swallow a click.
+
+       The `html.scene3d` class is added by JS ONLY after WebGL has
+       confirmed it can render a frame. Without it, .hero-bg keeps its
+       opaque background and the page is pixel-identical to the 2D design.
+       =================================================================== */
+
+    #scene3d-canvas {
+      position: fixed;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      z-index: -1;
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 1.4s cubic-bezier(.16, 1, .3, 1);
+      /* no layout jump: fixed + inset:0 means it never affects flow */
+    }
+    #scene3d-canvas.is-ready { opacity: 1; }
+
+    /* Let the 3D show through only while the layer is live.
+       NOTE: the canvas is a z-index:-1 child of <body>, and body's own opaque
+       background paints AFTER negative-z descendants — so body's background
+       would hide the canvas entirely. Only the *colour* is reset: .hero-bg
+       keeps its mint glows and grid, which now composite over the 3D.
+       Gated on html.scene3d so the no-WebGL path is unchanged. */
+    html.scene3d body { background-color: transparent; }
+    html.scene3d .hero-bg { background-color: transparent; }
+
+    /* The hero's bottom fade used to end on #0d0e12, which is NOT the page
+       background. With a transparent canvas that off-black band would show as
+       a visible strip across the props, so the fade is re-graded onto the
+       real page token instead of being switched off. */
+    html.scene3d #hero::after {
+      background: linear-gradient(to bottom,
+        transparent 0%,
+        rgba(11, 15, 18, 0.40) 50%,
+        rgba(11, 15, 18, 0.80) 80%,
+        #0b0f12 100%);
+    }
+
+    /* Reduced motion: no cross-fade, just snap in. */
+    html.reduced-motion #scene3d-canvas { transition: none; }
+    @media (prefers-reduced-motion: reduce) {
+      #scene3d-canvas { transition: none; }
+    }

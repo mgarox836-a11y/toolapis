@@ -2,6 +2,20 @@
 <html lang="en" class="dark scroll-smooth">
 <head>
   <meta charset="UTF-8">
+
+  <!--
+    Three.js (pinned). Importmap must appear before any module script.
+    Loaded with type="module", so it is deferred and non-blocking by default.
+  -->
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+        "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+      }
+    }
+  </script>
+
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="description" content="TOOLAPIS is a small hub of real web tools: upscale TikTok clips to HD, share your PC's internet with Android over USB, or jump into the social media hub.">
   <meta name="theme-color" content="#0B0F12">
@@ -33,6 +47,9 @@
   <!-- Motion Vanilla (animations, deferred, non-blocking; loads before script.js) -->
   <link rel="preconnect" href="https://cdn.jsdelivr.net">
   <script defer src="https://cdn.jsdelivr.net/npm/motion@12.9.2/dist/motion.js"></script>
+
+  <!-- Same origin as the pinned Three.js importmap above (module fetch, so crossorigin) -->
+  <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
 
 </head>
 <body class="bg-surface text-slate-200 font-sans antialiased min-h-[100dvh] flex flex-col justify-between selection:bg-accent-mint selection:text-black overflow-x-hidden relative">
@@ -164,6 +181,7 @@
                target="_blank"
                rel="noopener noreferrer"
                data-magnetic
+               data-3d="hd"
                class="btn btn-accent w-full sm:w-auto group">
               <i class="ph-bold ph-magic-wand text-lg" aria-hidden="true"></i>
               <span>Open HD Enhancer</span>
@@ -175,6 +193,7 @@
                target="_blank"
                rel="noopener noreferrer"
                data-magnetic
+               data-3d="usb"
                class="btn btn-glass w-full sm:w-auto group">
               <i class="ph-bold ph-usb text-lg text-accent-mint" aria-hidden="true"></i>
               <span>Open Gnirehtet</span>
@@ -186,6 +205,7 @@
                target="_blank"
                rel="noopener noreferrer"
                data-magnetic
+               data-3d="social"
                class="btn btn-glass w-full sm:w-auto group">
               <i class="ph-bold ph-share-network text-lg text-accent-mint" aria-hidden="true"></i>
               <span>Social Media</span>
@@ -375,6 +395,7 @@
                target="_blank"
                rel="noopener noreferrer"
                data-magnetic
+               data-3d="hd"
                class="btn btn-accent w-full sm:w-auto group">
               <i class="ph-bold ph-magic-wand text-lg" aria-hidden="true"></i>
               <span>Open HD Enhancer</span>
@@ -391,6 +412,7 @@
                target="_blank"
                rel="noopener noreferrer"
                data-magnetic
+               data-3d="social"
                class="btn btn-glass w-full sm:w-auto group">
               <i class="ph-bold ph-share-network text-lg text-accent-mint" aria-hidden="true"></i>
               <span>Social Media</span>
@@ -442,5 +464,12 @@
 
   <!-- JavaScript Interaction Script (deferred so it runs after the Tailwind CDN loads) -->
   <script defer src="script.js"></script>
+
+  <!--
+    Floating 3D visual layer (Three.js). Optional enhancement:
+    if WebGL is unavailable the module removes its own canvas and the
+    2D design above is unaffected. See js/scene3d.js -> TUNING.
+  -->
+  <script type="module" src="js/scene3d.js"></script>
 </body>
 </html>

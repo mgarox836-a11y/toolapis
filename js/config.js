@@ -1,0 +1,343 @@
+/* ============================================================================
+ * config.js — TOOLAPIS · 3D layer configuration
+ * ----------------------------------------------------------------------------
+ * The single tuning surface. Every "easy variable" the layer exposes lives
+ * here; no other module hard-codes a number that a designer might want to
+ * change. Imported by objects.js, scroll.js and scene3d.js.
+ *
+ * This module has NO imports: it must stay loadable even if three.js fails.
+ * ==========================================================================*/
+
+/* Total intro/loader duration in seconds (see js/intro.js, phase (d)). */
+export const INTRO_DURATION = 5.0;
+
+/* ---------------------------------------------------------------------------
+ * Palette — read from the CSS custom properties when they exist, otherwise
+ * mirrored from the tokens the site actually ships:
+ *   style.css        -> html/body/.hero-bg background-color: #0B0F12
+ *   script.js        -> tailwind.config theme.extend.colors.surface
+ *   style.css        -> .btn-accent background: #A3E635
+ * The surface value is the page background AND the fog colour; they must stay
+ * identical or distant geometry stops dissolving into the page.
+ * -------------------------------------------------------------------------*/
+
+function readVar(name, fallback) {
+  try {
+    const v = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+    return v || fallback;
+  } catch (err) {
+    return fallback;
+  }
+}
+
+/** '#rgb' | '#rrggbb' | 'rgb(a)' -> 0xRRGGBB */
+function toHex(value, fallback) {
+  const s = String(value || '').trim();
+  let m = /^#([0-9a-f]{3})$/i.exec(s);
+  if (m) {
+    return parseInt(m[1].split('').map((c) => c + c).join(''), 16);
+  }
+  m = /^#([0-9a-f]{6})$/i.exec(s);
+  if (m) return parseInt(m[1], 16);
+  m = /^rgba?\(\s*([\d.]+)[\s,]+([\d.]+)[\s,]+([\d.]+)/i.exec(s);
+  if (m) {
+    const to = (n) => Math.round(Math.max(0, Math.min(255, parseFloat(n))));
+    return (to(m[1]) << 16) | (to(m[2]) << 8) | to(m[3]);
+  }
+  return fallback;
+}
+
+export const PALETTE = {
+  /* Page background + fog. Near-black; the blacks are the design. */
+  bg:        toHex(readVar('--surface', '#0B0F12'), 0x0b0f12),
+  /* The only accent. Emissive edges, pulses, packets, sweep. */
+  accent:    toHex(readVar('--accent-mint', '#A3E635'), 0xa3e635),
+  accentHi:  toHex(readVar('--accent-mint-hover', '#BEF264'), 0xbef264),
+  /* Glass panel / border, for the darker props so they sit above the fog. */
+  card:      toHex(readVar('--surface-card', '#13191D'), 0x13191d),
+  border:    toHex(readVar('--surface-border', '#232D34'), 0x232d34),
+  /* Slightly lighter than `card` for the USB metal shell. */
+  metal:     0x2a3238,
+  white:     0xffffff,
+};
+
+export const OBJ_KEYS = ['hd', 'usb', 'network'];
+
+/* ---------------------------------------------------------------------------
+ * TUNING
+ * -------------------------------------------------------------------------*/
+
+export const TUNING = {
+  /* ==== Global object scale (multiplies every prop) ==== */
+  objectScale: 1.0,
+
+  /* ==== Lighting / exposure — keep the blacks BLACK ====
+   * Exposure is deliberately low: props are lit by a single soft key plus two
+   * small lime accents, never by a bright ambient wash. */
+  exposure: {
+    near: 0.82,   // hero
+    far:  0.50,   // clarity
+  },
+  lights: {
+    key:  0.75,   // soft white directional
+    lime: 9.0,    // accent point light
+    kick: 4.5,    // opposite-side accent kicker
+    hemi: 0.10,   // shadow-side fill — anything higher greys out the blacks
+  },
+  env: { enabled: true, intensity: 0.30 },
+
+  /* ==== Fog ====
+   * FogExp2 densities, not linear near/far. The colour MUST equal
+   * PALETTE.bg or distant geometry stops dissolving into the page. */
+  fog: {
+    color: PALETTE.bg,
+    densityNear: 0.030,  // hero
+    densityFar:  0.052,  // clarity
+  },
+
+  /* ==== Renderer ==== */
+  fov: 42,
+  near: 0.1,
+  far: 120,
+  maxPixelRatio: 1.5,          // desktop cap (Intel iGPU target)
+  mobileMaxPixelRatio: 1.25,
+  antialias: true,
+
+  /* ==== Bloom — desktop tier only ==== */
+  bloom: {
+    enabled: true,
+    strength: 0.42,
+    radius: 0.62,
+    threshold: 0.80,
+  },
+
+  /* ==== Float / spin ==== */
+  float: { amp: 0.16, speed: 0.42, spin: 0.11 },
+
+  /* ==== Mouse parallax ==== */
+  parallax: { strength: 0.50, damping: 4.5 },
+
+  /* ==== Scroll ==== */
+  scroll: { damping: 5.0 },
+
+  /* ==== Scroll velocity effects (phase (c)) ==== */
+  velocity: {
+    spin:  2.2,     // extra world-Y rotation per normalised velocity unit
+    tilt:  0.20,    // extra rotation.z
+    stretch: 0.10,  // extra scale along the scroll axis (scale.z)
+    streak: 1.0,    // particle streak length at full velocity
+    damping: 6.0,
+    max:  2600,     // px/s that counts as "full" velocity
+  },
+
+  /* ==== Hover ==== */
+  hover: { scale: 1.10, glow: 2.4, spinMul: 2.4, damping: 6.0 },
+
+  /* ==== When a hero button/card is hovered, that prop is the FOCUS and the
+   * other two step back, so the reaction reads as a spotlight. ==== */
+  focus: { dimOthers: 0.55, damping: 7.0 },
+
+  /* ==== Raycast / click-to-scroll ==== */
+  pointer: {
+    /* Skip the raycast when the pointer is over an interactive DOM element —
+       those have their own hover reactions, and the canvas is behind them. */
+    throttled: true,
+    clickScroll: true,
+  },
+
+  /* ==== Particles: 3 depth layers in one draw call ==== */
+  particles: {
+    count:        900,
+    countTablet:  420,
+    countMobile:  200,
+    size:  0.050,
+    opacity: 0.50,
+    layers: 3,
+    /* per-layer z band centre + radius, and drift multiplier */
+    layerZ:  [-2.0, 3.0, 9.0],
+    layerSpread: [7.0, 11.0, 17.0],
+    layerDrift: [1.0, 0.62, 0.34],
+    twinkle: 0.55,
+  },
+
+  /* ==== Text-clearance solver (phase (a)) ====
+   * A prop may only sit in a horizontally free band at its own height. If the
+   * band is narrower than `minFreePx` there is nowhere safe to put it, so the
+   * prop drops into `safe` mode: pushed far back, shrunk and dimmed. */
+  gutters: {
+    minFreePx:   110,   // narrower than this -> safe mode
+    marginPx:     26,   // breathing room between prop and text
+    edgePadPx:    20,   // breathing room between prop and the viewport edge
+    bandVh:     0.22,   // height of the query band, as a fraction of viewport h
+    baseDistance: 6.0,  // prop distance from the camera before anchor.z
+    fill:       0.86,   // fraction of the free band a prop may occupy
+    safeScale:  0.55,
+    safeDim:    0.45,
+    safeDepth: -3.2,    // extra world-Z push-back in safe mode
+  },
+
+  /* ==== Per-prop ceiling on the automatic gutter fit ====
+   * resolve() sizes each prop to fill its free band, which normalises props of
+   * very different geometry. These caps keep the relative visual weight
+   * hand-authored (the USB is the smallest prop and must stay that way). */
+  props: {
+    hd:      { fit: 2.60 },
+    usb:     { fit: 1.70 },
+    network: { fit: 2.20 },
+  },
+
+  /* ==== Objects hidden on the mobile tier (no side gutters exist there) ==== */
+  hideOnMobile: ['hd', 'usb', 'network'],
+
+  /* ==== Adaptive quality: one-way step-down, never oscillates ==== */
+  adaptive: {
+    sampleFrames: 90,
+    fpsFloor:     40,   // below this -> step 1 (pixel ratio)
+    fpsCritical:  26,   // below this -> step 2+3 (bloom off, particles cut)
+    steps: ['pixelRatio', 'bloom', 'particles'],
+  },
+
+  /* ==== Tiers ==== */
+  mobileBreakpoint:  768,
+  tabletBreakpoint: 1024,
+  TIER: {
+    desktop: { posScale: 1.00, scaleMul: 1.00, camPush: 0.0, exposureMul: 1.00 },
+    tablet:  { posScale: 0.85, scaleMul: 0.88, camPush: 0.6, exposureMul: 0.92 },
+    mobile:  { posScale: 0.40, scaleMul: 0.72, camPush: 2.2, exposureMul: 0.80 },
+  },
+
+  /* ==== Accessibility / debug ==== */
+  showStaticOnReducedMotion: true,
+  debug: new URLSearchParams(location.search).get('scene3d') === 'debug',
+};
+
+/* ---------------------------------------------------------------------------
+ * Per-section exposure. 1.0 = hero, lower = further back / quieter.
+ * -------------------------------------------------------------------------*/
+
+export const EXPOSURE_PER_SECTION = {
+  hero:     1.00,
+  overview: 0.92,
+  features: 0.78,
+  flow:     0.74,
+  clarity:  0.62,
+};
+
+export const SECTION_IDS = ['hero', 'overview', 'features', 'flow', 'clarity'];
+
+/* ---------------------------------------------------------------------------
+ * Per-section composition.
+ *
+ * `anchors` are SCREEN-SPACE (normalised device coordinates, -1..1) rather than
+ * world positions, so a prop keeps its place in the side gutter at any aspect
+ * ratio. `x` is the preferred position on `side`; scroll.js measures the real
+ * text rectangles and clamps x into whichever band is actually free.
+ *
+ *   side   'left' | 'right'   which gutter this prop prefers
+ *   x      -1..1              preferred NDC x
+ *   y      -1..1              NDC y (0 = vertical centre)
+ *   z      world              depth offset from the prop's home position
+ *   scale  multiplier on TUNING.objects[key].scale
+ *   dim    extra multiplier on the glow (features pushes the others back)
+ *
+ * The three per-stop WEIGHTS give every section its own composition and are
+ * blended together like everything else, so scrolling between sections
+ * cross-fades between compositions rather than snapping:
+ *
+ *   focal    1 = snap each prop onto the Features card that describes it
+ *   lineup   1 = the Flow "diagonal lineup": three props on a rising diagonal
+ *   converge 1 = the Clarity "calm convergence": a symmetric, still row
+ * ==========================================================================*/
+
+export const STOPS = [
+  {
+    id: 'hero',
+    cam: [0, 0.15, 8.4], look: [0, 0.05, 0], fov: 42, yaw: 0.00,
+    focal: 0, lineup: 0, converge: 0,
+    anchors: {
+      hd:      { side: 'right', x:  0.74, y:  0.10, z:  0.0, scale: 1.00, dim: 1.00 },
+      usb:     { side: 'left',  x: -0.74, y: -0.20, z: -0.4, scale: 0.96, dim: 0.95 },
+      network: { side: 'right', x:  0.58, y:  0.46, z: -1.8, scale: 0.90, dim: 0.85 },
+    },
+  },
+  {
+    id: 'overview',
+    cam: [0.5, -0.4, 9.2], look: [0, 0.30, 0], fov: 44, yaw: 0.28,
+    focal: 0, lineup: 0, converge: 0,
+    anchors: {
+      hd:      { side: 'right', x:  0.78, y:  0.26, z:  0.2, scale: 0.92, dim: 0.90 },
+      usb:     { side: 'left',  x: -0.78, y: -0.30, z: -0.6, scale: 0.90, dim: 0.88 },
+      network: { side: 'right', x:  0.66, y: -0.30, z: -2.0, scale: 0.86, dim: 0.80 },
+    },
+  },
+  {
+    id: 'features',
+    cam: [1.8, 1.2, 10.0], look: [0, -0.20, 0], fov: 46, yaw: -0.42,
+    /* One focal object per card: each prop is pulled onto the tile that
+       describes it, so the 3D mirrors the copy the visitor is reading. */
+    focal: 1, lineup: 0, converge: 0,
+    anchors: {
+      hd:      { side: 'right', x:  0.82, y:  0.34, z:  0.8, scale: 1.00, dim: 1.05 },
+      usb:     { side: 'left',  x: -0.82, y: -0.34, z: -1.0, scale: 1.00, dim: 0.95 },
+      network: { side: 'right', x:  0.74, y: -0.36, z: -2.2, scale: 1.00, dim: 0.85 },
+    },
+  },
+  {
+    id: 'flow',
+    cam: [-2.0, -0.5, 10.4], look: [0, 0.45, 0], fov: 47, yaw: 0.62,
+    /* Diagonal lineup, and the section where the flow links ignite. */
+    focal: 0, lineup: 1, converge: 0,
+    flow: 1,
+    anchors: {
+      hd:      { side: 'left',  x: -0.80, y:  0.40, z: -0.6, scale: 1.00, dim: 0.90 },
+      usb:     { side: 'left',  x: -0.66, y: -0.10, z:  0.0, scale: 1.00, dim: 1.00 },
+      network: { side: 'right', x:  0.80, y:  0.16, z: -0.8, scale: 1.00, dim: 0.92 },
+    },
+  },
+  {
+    id: 'clarity',
+    cam: [0, 0.6, 11.4], look: [0, 0.1, 0], fov: 45, yaw: 0.00,
+    /* Calm convergence: one shared baseline, symmetric, almost still. */
+    focal: 0, lineup: 0, converge: 1,
+    flow: 0,
+    anchors: {
+      hd:      { side: 'left',  x: -0.80, y:  0.22, z: -1.0, scale: 0.88, dim: 0.78 },
+      usb:     { side: 'right', x:  0.80, y:  0.22, z: -1.0, scale: 0.88, dim: 0.78 },
+      network: { side: 'right', x:  0.62, y: -0.26, z: -1.6, scale: 0.86, dim: 0.72 },
+    },
+  },
+];
+
+/* ---------------------------------------------------------------------------
+ * Composition targets the weights above blend toward (NDC).
+ * -------------------------------------------------------------------------*/
+
+/** Flow: three props on a rising diagonal, so the links read as a pipeline. */
+export const LINEUP = {
+  hd:      { x: -0.60, y:  0.44 },
+  usb:     { x:  0.00, y:  0.04 },
+  network: { x:  0.60, y: -0.36 },
+};
+
+/** Clarity: a calm, symmetric, level row. */
+export const CONVERGE = {
+  hd:      { x: -0.62, y: -0.16 },
+  usb:     { x:  0.00, y: -0.16 },
+  network: { x:  0.62, y: -0.16 },
+};
+
+/**
+ * Features card -> prop. Index is the DOM order of `.spot-card` inside
+ * #features; the keys are the prop names. The third card ("Web-first") maps to
+ * the network constellation: the whole site is the network, and the card is
+ * the one that talks about shipping tools.
+ */
+export const FOCAL_CARDS = ['hd', 'usb', 'network'];
+
+/** Prop -> the Features card it belongs to, used by click-to-scroll. */
+export const FOCAL_TARGET = { hd: 'features', usb: 'features', network: 'features' };
+
+/** exposure multiplier for a stop id, with a safe default. */
+export function exposureFor(id) {
+  return EXPOSURE_PER_SECTION[id] ?? 0.8;
+}
