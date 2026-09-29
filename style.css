@@ -383,7 +383,7 @@
     html.reduced-motion #glow-field { transform: none !important; }
     html.reduced-motion #page-transition { transition: none; }
     html.reduced-motion .title-line::after, html.reduced-motion .footer-nav a::after { transform: scaleX(1); transition: none; }
-    html.reduced-motion .reveal > div:first-child, html.reduced-motion .reveal > div:first-child i { transition: none; }
+    html.reduced-motion .reveal > div:first-child, html.reduced-motion .reveal > div:first-child :is(i, svg) { transition: none; }
 
     /* ---- Scroll progress bar ---- */
     #scroll-progress {
@@ -427,17 +427,19 @@
     /* ---- Hero glow blobs: cursor parallax (transformed via JS on #glow-field) ---- */
     #glow-field { will-change: transform; }
 
-    /* ---- Tool/feature icon boxes pop on card hover ---- */
-    .reveal:has(> div:first-child i.ph) > div:first-child {
+    /* ---- Tool/feature icon boxes pop on card hover ----
+       `:is(i, svg).ph` because the card + flow glyphs are inline <svg>
+       (script-free, font-free), while the hero/nav glyphs stay Phosphor <i>. */
+    .reveal:has(> div:first-child :is(i, svg).ph) > div:first-child {
       transition: transform .4s cubic-bezier(.34, 1.56, .64, 1);
     }
-    .reveal:hover:has(> div:first-child i.ph) > div:first-child {
+    .reveal:hover:has(> div:first-child :is(i, svg).ph) > div:first-child {
       transform: scale(1.1) rotate(-5deg);
     }
-    .reveal:has(> div:first-child i.ph) > div:first-child i {
+    .reveal:has(> div:first-child :is(i, svg).ph) > div:first-child :is(i, svg) {
       transition: transform .4s cubic-bezier(.34, 1.56, .64, 1);
     }
-    .reveal:hover:has(> div:first-child i.ph) > div:first-child i {
+    .reveal:hover:has(> div:first-child :is(i, svg).ph) > div:first-child :is(i, svg) {
       transform: scale(1.06) rotate(6deg);
     }
 

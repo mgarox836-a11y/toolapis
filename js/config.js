@@ -183,6 +183,35 @@ export const TUNING = {
     marginPx:      26,   // breathing room between prop and a rect edge
     rectPadPx:     24,   // every measured obstacle is grown by this on all sides
     edgePadPx:     32,   // breathing room between prop and the viewport edge
+    /* The sticky header is a RESERVED BAND, never a clip. `#navbar` is
+       `position: fixed` and paints an opaque (0.8 alpha) strip over the
+       canvas once it is solid, so a prop that reaches into it is cut by a
+       hard straight edge. The band is measured from the real navbar height
+       (floor: this value) and the solver keeps every box below it; a prop
+       close to the band fades out over `headerFadePx` instead of ending
+       abruptly, so there is never a cut. Only reserved while the navbar is
+       actually solid (js/scene3d.js watches the `nav-solid` class). */
+    headerReservePx:  88,
+    headerPadPx:      16,  // extra breathing room under the measured navbar
+    headerFadePx:    160,  // dim ramp over this distance below the band
+    /* Full-box clearance. The band solve is horizontal, so a prop whose
+       solved half-height is taller than the query band used to spill over the
+       text above and below it. These govern the pass that walks the WHOLE box
+       against every rect of the section the prop is in AND the one it is
+       travelling to, shrinking it until it is clear. */
+    verticalClearPadPx: 24,  // minimum gap, on every side, at every scroll pos
+    shrinkStep:      0.88,   // per-pass shrink while the box still hits copy
+    /* Deep enough for a prop to squeeze into a page gutter: 0.88^14 = 0.17, and
+       the narrowest real gutter is ~104px, so a full-width card row no longer
+       forces the prop to disappear — it shrinks and dims into the gutter, which
+       is what `safe` mode already did. The ladder stops at the first clear size,
+       so the common case costs one test. */
+    shrinkPasses:    14,
+    /* How far the clearance pass may walk from the solved height, in
+       `searchStepVh` steps, up and down. Reaches past a full-width row of
+       cards, which leaves no free column at all and can only be escaped
+       vertically. 9 * 0.18 = 1.62 NDC, i.e. the whole viewport. */
+    clearSearchSteps: 9,
     /* Props must stay FULLY inside the viewport, so there is no edge bleed.
        Set to 0 deliberately; `searchStepVh` below is what makes room instead. */
     edgeOverlapPx:   0,

@@ -62,6 +62,12 @@ export function createScrollEngine() {
   /** @type {{centerX:number, pageTop:number, h:number}[]} Features cards, page space */
   let focalCards = [];
   let measured = false;
+  /** px reserved at the top of the viewport for the sticky header. */
+  let headerPx = 0;
+  /** The header only reserves that band while it is opaque (`nav-solid`). */
+  let headerSolid = false;
+  /** @type {Record<string, {y0:number,y1:number}>} each section's page-space span */
+  let sectionSpan = {};
 
   /* ---------------------------------------------------------------------
    * Measuring
@@ -94,6 +100,7 @@ export function createScrollEngine() {
     content = {};
     soft = {};
     cardText = {};
+    sectionSpan = {};
 
     const collect = (section, selector, into, skipInCard) => {
       const rects = [];
@@ -122,6 +129,8 @@ export function createScrollEngine() {
     for (const id of SECTION_IDS) {
       const section = document.getElementById(id);
       if (!section) continue;
+      const sr = section.getBoundingClientRect();
+      sectionSpan[id] = { y0: sr.top + scrollY, y1: sr.bottom + scrollY };
       collect(section, CONTENT_SELECTOR, content, true);
       collect(section, CONTENT_SELECTOR, cardText, false);
       collect(section, SOFT_SELECTOR, soft);
@@ -133,6 +142,15 @@ export function createScrollEngine() {
         content[id] = (content[id] || []).concat(cards);
       }
     }
+
+    /* The reserved top band. Measured here, not per frame: the navbar height
+       only changes on resize, and its `nav-solid` state is watched by
+       js/scene3d.js (a MutationObserver) and mirrored through setHeaderSolid. */
+    const nav = document.getElementById('navbar');
+    const navH = nav ? nav.getBoundingClientRect().height : 0;
+    headerPx = Math.max(TUNING.gutters.headerReservePx, navH + TUNING.gutters.headerPadPx);
+    if (nav) headerSolid = nav.classList.contains('nav-solid');
+
     measured = true;
   }
 
@@ -213,6 +231,9 @@ export function createScrollEngine() {
       converge: 0,
       flow: 0,
       sectionId: STOPS[0].id,
+      /* The two stops being blended. Placement must clear BOTH. */
+      fromId: STOPS[0].id,
+      toId: STOPS[0].id,
       anchors: anchorOut,
     };
   }
@@ -228,6 +249,8 @@ export function createScrollEngine() {
 
     out.index = i;
     out.sectionId = t < 0.5 ? A.id : B.id;
+    out.fromId = A.id;
+    out.toId = B.id;
     out.cam.set(lerp(A.cam[0], B.cam[0], t), lerp(A.cam[1], B.cam[1], t), lerp(A.cam[2], B.cam[2], t));
     out.look.set(lerp(A.look[0], B.look[0], t), lerp(A.look[1], B.look[1], t), lerp(A.look[2], B.look[2], t));
     out.fov = lerp(A.fov, B.fov, t);
@@ -285,16 +308,25 @@ export function createScrollEngine() {
    * Merges the x-intervals of every measured rect whose y-range overlaps the
    * query band, returning a sorted, merged list of occupied [x0, x1] pairs
    * in pixels.
+   *
+   * `ids` may be a single id or a LIST. It is always a list while the page is
+   * between two sections: the stop blend switches `sectionId` at t = 0.5, so
+   * reading only that one left every prop free to settle on the copy of the
+   * section it was still travelling away from.
    */
-  function occupiedIn(bank, sectionId, y0, y1) {
-    const rects = bank[sectionId];
-    if (!rects || !rects.length) return null;
-    const spans = [];
-    for (const r of rects) {
-      if (r.y1 < y0 || r.y0 > y1) continue;
-      spans.push([r.x0, r.x1]);
+  function occupiedIn(bank, ids, y0, y1) {
+    const list = Array.isArray(ids) ? ids : [ids];
+    let spans = null;
+    for (const id of list) {
+      const rects = bank[id];
+      if (!rects || !rects.length) continue;
+      for (const r of rects) {
+        if (r.y1 < y0 || r.y0 > y1) continue;
+        if (!spans) spans = [];
+        spans.push([r.x0, r.x1]);
+      }
     }
-    if (!spans.length) return null;
+    if (!spans || !spans.length) return null;
     spans.sort((a, b) => a[0] - b[0]);
     const merged = [spans[0].slice()];
     for (let i = 1; i < spans.length; i++) {
@@ -303,6 +335,28 @@ export function createScrollEngine() {
       else merged.push(spans[i].slice());
     }
     return merged;
+  }
+
+  /**
+   * True when a screen-space box (px, page space on Y) touches ANY measured
+   * rect of the given section(s). Rects are already grown by rectPadPx at
+   * measure time, so this is "clear by at least 24px on every side".
+   *
+   * This is the test the old solver never ran: the band query is horizontal,
+   * so a prop whose solved half-height was taller than the query band simply
+   * spilled over whatever copy sat above and below it.
+   */
+  function boxHits(bank, ids, x0, x1, y0, y1) {
+    const list = Array.isArray(ids) ? ids : [ids];
+    for (const id of list) {
+      const rects = bank[id];
+      if (!rects || !rects.length) continue;
+      for (const r of rects) {
+        if (r.x1 <= x0 || r.x0 >= x1 || r.y1 <= y0 || r.y0 >= y1) continue;
+        return true;
+      }
+    }
+    return false;
   }
 
   /* Candidate heights for the vertical band search: 0 = the anchor, then
@@ -316,13 +370,13 @@ export function createScrollEngine() {
   /* NDC working slots, one per prop. */
   const slots = {};
   for (const key of OBJ_KEYS) {
-    slots[key] = { key, cx: 0, cy: 0, hx: 0, hy: 0, dist: 0, scale: 1, safe: false, behind: false };
+    slots[key] = { key, cx: 0, cy: 0, hx: 0, hy: 0, dist: 0, scale: 1, safe: false, behind: false, fade: 1 };
   }
   /* The slot OBJECTS, not their keys — separate() mutates them directly. */
   const visible = OBJ_KEYS.map((k) => slots[k]).filter(Boolean);
   const placement = {};
   for (const key of OBJ_KEYS) {
-    placement[key] = { x: 0, y: 0, z: 0, scale: 1, safe: false, behind: false, hxNdc: 0, hyNdc: 0 };
+    placement[key] = { x: 0, y: 0, z: 0, scale: 1, safe: false, behind: false, fade: 1, hxNdc: 0, hyNdc: 0 };
   }
 
   /**
@@ -342,8 +396,22 @@ export function createScrollEngine() {
   }
 
   /** NDC x-span of the translucent cards at a given page band. */
-  function softAt(sectionId, y0, y1) {
-    return occupiedIn(soft, sectionId, y0, y1);
+  function softAt(ids, y0, y1) {
+    return occupiedIn(soft, ids, y0, y1);
+  }
+
+  /**
+   * The reserved-band fade. 1 once a prop is `headerFadePx` clear of the sticky
+   * header, ramping smoothly to 0 at the band's edge, so a prop approaching the
+   * opaque strip dissolves instead of being sliced by it. Returns 1 while the
+   * header is still transparent, which leaves the hero untouched.
+   *
+   * Recomputed after separate() because that pass moves props.
+   */
+  function bandFade(o, vh) {
+    if (!headerSolid || headerPx <= 0) return 1;
+    const topPx = (1 - (o.cy - o.hy)) * 0.5 * vh;
+    return clamp((topPx - headerPx) / TUNING.gutters.headerFadePx, 0, 1);
   }
 
   /**
@@ -359,6 +427,29 @@ export function createScrollEngine() {
    * @param {object} camera
    * @param {Record<string,{halfW:number,halfH:number}>} bounds
    */
+  /**
+   * Every section whose page span can put copy on screen at this scrollY, with a
+   * viewport of slack so a prop that hangs off the top or bottom is still judged
+   * against what is just off screen.
+   *
+   * The blended pair alone was not enough: the stop blend switches `sectionId`
+   * at t = 0.5, and at a section boundary a THIRD section's heading can already
+   * be on screen. Placement is judged against all of them, so "never covers the
+   * copy" holds at every scroll position, not only inside the active section.
+   */
+  function sectionsOnScreen(scrollY, vh) {
+    const ids = [];
+    const top = scrollY - vh * 0.2;
+    const bottom = scrollY + vh * 1.2;
+    for (const id of SECTION_IDS) {
+      const span = sectionSpan[id];
+      if (!span) continue;
+      if (span.y1 < top || span.y0 > bottom) continue;
+      ids.push(id);
+    }
+    return ids;
+  }
+
   function layout(s, scrollY, camera, bounds) {
     const G = TUNING.gutters;
     const P = TUNING.props;
@@ -367,6 +458,161 @@ export function createScrollEngine() {
     const padX = (G.edgePadPx * 2) / vw;
     const padY = (G.edgePadPx * 2) / vh;
     const minPxNdc = (G.minOnScreenPx * 2) / vw;
+    /* Every section that can put copy on screen right now, plus the two being
+       blended (they may be off screen but still own the props' anchors). */
+    const ids = measured ? sectionsOnScreen(scrollY, vh) : [];
+    if (ids.indexOf(s.fromId || s.sectionId) < 0) ids.push(s.fromId || s.sectionId);
+    if (ids.indexOf(s.toId || s.sectionId) < 0) ids.push(s.toId || s.sectionId);
+    /* The sticky header is a reserved band only while it paints an opaque
+       strip; the hero's transparent header must not push the props around. */
+    const bandPx = headerSolid ? headerPx : 0;
+    const bandNdcY = -1 + (2 * bandPx) / vh;
+
+    /** Keeps a prop's WHOLE box inside the viewport and below the header band. */
+    const clampBox = (o) => {
+      const limY = Math.max(padY, 1 - o.hy - padY);
+      o.cy = clamp(o.cy, -limY, limY);
+      if (bandPx > 0) {
+        const top = bandNdcY + o.hy + padY;
+        if (o.cy > top) o.cy = top;
+      }
+      const minCx = -1 + padX + o.hx;
+      const maxCx = 1 - padX - o.hx;
+      o.cx = minCx <= maxCx ? clamp(o.cx, minCx, maxCx) : 0;
+    };
+
+    /** True when the box clears every measured rect of `ids`, with padding. */
+    const boxIsClear = (o, padPx) => {
+      const x0 = ((o.cx - o.hx) * 0.5 + 0.5) * vw;
+      const x1 = ((o.cx + o.hx) * 0.5 + 0.5) * vw;
+      const halfPx = o.hy * 0.5 * vh + padPx;
+      const yPage = (1 - o.cy) * 0.5 * vh + scrollY;
+      return !boxHits(content, ids, x0, x1, yPage - halfPx, yPage + halfPx);
+    };
+
+    /**
+     * Places `o` where it is guaranteed clear of the copy, or hides it.
+     *
+     * How much shrinking a given height would need, 1 = already clear,
+     * Infinity = no size clears there. Leaves `o` untouched when it fails.
+     */
+    const shrinkNeeded = (o, cy, h0, y0) => {
+      const s0 = o.scale, c0 = o.cy, hx0 = o.hx, hy0 = o.hy;
+      let f = 1;
+      for (let i = 0; i <= G.shrinkPasses; i++) {
+        o.cy = cy; o.hx = h0 * f; o.hy = y0 * f;
+        clampBox(o);
+        if (boxIsClear(o, G.verticalClearPadPx)) { o.scale = s0 * f; return f; }
+        f *= G.shrinkStep;
+      }
+      o.cy = c0; o.cx = o.cx; o.hx = hx0; o.hy = hy0; o.scale = s0;
+      return Infinity;
+    };
+
+    /**
+     * The full-box clearance pass.
+     *
+     * Instead of sampling heights, it computes the FREE VERTICAL BANDS for the
+     * prop's current x-range — a single pass over the rects that cross that
+     * range — and drops the prop into the one nearest its solved height, sized
+     * to fit it exactly. A full-width row of cards leaves no free COLUMN at all
+     * and can only be escaped vertically, which the horizontal band search can
+     * never find; this does. Sizing is continuous in the free space, so a prop
+     * eases smaller as the copy closes in instead of blinking out.
+     */
+    const solveClear = (o) => {
+      const padPx = G.verticalClearPadPx;
+      const x0 = ((o.cx - o.hx) * 0.5 + 0.5) * vw - padPx;
+      const x1 = ((o.cx + o.hx) * 0.5 + 0.5) * vw + padPx;
+
+      /* The vertical extents every rect that crosses this prop's x-range
+         occupies, merged into the gaps between them. */
+      const blockers = [];
+      for (const id of ids) {
+        for (const r of content[id] || []) {
+          if (r.x1 <= x0 || r.x0 >= x1) continue;
+          blockers.push([r.y0, r.y1]);
+        }
+      }
+      const top = scrollY - padPx;
+      const bot = scrollY + vh + padPx;
+      const free = [];
+      if (!blockers.length) {
+        free.push([top, bot]);
+      } else {
+        blockers.sort((a, b) => a[0] - b[0]);
+        let cursor = top;
+        for (const [a, b] of blockers) {
+          if (a > cursor) free.push([cursor, Math.min(a, bot)]);
+          if (b > cursor) cursor = b;
+          if (cursor >= bot) break;
+        }
+        if (cursor < bot) free.push([cursor, bot]);
+      }
+
+      /* The band that keeps the prop closest to where the solve put it, and
+         the biggest box that fits inside it with its padding. */
+      const cy0 = o.cy;
+      const y0px = (1 - cy0) * 0.5 * vh + scrollY;
+      let best = null;
+      for (const [a, b] of free) {
+        const lo = Math.max(a, top);
+        const hi = Math.min(b, bot);
+        const height = hi - lo - padPx * 2;
+        if (height <= 4) continue;                 /* no room for a real box */
+        const centre = (lo + hi) * 0.5;
+        const cost = Math.abs(centre - y0px);
+        if (!best || cost < best.cost) best = { centre, height, cost };
+      }
+      if (!best) return solveLadder(o);
+      /* Size to the band, uniformly, so the prop keeps its shape. */
+      const fitPx = best.height;
+      const f = Math.min(1, (fitPx * 0.5) / Math.max(o.hy * 0.5 * vh, 0.001));
+      o.scale *= f;
+      o.hx *= f;
+      o.hy = o.hy * f;
+      o.cy = 1 - ((best.centre - scrollY) / vh) * 2;
+      clampBox(o);
+      /* clampBox can pull the box out of its band (viewport edge, header
+         reserve), so the placement is verified before it is believed. */
+      if (boxIsClear(o, padPx)) return;
+      return solveLadder(o);
+    };
+
+    /**
+     * Last resort: walk the band search's own height ladder, shrinking.
+     *
+     * If even that leaves the box over the copy, the prop goes to SAFE mode —
+     * pushed back, shrunk and dimmed — which is the documented fallback. It is
+     * never hidden: an empty canvas would read as a bug, and a small dim prop
+     * behind the copy is the design's own answer for a page with no gutter.
+     */
+    const solveLadder = (o) => {
+      const cy0 = o.cy, h0 = o.hx, y0 = o.hy, s0 = o.scale;
+      let bestF = shrinkNeeded(o, cy0, h0, y0);
+      let bestCy = cy0;
+      for (const dir of [1, -1]) {
+        for (let step = 1; step <= G.clearSearchSteps; step++) {
+          const cy = clamp(cy0 + dir * step * G.searchStepVh, -1 + padY, 1 - padY);
+          const f = shrinkNeeded(o, cy, h0, y0);
+          if (f < bestF) { bestF = f; bestCy = cy; }
+          if (bestF === 1) break;
+        }
+        if (bestF === 1) break;
+      }
+      if (bestF !== Infinity) {
+        o.cy = bestCy; o.hx = h0 * bestF; o.hy = y0 * bestF; o.scale = s0 * bestF;
+        clampBox(o);
+        if (boxIsClear(o, G.verticalClearPadPx)) return;
+      }
+      /* Still no clear box: shrink as far as the passes allow and dim. */
+      o.cy = cy0;
+      o.scale = s0 * Math.pow(G.shrinkStep, G.shrinkPasses);
+      o.hx = h0 * Math.pow(G.shrinkStep, G.shrinkPasses);
+      o.hy = y0 * Math.pow(G.shrinkStep, G.shrinkPasses);
+      o.safe = true;
+      clampBox(o);
+    };
 
     /* ---- the absolute size cap ----------------------------------------
      * NDC runs -1..1 across the WIDTH, so a box with half-width `h` covers
@@ -408,7 +654,7 @@ export function createScrollEngine() {
           const cyTry = clamp(anchor.y + dy, -1 + padY, 1 - padY);
           const yPage = (1 - cyTry) * 0.5 * vh + scrollY;
           const spans = measured
-            ? occupiedIn(content, s.sectionId, yPage - bandHalf, yPage + bandHalf)
+            ? occupiedIn(content, ids, yPage - bandHalf, yPage + bandHalf)
             : null;
           /* `inner*` is the text edge; the band runs from there out to the
              padded viewport edge. With NO text in the band the constraint is
@@ -496,24 +742,58 @@ export function createScrollEngine() {
       o.scale = fit;
       o.hx = halfWNdc * fit;
       o.hy = halfHNdc * fit;
-      /* Keep the whole box inside the viewport — on BOTH axes. The centre
-         alone is never allowed to sit on an edge, which is what used to crop
-         the Hero props at the viewport border. */
-      const limY = Math.max(padY, 1 - o.hy - padY);
-      o.cy = clamp(o.cy, -limY, limY);
-      const minCx = outerL + o.hx;
-      const maxCx = outerR - o.hx;
-      o.cx = minCx <= maxCx ? clamp(o.cx, minCx, maxCx) : (outerL + outerR) * 0.5;
+      clampBox(o);
 
+      /* --- 3. full-box clearance ------------------------------------------
+       * The band solve above is HORIZONTAL only: it finds a free gap at the
+       * prop's height, but never checks how TALL the solved prop is against
+       * the copy above and below that gap. A prop can therefore be perfectly
+       * centred in a free band and still spill straight over the text — which
+       * is what put the network constellation across "You're done" and the HD
+       * frame over the Flow headline.
+       *
+       * This pass walks the WHOLE box, with `verticalClearPadPx` of air on
+       * every side, against every rect of the section the prop is in AND the
+       * one it is travelling to. Overlap is never an option: the prop shrinks
+       * until it is clear, moves to another height if shrinking is not
+       * enough, and only dims when neither works. The size caps above are
+       * untouched — this only ever makes a prop smaller. */
+      if (measured) solveClear(o);
+
+      /* --- 4. the reserved header band ------------------------------------
+       * `#navbar` is fixed and paints an opaque strip over the canvas once it
+       * is solid, so a prop reaching into it was cut by a hard straight
+       * edge. The band is reserved — clampBox pushed the box below it — and a
+       * prop near the band fades out over `headerFadePx` instead of ending in
+       * a cut. Fully clear of the band means fully opaque. */
+      o.fade = bandFade(o, vh);
+
+      const yPageNow = (1 - o.cy) * 0.5 * vh + scrollY;
       /* Inside a card's own copy? The card rect is a hard obstacle already
          (see measureContent), so this is only the DIM: a prop that has to
          sit close to a card reads as behind it rather than in front of it. */
-      o.behind = !!softAt(s.sectionId, yPage - bandHalf, yPage + bandHalf)
-        || !!occupiedIn(cardText, s.sectionId, yPage - bandHalf, yPage + bandHalf);
+      o.behind = !!softAt(ids, yPageNow - bandHalf, yPageNow + bandHalf)
+        || !!occupiedIn(cardText, ids, yPageNow - bandHalf, yPageNow + bandHalf);
     }
 
     /* --- 2. separation: no two props may overlap --- */
-    separate();
+    /* `hitsCopy` is what makes this safe to run AFTER the clearance solve: a
+       push-off that would drop a prop back onto the copy is refused, so
+       separation can only ever make props sit closer together, never cover
+       text. */
+    separate((o) => (measured ? !boxIsClear(o, G.verticalClearPadPx) : false));
+
+    /* Anything separation had to move is re-solved, so the boxes this function
+       REPORTS are the boxes that were verified clear. A prop may end up a
+       little closer to its neighbour than minSeparation in a crowded spot;
+       covering the copy is never an option. */
+    if (measured) {
+      for (const key of OBJ_KEYS) {
+        const o = slots[key];
+        if (boxIsClear(o, G.verticalClearPadPx)) continue;
+        solveClear(o);
+      }
+    }
 
     /* --- 3. unproject to world --- */
     for (const key of OBJ_KEYS) {
@@ -529,6 +809,7 @@ export function createScrollEngine() {
       p.scale = o.scale;
       p.safe = o.safe;
       p.behind = o.behind;
+      p.fade = bandFade(o, window.innerHeight);
       p.hxNdc = o.hx;
       p.hyNdc = o.hy;
     }
@@ -539,11 +820,16 @@ export function createScrollEngine() {
    * Relaxation pass: push overlapping props apart along the shallower axis of
    * penetration, then clamp them back inside the viewport. Three iterations is
    * plenty for three boxes and keeps the cost off the frame budget.
+   *
+   * `hitsCopy(o)` reports that this prop's CURRENT box is over the copy. Any
+   * push-off that would make that true is rolled back, so this pass can never
+   * undo the clearance solve.
    */
-  function separate() {
+  function separate(hitsCopy) {
     const G = TUNING.gutters;
     const vh = window.innerHeight;
     const padY = (G.edgePadPx * 2) / vh;
+    const check = hitsCopy || (() => false);
     for (let pass = 0; pass < 3; pass++) {
       for (let i = 0; i < visible.length; i++) {
         for (let j = i + 1; j < visible.length; j++) {
@@ -556,6 +842,7 @@ export function createScrollEngine() {
           const ox = needX - Math.abs(dx);
           const oy = needY - Math.abs(dy);
           if (ox <= 0 || oy <= 0) continue;
+          const ax = a.cx, ay = a.cy, bx = b.cx, by = b.cy;
           if (ox < oy) {
             const s = (dx >= 0 ? 1 : -1) * ox * 0.5;
             a.cx -= s; b.cx += s;
@@ -563,6 +850,7 @@ export function createScrollEngine() {
             const s = (dy >= 0 ? 1 : -1) * oy * 0.5;
             a.cy -= s; b.cy += s;
           }
+          if (check(a) || check(b)) { a.cx = ax; a.cy = ay; b.cx = bx; b.cy = by; }
         }
       }
     }
@@ -571,9 +859,17 @@ export function createScrollEngine() {
     const padX = (G.edgePadPx * 2) / window.innerWidth;
     const outerR = 1 - padX;
     const outerL = -1 + padX;
+    /* The reserved header band applies here too, or a prop pushed upward to
+       resolve a collision would land right in the opaque strip. */
+    const bandPx = headerSolid ? headerPx : 0;
+    const bandNdcY = -1 + (2 * bandPx) / vh;
     for (const o of visible) {
       const limY = Math.max(padY, 1 - o.hy - padY);
       o.cy = clamp(o.cy, -limY, limY);
+      if (bandPx > 0) {
+        const top = bandNdcY + o.hy + padY;
+        if (o.cy > top) o.cy = top;
+      }
       const minCx = outerL + o.hx;
       const maxCx = outerR - o.hx;
       o.cx = minCx <= maxCx ? clamp(o.cx, minCx, maxCx) : (outerL + outerR) * 0.5;
@@ -592,8 +888,15 @@ export function createScrollEngine() {
     measureContent,
     measureFocalCards,
     focalY,
+    /**
+     * The sticky header only reserves the top band while it paints an opaque
+     * strip (`#navbar.nav-solid`). js/scene3d.js watches that class so this is
+     * a flag update, never a per-frame class read or layout.
+     */
+    setHeaderSolid(solid) { headerSolid = !!solid; },
     get anchors() { return anchors; },
     get measured() { return measured; },
     get focalCards() { return focalCards; },
+    get headerPx() { return headerPx; },
   };
 }

@@ -241,20 +241,28 @@ html.intro-active.intro-reveal [data-intro-reveal="5"] { transition-delay: 480ms
    and parks each one at inline `opacity: 0` before handing it to Motion.
    When that animation never starts, never resolves, or is dropped by a
    throttled compositor, the box stays invisible and the card reads as
-   "no icon" — the phosphor webfont is fine, nothing is actually missing
-   from the markup.
+   "no icon" — the glyph itself is fine, the box is hidden.
 
-   The animation below pins the box back to visible ~1.5s after it is
-   tagged. `!important` inside the keyframe is deliberate: it outranks
-   both the inline style and any Web Animations fill, so it holds even
-   when Motion is stuck. It is time-based, not intro-based, so it also
-   covers sections the visitor only reaches later (Flow, Overview) and
-   never depends on the intro completing.
+   Two nets, because one was not enough:
+
+   1. The staged keyframes below. `!important` inside a keyframe outranks both
+      the inline style and any Web Animations fill, and `forwards` keeps it
+      applied, so a box is pinned visible 1.5s after it is tagged. The second,
+      later copy covers everything tagged after that (Flow is below the fold
+      and is only observed once the visitor scrolls down).
+
+   2. The deterministic backstop in js/intro.js -> sweepIcons(), which runs for
+      the whole life of the page and therefore covers a box observed at any
+      moment. It no longer sets `animation: none`: cancelling this net was
+      itself capable of leaving a box permanently invisible.
 
    Only `opacity` is forced. `transform` is left alone so the hover pop
-   (style.css `.reveal:hover > div:first-child`) keeps working, and a
-   Motion that finishes normally simply overwrites this with the same
-   visible value.
+   (style.css `.reveal:hover > div:first-child`) keeps working, and a Motion
+   that finishes normally simply overwrites this with the same visible value.
    ==================================================================== */
 @keyframes tl-icon-visible { to { opacity: 1 !important; } }
-[data-motion-kind="icon"] { animation: tl-icon-visible 1ms linear 1.5s forwards; }
+[data-motion-kind="icon"] {
+  animation:
+    tl-icon-visible 1ms linear 1.5s forwards,
+    tl-icon-visible 1ms linear 3s forwards;
+}

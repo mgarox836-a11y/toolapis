@@ -63,6 +63,10 @@ export function cleanup() {
   planTimers = [];
   if (stopProgress) { try { stopProgress(); } catch (e) {} stopProgress = null; }
 
+  /* The overlay is gone, so the page must be handed back AT THE TOP: this is
+     the moment a late browser restore would otherwise win. */
+  scrollToTop();
+
   const overlay = document.getElementById('intro-overlay');
   if (overlay) {
     overlay.classList.add('is-hidden');
@@ -179,12 +183,24 @@ function deepTargetFor(hash) {
 }
 
 /** Hard reset to the top. Runs while the scroll lock is on and again after
- *  it lifts, because a locked document can swallow the first attempt. */
+ *  it lifts, because a locked document can swallow the first attempt.
+ *  Delegates to the inline head's `forceTop()` so there is exactly ONE
+ *  implementation of "instantly at the top" on the page: `scroll-smooth` on
+ *  <html> turns a plain scrollTo(0, 0) into an animation, which loses to the
+ *  browser restore it is meant to cancel. */
 export function scrollToTop() {
   try {
-    window.scrollTo(0, 0);
-    if (html) html.scrollTop = 0;
+    if (typeof window.__tlForceTop === 'function') { window.__tlForceTop(); return; }
+  } catch (e) { /* fall through to the local implementation */ }
+  const d = document.documentElement;
+  try {
+    const prev = d ? d.style.scrollBehavior : '';
+    if (d) d.style.scrollBehavior = 'auto';
+    try { window.scrollTo({ top: 0, left: 0, behavior: 'instant' }); }
+    catch (e) { try { window.scrollTo(0, 0); } catch (e2) {} }
+    if (d) d.scrollTop = 0;
     if (body) body.scrollTop = 0;
+    if (d) d.style.scrollBehavior = prev;
   } catch (e) { /* nothing to do */ }
 }
 
@@ -259,21 +275,46 @@ function sweepIcons() {
     const runs = (iconZero.get(node) || 0) + (stuck ? 1 : 0);
     iconZero.set(node, runs);
     if (runs >= 2) {
-      /* Clear the parked style, and drop the CSS safety net too, so the icon
-         is left in the same state a completed pop-in would have. */
+      /* Clear the parked style. The CSS net in css/intro.css is deliberately
+       * NOT cancelled: it is the only thing that outranks a stuck inline
+       * opacity, so `animation: none` here is what turned "invisible for a
+       * moment" into "invisible forever". */
       node.style.opacity = '';
       node.style.transform = '';
-      try { node.style.animation = 'none'; } catch (e) { /* noop */ }
+      /* If something is STILL holding the box at opacity 0 it can only be a
+       * Web Animations fill that never finished. Cancel those (never a CSS
+       * animation) and the box falls back to the cascade, which is visible. */
+      try {
+        if (window.getComputedStyle(node).opacity === '0' &&
+            typeof node.getAnimations === 'function') {
+          for (const a of node.getAnimations()) {
+            const isCss = (typeof CSSAnimation !== 'undefined') && (a instanceof CSSAnimation);
+            if (!isCss) { try { a.cancel(); } catch (e) { /* noop */ } }
+          }
+        }
+      } catch (e) { /* noop */ }
       iconZero.set(node, 0);
     }
+
   }
 }
 
 function startIconWatch() {
   if (iconWatchId) return;
   try {
-    iconWatchId = setInterval(sweepIcons, 1000);
+    /* 500ms, not 1000ms: a real pop-in lasts at most 0.87s (0.32s delay +
+     * 0.55s), so two samples can never straddle a healthy one, and a stuck
+     * box is rescued in a second instead of two. */
+    iconWatchId = setInterval(sweepIcons, 500);
   } catch (e) { /* a missing timer is not a problem */ }
+  /* A backgrounded tab throttles the interval, so sweep once more the moment
+   * the visitor comes back. */
+  try {
+    document.addEventListener('visibilitychange', function () {
+      if (!document.hidden) sweepIcons();
+    });
+    window.addEventListener('pageshow', function () { sweepIcons(); });
+  } catch (e) { /* noop */ }
 }
 
 /* ==================================================================== *
@@ -336,6 +377,9 @@ function revealHero() {
 function lift() {
   if (lifted || cleaned) return;
   lifted = true;
+  /* The instant the curtain starts leaving is exactly when a browser restore
+     can land, so the top is re-asserted here and again when it is removed. */
+  scrollToTop();
   setBar(100);
   setCounter(100);
   setStatus('Ready');
@@ -414,10 +458,14 @@ function run() {
 
   if (!deepTarget) {
     /* Empty hash or #overview: clean the URL first, so the browser never gets
-       a chance to jump to it, then hold the hero at the top. */
+     * a chance to jump to it, then hold the hero at the top. */
     clearTopHash();
     scrollToTop();
   }
+  /* The 3D scroll model and the nav both start at the hero, whatever the
+   * browser tried to restore. */
+  setNavActive('overview');
+
 
   lockScroll();
   setStage(0);

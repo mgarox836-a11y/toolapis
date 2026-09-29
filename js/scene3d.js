@@ -68,6 +68,7 @@ const state = {
   reduced: false,
   elapsed: 0,
   intro: { active: false, t: 0, finished: false },   /* 3.6-4.9s fly-in */
+  scrollUnlocked: false,          /* the page left the hero; follow the scroll */
   dolly: 0,                         /* intro camera dolly, added to cam.z */
   lastTime: 0,
 
@@ -637,9 +638,15 @@ function placeObjects(s, dt, elapsed, scrollY) {
     const cs = damp(o.group.scale.x, target, TUNING.hover.damping, dt);
     o.group.scale.set(cs, cs, cs * (1 + V.stretch * vel));
 
-    /* --- Glow: section dim x safe dim x behind-card dim x focus x hover --- */
+    /* --- Glow: section dim x safe dim x behind-card dim x focus x hover
+     *         x reserved-header fade --- */
     const softMul = place.behind ? G.softDim : 1;
-    const dim = clamp(s.exposure * anchor.dim * layout.exposureMul, 0, 1.4) * focusMul * softMul;
+    /* `place.fade` is 1 everywhere except the reserved strip under the sticky
+       header, where it ramps to 0. That is what turns the old hard straight
+       cut across a prop into a soft dissolve. */
+    const bandMul = place.fade === undefined ? 1 : place.fade;
+    const dim = clamp(s.exposure * anchor.dim * layout.exposureMul, 0, 1.4)
+      * focusMul * softMul * bandMul;
     const safeDim = o.safe ? G.safeDim : 1;
     const glow = (0.55 + 0.45 * dim) * safeDim * (1 + (TUNING.hover.glow - 1) * o.hover);
 
@@ -772,7 +779,12 @@ function animate(now) {
   state.lastTime = now;
   state.elapsed += dt;
   updateFlyIn(now);
-  const scrollY = window.scrollY || window.pageYOffset || 0;
+  /* Before the intro is done the page is locked to the hero, so the scene must
+     be too. Reading `window.scrollY` here would let a restored scroll position
+     (or a stray touch) drag the whole 3D layout mid-intro. */
+  const scrollY = state.scrollUnlocked || state.reduced
+    ? (window.scrollY || window.pageYOffset || 0)
+    : 0;
 
   let s = state.engine.out;
   if (!state.reduced) {
@@ -812,7 +824,40 @@ function animate(now) {
 }
 
 /* ============================================================================
- * 10b. INTRO FLY-IN (3.6s - 4.9s)
+ * 10b. STICKY HEADER BAND
+ * #navbar turns opaque (`nav-solid`) the moment the page is scrolled, and that
+ * opaque strip paints OVER the canvas. The solver reserves a band for it so no
+ * prop is ever sliced by a hard straight edge; this is the one place that
+ * knows when the strip exists. A MutationObserver on the class keeps it off the
+ * frame budget (a per-frame classList read plus a reflow is not free).
+ * ==========================================================================*/
+function watchHeaderBand() {
+  const nav = document.getElementById('navbar');
+  if (!nav || !state.engine) return;
+  const sync = () => {
+    try { state.engine.setHeaderSolid(nav.classList.contains('nav-solid')); }
+    catch (e) { /* never let a header detail break the scene */ }
+  };
+  sync();
+  try {
+    new MutationObserver(sync).observe(nav, { attributes: true, attributeFilter: ['class'] });
+  } catch (e) { /* MutationObserver unsupported: the resize path still measures */ }
+}
+
+/**
+ * Opens the scroll-follow. The scene is held on the hero until the intro is
+ * genuinely over — the fly-in finishing, the intro module announcing it, or
+ * the `intro-done` class the inline failsafe in index.html always adds.
+ * Idempotent, and deliberately separate from `intro.finished`, which is the
+ * fly-in's own once-only guard.
+ */
+function unlockScrollFollow() {
+  if (state.scrollUnlocked) return;
+  state.scrollUnlocked = true;
+}
+
+/* ============================================================================
+ * 10c. INTRO FLY-IN (3.6s - 4.9s)
  * Props arrive from depth with a stagger and a small overshoot, the camera
  * dollies in, and the particles fade up. Driven by the intro module (which
  * raises `toolapis:intro-curtain` the moment the loader curtain starts
@@ -863,6 +908,7 @@ function updateFlyIn(now) {
   if (ct >= 1) {
     state.intro.active = false;
     state.intro.finished = true;
+    unlockScrollFollow();
     for (const key of FLYIN_ORDER) {
       const o = state.objects[key];
       if (o) o.anchor.position.z = o.target.z;
@@ -1162,7 +1208,18 @@ function init() {
 
     state.tier = pickTier(window.innerWidth);
     applyTier(state.tier);
-    state.lastScrollY = window.scrollY || 0;
+    /* The scene starts locked to the hero. Anything the browser restored, and
+       anything the 3D module had cached from a previous scroll, is discarded
+       here so the first frame is the hero placement — never a mid-page one. */
+    state.intro.finished = false;
+    state.intro.active = false;
+    state.intro.t = 0;
+    state.progress = 0;
+    state.progressTarget = 0;
+    state.velocity = 0;
+    state.yaw = 0;
+    state.lastScrollY = 0;
+    watchHeaderBand();
 
     /* Prime the first frame BEFORE revealing anything, so the fade-in has no
        flash and there is no layout shift. */
@@ -1190,6 +1247,24 @@ function init() {
        final, correct pose. */
     window.addEventListener('toolapis:intro-curtain', () => { try { startFlyIn(); } catch (e) {} });
     window.addEventListener('toolapis:intro-complete', () => { try { startFlyIn(); } catch (e) {} });
+
+    /* Hand the scene over to the scroll position as soon as the intro is
+       genuinely finished — the fly-in ending, the intro module saying so, or
+       the `intro-done` class the inline head failsafe in index.html always
+       adds at 5.5s. The last one is a timer on its own, so nothing here can
+       leave the 3D layout stranded on the hero. */
+    window.addEventListener('toolapis:intro-complete', unlockScrollFollow);
+    const unlockOnIntroDone = () => {
+      if (document.documentElement.classList.contains('intro-done')) unlockScrollFollow();
+    };
+    unlockOnIntroDone();
+    try {
+      new MutationObserver(unlockOnIntroDone).observe(document.documentElement, {
+        attributes: true, attributeFilter: ['class'],
+      });
+    } catch (e) { /* no MutationObserver: the failsafe timer below still fires */ }
+    setTimeout(unlockScrollFollow, 6500);
+    if (state.reduced) unlockScrollFollow();
 
     log('ready ·', state.tier, state.composer ? '+bloom' : 'no-bloom');
     try { window.dispatchEvent(new CustomEvent('toolapis:3d-ready')); } catch (e) {}
