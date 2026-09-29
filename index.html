@@ -1,6 +1,39 @@
 <!DOCTYPE html>
 <html lang="en" class="dark scroll-smooth">
 <head>
+  <!-- ==========================================================================
+       INTRO FAILSAFE — first thing in <head>, deliberately inline and tiny.
+       It has NO dependency on the module, Three.js, fonts or the network.
+       If anything at all goes wrong later, this still hands the page back.
+       ========================================================================== -->
+  <script>
+    (function () {
+      /* Hoisted declaration — not an executed statement. */
+      function cleanup() {
+        try {
+          var o = document.getElementById('intro-overlay');
+          if (o) { o.classList.add('is-hidden'); o.style.display = 'none';
+                   if (o.parentNode) o.parentNode.removeChild(o); }
+          var d = document.documentElement, b = document.body;
+          if (d) { d.classList.remove('intro-active'); d.style.overflow = '';
+                   d.style.touchAction = ''; d.classList.add('intro-done'); }
+          if (b) { b.style.overflow = ''; b.style.touchAction = ''; b.classList.add('intro-done'); }
+        } catch (e) {}
+      }
+      var BOOT = performance.now();
+
+      /* First executed statement: the hard failsafe. */
+      window.setTimeout(cleanup, 5500);
+      document.documentElement.classList.add('intro-active');
+      document.documentElement.setAttribute('data-intro-stage', '0');
+      var tick = setInterval(function () {
+        if (performance.now() - BOOT >= 5500) { clearInterval(tick); cleanup(); }
+      }, 500);
+      function wake() { if (performance.now() - BOOT >= 5500) { clearInterval(tick); cleanup(); } }
+      window.addEventListener('pageshow', wake, true);
+      document.addEventListener('visibilitychange', wake, true);
+    })();
+  </script>
   <meta charset="UTF-8">
 
   <!--
@@ -34,6 +67,9 @@
   <script src="https://cdn.tailwindcss.com"></script>
   <!-- Custom Styles -->
   <link rel="stylesheet" href="style.css">
+  <!-- Intro overlay. Additive and optional: hidden by default unless the
+       inline failsafe below puts "intro-active" on <html>. -->
+  <link rel="stylesheet" href="css/intro.css">
 
   <!-- Google Fonts CDN -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -67,6 +103,29 @@
   <!-- Scroll Progress -->
   <div id="scroll-progress" aria-hidden="true"></div>
 
+  <!-- Intro Overlay. Hidden by default; only visible while <html> has
+       "intro-active". Removed from the DOM by js/intro.js or the failsafe. -->
+  <div id="intro-overlay" role="progressbar" aria-label="Loading TOOLAPIS" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" aria-hidden="true">
+    <div class="intro-inner">
+      <div class="intro-logo">
+        <span class="intro-dot"></span>
+        <span class="intro-wordmark">TOOLAPIS</span>
+      </div>
+      <div class="intro-progress">
+        <div class="intro-progress-bar" id="intro-bar"></div>
+      </div>
+      <div class="intro-meta">
+        <span class="intro-counter" id="intro-counter">000</span>
+        <span class="intro-sep">/</span>
+        <span class="intro-status" id="intro-status">Initializing tools</span>
+      </div>
+      <div class="intro-panel">
+        <div class="intro-title">Hardware that keeps pace with your workflow</div>
+        <div class="intro-subtitle">Load-tested gear, clean signal paths, and a zero-friction experience designed to stay out of your way.</div>
+      </div>
+    </div>
+  </div>
+
   <!-- Page Transition Overlay -->
   <div id="page-transition" aria-hidden="true">
     <span class="pt-logo">TOOLAPIS<span>.</span></span>
@@ -74,7 +133,7 @@
   </div>
 
   <!-- Header Navigation -->
-  <header id="navbar" class="fixed top-0 left-0 right-0 z-40 px-4 md:px-8 py-4">
+  <header id="navbar" data-intro-reveal="5" class="fixed top-0 left-0 right-0 z-40 px-4 md:px-8 py-4">
     <div class="max-w-7xl mx-auto relative">
 
       <div class="flex items-center justify-between gap-3">
@@ -157,24 +216,24 @@
         <!-- Copy column -->
         <div class="hero-copy text-center space-y-7 max-w-2xl mx-auto">
           <!-- Eyebrow Badge -->
-          <div class="reveal eyebrow" data-delay="0">
+          <div class="reveal eyebrow" data-delay="0" data-intro-reveal="1" id="intro-badge">
             <i class="ph-bold ph-sparkle" aria-hidden="true"></i>
             <span>Web Tools</span>
           </div>
 
           <!-- Main Headline -->
-          <h1 class="reveal font-display text-4xl sm:text-5xl md:text-6xl font-bold text-white tracking-tight leading-[1.08] max-w-3xl mx-auto text-balance" data-delay="150">
+          <h1 id="intro-h1" class="reveal font-display text-4xl sm:text-5xl md:text-6xl font-bold text-white tracking-tight leading-[1.08] max-w-3xl mx-auto text-balance" data-delay="150" data-intro-reveal="2">
             Web Tools For You,<br class="hidden sm:block">
             <span class="text-transparent bg-clip-text bg-gradient-to-r from-accent-mint to-accent-mint-hover text-shimmer">All in One Place.</span>
           </h1>
 
           <!-- Description Subtext -->
-          <p class="reveal text-slate-300 text-base md:text-lg max-w-2xl mx-auto font-normal leading-relaxed" data-delay="300">
+          <p id="intro-p" class="reveal text-slate-300 text-base md:text-lg max-w-2xl mx-auto font-normal leading-relaxed" data-delay="300" data-intro-reveal="3">
             Boost TikTok clips to HD, tether your PC's internet to Android over USB, or jump into the social media hub. One hub, three tools, zero friction.
           </p>
 
           <!-- Primary Action Buttons -->
-          <div class="reveal pt-3 flex flex-col sm:flex-row items-center justify-center gap-4" data-delay="450">
+          <div id="intro-actions" class="reveal pt-3 flex flex-col sm:flex-row items-center justify-center gap-4" data-delay="450" data-intro-reveal="4">
 
             <!-- Button 1: TikTok HD Enhancer -->
             <a href="https://tiktok-hd-enhancer-by-apis-fgtkuxmpzmi7h8gifh4a8o.streamlit.app/"
@@ -470,6 +529,7 @@
     if WebGL is unavailable the module removes its own canvas and the
     2D design above is unaffected. See js/scene3d.js -> TUNING.
   -->
+  <script type="module" src="js/intro.js"></script>
   <script type="module" src="js/scene3d.js"></script>
 </body>
 </html>

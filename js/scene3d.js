@@ -67,6 +67,8 @@ const state = {
   inView: true,
   reduced: false,
   elapsed: 0,
+  intro: { active: false, t: 0 },   /* 3.8-5.0s fly-in */
+  dolly: 0,                         /* intro camera dolly, added to cam.z */
   lastTime: 0,
 
   /* damped scalars */
@@ -102,12 +104,12 @@ const state = {
 };
 
 /* scratch — the frame loop allocates nothing */
-const _placement = { x: 0, y: 0, z: 0, scale: 1, safe: false };
 const _objCtx = { glow: 1, dim: 1, flow: 0 };
-const _linkCtx = { flow: 0 };
+const _linkCtx = { flow: 0, column: [-1, 1] };
 const _linkPositions = { hd: null, usb: null, network: null };
 const _box = new THREE.Box3();
 const _sizeV = new THREE.Vector3();
+const _colScratch = [-1, 1];
 
 /* ============================================================================
  * 2. HELPERS
@@ -267,12 +269,13 @@ function createObjects() {
 
     /* Measure the prop once, in its own local units. The clearance solver
        needs this to size the prop so it fills its gutter WITHOUT crossing the
-       viewport edge, at any aspect ratio. */
+       viewport edge or the text, at any aspect ratio. */
     _box.setFromObject(obj.group);
     _box.getSize(_sizeV);
     state.bounds[key] = {
       halfW: Math.max(0.05, _sizeV.x * 0.5),
       halfH: Math.max(0.05, _sizeV.y * 0.5),
+      fitMax: TUNING.props[key].fit,
     };
   }
 }
@@ -544,7 +547,7 @@ function renderFrame() {
 function applySample(s) {
   const layout = TUNING.TIER[state.tier];
 
-  state.camera.position.set(s.cam.x, s.cam.y, s.cam.z + layout.camPush);
+  state.camera.position.set(s.cam.x, s.cam.y, s.cam.z + layout.camPush + (state.dolly || 0));
   if (Math.abs(state.camera.fov - s.fov) > 0.01) {
     state.camera.fov = s.fov;
     state.camera.updateProjectionMatrix();
@@ -572,37 +575,35 @@ function placeObjects(s, dt, elapsed, scrollY) {
   const V = TUNING.velocity;
   const vel = state.velocity;
 
+  /* One batch solve for all three props: find the free bands, size them, push
+     them apart, and unproject — in that order, so nothing can overlap. */
+  const places = state.engine.layout(s, scrollY, state.camera, state.bounds);
+
   for (const key of OBJ_KEYS) {
     const o = state.objects[key];
     if (!o.group.visible) continue;
 
     const anchor = s.anchors[key];
-    const b = state.bounds[key];
-    const place = state.engine.resolve(anchor, {
-      sectionId: s.sectionId,
-      camera: state.camera,
-      scrollY,
-      halfW: b.halfW,
-      halfH: b.halfH,
-      fitMax: TUNING.props[key].fit,
-      out: _placement,
-    });
+    const place = places[key];
     o.safe = place.safe;
 
     /* Damp toward the solved position so a changing free band glides. */
-    const lambda = TUNING.scroll.damping * 1.6;
     o.target.set(place.x, place.y, place.z);
+    const lambda = TUNING.scroll.damping * 1.6;
     o.anchor.position.x = damp(o.anchor.position.x, o.target.x, lambda, dt);
     o.anchor.position.y = damp(o.anchor.position.y, o.target.y, lambda, dt);
-    o.anchor.position.z = damp(o.anchor.position.z, o.target.z, lambda, dt);
+    /* While a prop is flying in, updateFlyIn owns its z — damping it here
+       would cancel the motion. */
+    if (!(state.intro.active && o.introFrom !== undefined)) {
+      o.anchor.position.z = damp(o.anchor.position.z, o.target.z, lambda, dt);
+    }
 
     /* --- Hover: the raycaster, or a hovered link/button carrying data-3d --- */
     o.hover = damp(o.hover, o.hoverTarget, TUNING.hover.damping, dt);
     o.spinMul = damp(o.spinMul, o.hoverTarget ? TUNING.hover.spinMul : 1, TUNING.hover.damping, dt);
 
     /* --- Focus: one prop is lit, the rest step back --- */
-    const isFocus = state.focusKey === key;
-    const focusW = isFocus ? 1 : 0;
+    const focusW = state.focusKey === key ? 1 : 0;
     o.focus = damp(o.focus, focusW, TUNING.focus.damping, dt);
     const others = state.focusKey ? (1 - TUNING.focus.dimOthers) : 1;
     const focusMul = lerp(others, 1, o.focus);
@@ -628,7 +629,7 @@ function placeObjects(s, dt, elapsed, scrollY) {
       Math.cos(elapsed * 0.19 + o.phase * 0.8) * 0.12 * (1 - 0.7 * s.converge)
       + V.tilt * vel * Math.sin(elapsed * 1.7 + o.phase);
 
-    /* --- Scale: the gutter fit x the authored per-stop scale x hover.
+    /* --- Scale: the solver's fit x the authored per-stop scale x hover.
      * Velocity stretches along the local Z (the direction of travel). --- */
     const safeScale = o.safe ? G.safeScale : 1;
     const fitScale = place.scale * anchor.scale * o.baseScale * safeScale;
@@ -636,8 +637,9 @@ function placeObjects(s, dt, elapsed, scrollY) {
     const cs = damp(o.group.scale.x, target, TUNING.hover.damping, dt);
     o.group.scale.set(cs, cs, cs * (1 + V.stretch * vel));
 
-    /* --- Glow: section dim x safe dim x focus x hover --- */
-    const dim = clamp(s.exposure * anchor.dim * layout.exposureMul, 0, 1.4) * focusMul;
+    /* --- Glow: section dim x safe dim x behind-card dim x focus x hover --- */
+    const softMul = place.behind ? G.softDim : 1;
+    const dim = clamp(s.exposure * anchor.dim * layout.exposureMul, 0, 1.4) * focusMul * softMul;
     const safeDim = o.safe ? G.safeDim : 1;
     const glow = (0.55 + 0.45 * dim) * safeDim * (1 + (TUNING.hover.glow - 1) * o.hover);
 
@@ -657,6 +659,25 @@ function placeObjects(s, dt, elapsed, scrollY) {
     o.obj.update(elapsed, dt, _objCtx);
 
     _linkPositions[key] = o.anchor.position;
+  }
+
+  /* Feed the flow links the text column at their own height so they can fade
+     out exactly where they would cross copy. */
+  if (s.flow > 0.02) {
+    const vh = window.innerHeight;
+    const yTop = -1, yBot = 1;
+    state.engine.textColumnAt(
+      s.sectionId,
+      (1 - yTop) * 0.5 * vh + scrollY - vh * 0.5,
+      (1 - yBot) * 0.5 * vh + scrollY + vh * 0.5,
+      _colScratch
+    );
+    _linkCtx.flow = s.flow;
+    _linkCtx.column = _colScratch;
+    state.links.update(state.elapsed, dt, _linkCtx, _linkPositions, state.camera);
+  } else if (state.links) {
+    _linkCtx.flow = 0;
+    state.links.update(state.elapsed, dt, _linkCtx, _linkPositions, state.camera);
   }
 }
 
@@ -716,20 +737,11 @@ function renderOnce() {
   const s = state.engine.sample(state.progress, window.scrollY);
   state.yaw = s.yaw;
   applySample(s);
+  const places = state.engine.layout(s, window.scrollY, state.camera, state.bounds);
   for (const key of OBJ_KEYS) {
     const o = state.objects[key];
     if (!o.group.visible) continue;
-    const anchor = s.anchors[key];
-    const b = state.bounds[key];
-    const place = state.engine.resolve(anchor, {
-      sectionId: s.sectionId,
-      camera: state.camera,
-      scrollY: window.scrollY,
-      halfW: b.halfW,
-      halfH: b.halfH,
-      fitMax: TUNING.props[key].fit,
-      out: _placement,
-    });
+    const place = places[key];
     o.safe = place.safe;
     o.anchor.position.set(place.x, place.y, place.z);
     o.spinY = 0;
@@ -738,11 +750,14 @@ function renderOnce() {
       state.yaw,
       Math.cos(o.phase * 0.8) * 0.12
     );
-    o.group.scale.setScalar(place.scale * anchor.scale * o.baseScale * (o.safe ? TUNING.gutters.safeScale : 1));
+    o.group.scale.setScalar(
+      place.scale * s.anchors[key].scale * o.baseScale * (o.safe ? TUNING.gutters.safeScale : 1)
+    );
     _linkPositions[key] = o.anchor.position;
   }
   if (state.links) {
     _linkCtx.flow = s.flow;
+    _linkCtx.column = [-1, 1];
     state.links.update(0, 0, _linkCtx, _linkPositions, state.camera);
   }
   if (state.particles) state.particles.material.uniforms.uTime.value = 0;
@@ -756,6 +771,7 @@ function animate(now) {
   const dt = Math.min((now - state.lastTime) / 1000, 0.05); /* clamp after tab switches */
   state.lastTime = now;
   state.elapsed += dt;
+  updateFlyIn(now);
   const scrollY = window.scrollY || window.pageYOffset || 0;
 
   let s = state.engine.out;
@@ -784,10 +800,6 @@ function animate(now) {
   updateFocus();
   placeObjects(s, dt, state.elapsed, scrollY);
 
-  if (state.links) {
-    _linkCtx.flow = s.flow;
-    state.links.update(state.elapsed, dt, _linkCtx, _linkPositions, state.camera);
-  }
   if (state.props) state.props.update(state.elapsed);
   if (state.particles) {
     const mat = state.particles.material;
@@ -797,6 +809,60 @@ function animate(now) {
 
   renderFrame();
   watchPerf(dt);
+}
+
+/* ============================================================================
+ * 10b. INTRO FLY-IN (3.8s - 5.0s)
+ * Props arrive from depth with a stagger and a small overshoot, the camera
+ * dollies in, and the particles fade up. Driven by the intro module, but the
+ * scene is fully usable (and the props fully placed) whether or not it runs.
+ * ==========================================================================*/
+const FLYIN_ORDER = ['network', 'hd', 'usb'];
+const FLYIN = { start: 3.8, end: 5.0, dolly: 2.2 };
+
+function startFlyIn() {
+  if (state.intro.active || state.reduced) return;
+  state.intro.active = true;
+  state.intro.t = performance.now();
+  /* Park each prop deep in z so it has somewhere to fly in FROM. */
+  for (const key of FLYIN_ORDER) {
+    const o = state.objects[key];
+    if (!o) continue;
+    o.baseScale = o.baseScale || 1;
+    o.introFrom = o.anchor.position.z + FLYIN.dolly * 3.4;
+    o.anchor.position.z = o.introFrom;
+    o.introT = performance.now() - FLYIN_ORDER.indexOf(key) * 130;
+  }
+  if (state.particles) state.particles.material.opacity = 0;
+}
+
+function updateFlyIn(now) {
+  if (!state.intro.active) return;
+  const span = (FLYIN.end - FLYIN.start) * 1000;
+  for (const key of FLYIN_ORDER) {
+    const o = state.objects[key];
+    if (!o) continue;
+    const t = (now - state.intro.t - (o.introT || 0)) / span;
+    if (t <= 0) continue;
+    /* easeOutBack: arrives with a small overshoot, settles back. */
+    const c1 = 1.24, c3 = c1 + 1;
+    const e = 1 + c3 * Math.pow(t - 1, 3) + c1 * Math.pow(t - 1, 2);
+    o.anchor.position.z = lerp(o.introFrom, o.target.z, Math.max(0, Math.min(1.08, e)));
+  }
+  /* Short camera dolly-in, eased. */
+  const ct = Math.max(0, Math.min(1, (now - state.intro.t) / span));
+  const eased = 1 - Math.pow(1 - ct, 3);
+  state.dolly = (1 - eased) * FLYIN.dolly;
+  if (state.particles) {
+    state.particles.material.opacity = Math.min(1, ct * 1.4);
+  }
+  if (ct >= 1) {
+    state.intro.active = false;
+    for (const key of FLYIN_ORDER) {
+      const o = state.objects[key];
+      if (o) o.anchor.position.z = o.target.z;
+    }
+  }
 }
 
 function start() {
@@ -845,6 +911,7 @@ function onVisibilityChange() {
     stop();
   } else if (state.reduced) {
     renderOnce();
+    try { window.dispatchEvent(new CustomEvent("toolapis:3d-ready")); } catch (e) {}
   } else {
     state.lastTime = performance.now();
     start();
@@ -863,6 +930,7 @@ function setupInViewObserver() {
       stop();
     } else if (state.reduced) {
       renderOnce();
+    try { window.dispatchEvent(new CustomEvent("toolapis:3d-ready")); } catch (e) {}
     } else {
       state.lastTime = performance.now();
       start();
@@ -995,6 +1063,10 @@ function bail(reason, err) {
   state.renderer = null;
   /* Removing the class is what re-opens .hero-bg's opaque background. */
   document.documentElement.classList.remove('scene3d');
+  /* Tell the intro it should stop waiting on a scene that will never exist. */
+  try {
+    window.dispatchEvent(new CustomEvent('toolapis:3d-unavailable', { detail: { reason } }));
+  } catch (e) { /* never let a listener take the page down */ }
 }
 
 /** ?scene3d=debug exposes window.__scene3d for console inspection. */
@@ -1032,17 +1104,45 @@ function exposeDebugHandle() {
  * 13. INIT
  * ==========================================================================*/
 
-function init() {
-  if (!isWebGLAvailable()) {
-    bail('WebGL unavailable — 2D design kept as-is.');
-    return;
-  }
-
-  state.reduced = window.matchMedia
-    ? window.matchMedia('(prefers-reduced-motion: reduce)').matches
-    : false;
-
+/**
+ * Force-reveals the page and removes the intro overlay. This is the SAME
+ * cleanup the intro's own failsafe uses, so any module failure (import
+ * failure, CDN outage, runtime throw) can never leave a black screen.
+ */
+function forceReveal() {
   try {
+    const o = document.getElementById('intro-overlay');
+    if (o) {
+      o.classList.add('is-hidden');
+      o.style.display = 'none';
+      if (o.parentNode) o.parentNode.removeChild(o);
+    }
+    const d = document.documentElement;
+    if (d) {
+      d.style.overflow = ''; d.style.touchAction = '';
+      d.classList.remove('intro-lock');
+      d.classList.add('intro-done');
+    }
+    if (document.body) {
+      document.body.style.overflow = '';
+      document.body.style.touchAction = '';
+      document.body.classList.remove('intro-lock');
+      document.body.classList.add('intro-done');
+    }
+  } catch (e) { /* a failsafe must never throw */ }
+}
+
+function init() {
+  try {
+    if (!isWebGLAvailable()) {
+      bail('WebGL unavailable — 2D design kept as-is.');
+      return;
+    }
+
+    state.reduced = window.matchMedia
+      ? window.matchMedia('(prefers-reduced-motion: reduce)').matches
+      : false;
+
     state.engine = createScrollEngine();
 
     state.renderer = createRenderer();
@@ -1077,9 +1177,18 @@ function init() {
       start();
     }
 
+    /* The intro module owns the timeline; when it hands over we start the
+       3.8-5.0s fly-in. If the module never ran, this never fires and the
+       scene simply sits in its final, correct pose. */
+    window.addEventListener('toolapis:intro-complete', () => { try { startFlyIn(); } catch (e) {} });
+
     log('ready ·', state.tier, state.composer ? '+bloom' : 'no-bloom');
+    try { window.dispatchEvent(new CustomEvent('toolapis:3d-ready')); } catch (e) {}
   } catch (err) {
+    /* Clean up the half-built scene, then hand the page back to the visitor
+       through the one shared cleanup path. */
     bail('3D layer failed to start — 2D design kept as-is.', err);
+    forceReveal();
   }
 }
 

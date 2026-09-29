@@ -920,6 +920,8 @@ export function createFlowLinks() {
       uPulseSpeed:   { value: 0.22 + i * 0.05 },
       uPulseStrength: { value: 0 },
       uPhase:        { value: i * 0.37 },
+      /* [x0, x1] NDC span of the hard text column at this link's height. */
+      uColumn:       { value: new THREE.Vector2(-1, 1) },
     };
     const mat = new THREE.MeshBasicMaterial({
       color: PALETTE.accent,
@@ -933,24 +935,34 @@ export function createFlowLinks() {
     inject(mat, (shader) => {
       Object.assign(shader.uniforms, uniforms);
       shader.vertexShader = shader.vertexShader
-        .replace('#include <common>', '#include <common>\n varying vec2 vPulseUv;')
-        .replace('#include <begin_vertex>', '#include <begin_vertex>\n vPulseUv = uv;');
+        .replace('#include <common>', '#include <common>\n varying vec2 vPulseUv;\n varying float vNdcX;')
+        .replace('#include <begin_vertex>', `#include <begin_vertex>
+          vPulseUv = uv;
+          vNdcX = gl_Position.x / max( gl_Position.w, 1e-4 );`);
       shader.fragmentShader = shader.fragmentShader
         .replace('#include <common>', `#include <common>
           varying vec2 vPulseUv;
+          varying float vNdcX;
           uniform float uTime;
           uniform vec3 uPulseColor;
           uniform float uPulseSpeed;
           uniform float uPulseStrength;
-          uniform float uPhase;`)
+          uniform float uPhase;
+          uniform vec2 uColumn;`)
         .replace('#include <opaque_fragment>', `#include <opaque_fragment>
           {
+            /* Fade the link to nothing across the text column, so a pulse is
+               never drawn on top of copy. The band is widened slightly and
+               eased, which reads as the link ducking behind the text. */
+            float d = abs( vNdcX - clamp( vNdcX, uColumn.x, uColumn.y ) );
+            float clear = smoothstep( 0.0, 0.10, d );
             float band = 0.0;
             for ( int i = 0; i < 3; i++ ) {
               float ph = fract( uTime * uPulseSpeed + uPhase - float( i ) * 0.34 );
               band += smoothstep( 0.07, 0.0, abs( vPulseUv.x - ph ) );
             }
-            gl_FragColor.rgb += uPulseColor * band * uPulseStrength;
+            gl_FragColor.a *= clear;
+            gl_FragColor.rgb += uPulseColor * band * uPulseStrength * clear;
           }`);
     }, 'toolapis-flow-pulse');
 
@@ -1002,9 +1014,10 @@ export function createFlowLinks() {
         link.mesh.scale.set(1, 1, len);
 
         const w = flow;
-        link.mat.opacity = 0.10 + 0.30 * w;
+        link.mat.opacity = 0.12 + 0.34 * w;
         link.uniforms.uTime.value = elapsed;
         link.uniforms.uPulseStrength.value = 1.6 * w;
+        if (ctx && ctx.column) link.uniforms.uColumn.value.set(ctx.column[0], ctx.column[1]);
       }
     },
     dispose() {

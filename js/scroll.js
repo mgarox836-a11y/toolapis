@@ -29,11 +29,15 @@ import {
   LINEUP, CONVERGE, FOCAL_CARDS, exposureFor,
 } from './config.js';
 
-/* Content that a prop must never sit on top of. */
+/* HARD obstacles: a prop must never cover any of this. */
 const CONTENT_SELECTOR = [
   'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'p', 'li', 'blockquote',
-  'img', 'svg', 'video', 'iframe', '.btn', '.glass-panel', '.spot-card',
+  'img', 'svg', 'video', 'iframe', '.btn',
 ].join(',');
+
+/* SOFT obstacles: translucent cards. The 3D layer is behind the page, so a prop
+   may sit behind one and read through the glass — it is only dimmed. */
+const SOFT_SELECTOR = '.glass-panel, .spot-card';
 
 const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
 const lerp = (a, b, t) => a + (b - a) * t;
@@ -44,6 +48,14 @@ export function createScrollEngine() {
   let anchors = SECTION_IDS.map(() => 0);
   /** @type {Record<string, {x0:number,x1:number,y0:number,y1:number}[]>} page-space rects */
   let content = {};
+  /** @type {Record<string, {x0:number,x1:number,y0:number,y1:number}[]>} translucent cards */
+  let soft = {};
+  /** @type {Record<string, {x0:number,x1:number,y0:number,y1:number}[]>} text inside a card.
+   *  Hard for the flow links (a link must never cross copy) but SOFT for the
+   *  props: the 3D layer sits behind the page, so a prop may read through a
+   *  translucent card. Treating card text as hard collapsed every Features and
+   *  Flow gutter to zero and shrank the props to nothing. */
+  let cardText = {};
   /** @type {{centerX:number, pageTop:number, h:number}[]} Features cards, page space */
   let focalCards = [];
   let measured = false;
@@ -75,12 +87,16 @@ export function createScrollEngine() {
     const scrollY = window.scrollY;
     const pad = 6;
     content = {};
-    for (const id of SECTION_IDS) {
-      const section = document.getElementById(id);
-      if (!section) continue;
+    soft = {};
+    cardText = {};
+
+    const collect = (section, selector, into, skipInCard) => {
       const rects = [];
-      for (const el of section.querySelectorAll(CONTENT_SELECTOR)) {
+      for (const el of section.querySelectorAll(selector)) {
         if (el.closest('[aria-hidden="true"]')) continue;
+        /* Text inside a translucent card is measured separately: hard for the
+           links, transparent to the props. */
+        if (skipInCard && el.closest(SOFT_SELECTOR)) continue;
         const style = window.getComputedStyle(el);
         if (style.visibility === 'hidden' || style.display === 'none') continue;
         /* opacity:0 is deliberately NOT skipped — `script.js` reveals copy from
@@ -95,7 +111,15 @@ export function createScrollEngine() {
           y1: r.bottom + scrollY + pad,
         });
       }
-      content[id] = rects;
+      into[section.id] = rects;
+    };
+
+    for (const id of SECTION_IDS) {
+      const section = document.getElementById(id);
+      if (!section) continue;
+      collect(section, CONTENT_SELECTOR, content, true);
+      collect(section, CONTENT_SELECTOR, cardText, false);
+      collect(section, SOFT_SELECTOR, soft);
     }
     measured = true;
   }
@@ -245,23 +269,20 @@ export function createScrollEngine() {
     return out;
   }
 
-  /* ---------------------------------------------------------------------
-   * Clearance solver
-   * ------------------------------------------------------------------ */
-
   /**
    * Merges the x-intervals of every measured rect whose y-range overlaps the
-   * query band, returning a sorted list of occupied [x0, x1] pairs in px.
+   * query band, returning a sorted, merged list of occupied [x0, x1] pairs
+   * in pixels.
    */
-  function occupiedIn(sectionId, y0, y1) {
-    const rects = content[sectionId];
-    if (!rects || !rects.length) return [];
+  function occupiedIn(bank, sectionId, y0, y1) {
+    const rects = bank[sectionId];
+    if (!rects || !rects.length) return null;
     const spans = [];
     for (const r of rects) {
       if (r.y1 < y0 || r.y0 > y1) continue;
       spans.push([r.x0, r.x1]);
     }
-    if (!spans.length) return [];
+    if (!spans.length) return null;
     spans.sort((a, b) => a[0] - b[0]);
     const merged = [spans[0].slice()];
     for (let i = 1; i < spans.length; i++) {
@@ -272,100 +293,264 @@ export function createScrollEngine() {
     return merged;
   }
 
+  /* Candidate heights for the vertical band search: 0 = the anchor, then
+     +/- one step, +/- two steps, and so on. */
+  const SEARCH_Y = [0, 1, 2, 3, 4, 5, 6];
+  const SEARCH_MIN = 1;   /* accept the anchor's own band if it already fits */
+
   const _camSpace = new THREE.Vector3();
   const _world = new THREE.Vector3();
 
+  /* NDC working slots, one per prop. */
+  const slots = {};
+  for (const key of OBJ_KEYS) {
+    slots[key] = { key, cx: 0, cy: 0, hx: 0, hy: 0, dist: 0, scale: 1, safe: false, behind: false };
+  }
+  /* The slot OBJECTS, not their keys — separate() mutates them directly. */
+  const visible = OBJ_KEYS.map((k) => slots[k]).filter(Boolean);
+  const placement = {};
+  for (const key of OBJ_KEYS) {
+    placement[key] = { x: 0, y: 0, z: 0, scale: 1, safe: false, behind: false, hxNdc: 0, hyNdc: 0 };
+  }
+
   /**
-   * Resolves a screen-space anchor to a world position AND the scale that
-   * makes the prop fill, but never exceed, its free band.
-   *
-   * @param {object} anchor  sampled anchor {side,x,y,z}
-   * @param {object} opts    { sectionId, camera, scrollY, halfW, halfH, fitMax, out }
-   * @returns {{x,y,z,scale,safe}} NDC-free world placement
+   * The NDC x-span of the hard text column at a given page band, as
+   * [left, right]. Used by the flow links so they can fade out exactly where
+   * they would cross copy. Returns null when the band is completely free.
    */
-  function resolve(anchor, opts) {
+  function textColumnAt(sectionId, y0, y1, out) {
+    const hard = occupiedIn(content, sectionId, y0, y1);
+    const inCard = occupiedIn(cardText, sectionId, y0, y1);
+    const spans = hard && inCard ? hard.concat(inCard) : (hard || inCard);
+    if (!spans) { out[0] = -1; out[1] = 1; return false; }
+    const vw = window.innerWidth;
+    out[0] = clamp((spans[0][0] / vw) * 2 - 1, -1, 1);
+    out[1] = clamp((spans[spans.length - 1][1] / vw) * 2 - 1, -1, 1);
+    return out[1] - out[0] > 0.02;
+  }
+
+  /** NDC x-span of the translucent cards at a given page band. */
+  function softAt(sectionId, y0, y1) {
+    return occupiedIn(soft, sectionId, y0, y1);
+  }
+
+  /**
+   * Places every prop for the current scroll state.
+   *
+   * Runs in three passes so the result is always coherent:
+   *   1. solve    — each prop finds its free band and the scale that fills it
+   *   2. separate — relax the props apart so no two boxes intersect
+   *   3. commit   — unproject the NDC centres to world positions
+   *
+   * @param {object} s          the sampled stop (see sample())
+   * @param {number} scrollY
+   * @param {object} camera
+   * @param {Record<string,{halfW:number,halfH:number}>} bounds
+   */
+  function layout(s, scrollY, camera, bounds) {
     const G = TUNING.gutters;
     const vw = window.innerWidth;
     const vh = window.innerHeight;
-    const { camera, sectionId, scrollY, out: target } = opts;
-
-    /* --- 1. Find the free band at this height, and the viewport-safe edges --- */
-    const bandHalf = vh * G.bandVh * 0.5;
-    const yPage = (1 - anchor.y) * 0.5 * vh + scrollY;
-    const spans = measured ? occupiedIn(sectionId, yPage - bandHalf, yPage + bandHalf) : [];
-
-    const padX = (G.edgePadPx * 2) / vw;          /* px -> NDC */
+    const padX = (G.edgePadPx * 2) / vw;
     const padY = (G.edgePadPx * 2) / vh;
-    const outerR = 1 - padX;
-    const outerL = -1 + padX;
-    const outerT = 1 - padY;
-    const outerB = -1 + padY;
+    const minPxNdc = (G.minOnScreenPx * 2) / vw;
 
-    let innerR = outerR;   /* inner edge of the free band (text side) */
-    let innerL = outerL;
-    if (spans.length) {
-      innerR = clamp((spans[spans.length - 1][1] + G.marginPx) / vw * 2 - 1, outerL, outerR);
-      innerL = clamp((spans[0][0] - G.marginPx) / vw * 2 - 1, outerL, outerR);
+    for (const key of OBJ_KEYS) {
+      const o = slots[key];
+      const anchor = s.anchors[key];
+      const b = bounds[key];
+
+      /* --- 1. find the widest free band near this prop's own height ---
+       * A prop only needs a free band at ITS height, not at the anchor's.
+       * In Features and Flow the copy spans nearly the full column width, so
+       * the authored anchor often lands on a text row and the band collapses
+       * to nothing. Instead of falling straight into safe mode, walk a few
+       * candidate heights and take the one with the most free space — which in
+       * practice is the gap between text rows, or the row where the copy is
+       * narrowest. */
+      const bandHalf = vh * G.bandVh * 0.5;
+      const outerR = 1 - padX;
+      const outerL = -1 + padX;
+      const wantRight = anchor.side === 'right';
+
+      let best = null;
+      /* The authored side is tried first at every height, so a prop keeps its
+         side whenever that side works. The opposite side is only a fallback:
+         a left-aligned copy block leaves a ~100px gutter on one side and a
+         ~550px one on the other, and a prop squeezed into the sliver is worse
+         than one that quietly crosses to the roomy side. */
+      for (const tryRight of wantRight ? [true, false] : [false, true]) {
+        for (let i = 0; i < SEARCH_Y.length; i++) {
+          /* 0 = the anchor itself, then progressively further away. */
+          const dy = (i % 2 === 1 ? 1 : -1) * Math.ceil(i / 2) * G.searchStepVh;
+          const cyTry = clamp(anchor.y + dy, -1 + padY, 1 - padY);
+          const yPage = (1 - cyTry) * 0.5 * vh + scrollY;
+          const spans = measured
+            ? occupiedIn(content, s.sectionId, yPage - bandHalf, yPage + bandHalf)
+            : null;
+          /* `inner*` is the text edge; the band runs from there out to the
+             padded viewport edge. With NO text in the band the constraint is
+             the midline, so the prop gets a whole half-viewport — defaulting
+             to the viewport edge here made every band 0 wide, which is what
+             pushed every prop into safe mode and shrank them to nothing. */
+          let innerR;
+          let innerL;
+          if (spans) {
+            innerR = Math.min(outerR, clamp((spans[spans.length - 1][1] + G.marginPx) / vw * 2 - 1, -1, 1));
+            innerL = Math.max(outerL, clamp((spans[0][0] - G.marginPx) / vw * 2 - 1, -1, 1));
+          } else {
+            innerR = 0;
+            innerL = 0;
+          }
+          const bandW = tryRight ? (outerR - innerR) : (innerL - outerL);
+          const cand = { cy: cyTry, yPage, right: tryRight, innerR, innerL, bandW };
+          if (!best || bandW > best.bandW) best = cand;
+          /* Good enough — stop early and keep the prop near its authored spot. */
+          if (bandW * 0.5 * vw >= G.minFreePx && i >= SEARCH_MIN) break;
+        }
+        /* The authored side worked; never consider flipping. */
+        if (best.bandW * 0.5 * vw >= G.minFreePx) break;
+      }
+
+      const { cy, yPage, right, innerR, innerL, bandW } = best;
+      const useRight = right;
+      o.wantRight = useRight;
+      const safe = bandW * 0.5 * vw < G.minFreePx;
+
+      /* --- 2. centre + size --- */
+      const centre = useRight ? (innerR + outerR) * 0.5 : (outerL + innerL) * 0.5;
+      const nudged = useRight
+        ? clamp(Math.abs(anchor.x), innerR, outerR)
+        : clamp(Math.abs(anchor.x), outerL, innerL);
+      o.cx = lerp(centre, nudged, 0.30);
+      o.cy = cy;
+      o.safe = safe;
+
+      const dist = camera.position.z + G.baseDistance + anchor.z + (safe ? G.safeDepth : 0);
+      o.dist = dist;
+      const halfViewH = Math.tan((camera.fov * Math.PI) / 360) * dist;
+      const halfViewW = halfViewH * camera.aspect;
+      const halfWNdc = Math.max(b.halfW, 0.001) / halfViewW;
+      const halfHNdc = Math.max(b.halfH, 0.001) / halfViewH;
+
+      /* Half-width target in NDC.
+         `cap`   — the share of the free band the prop may occupy (gutters.fill)
+         `floor` — never smaller than `minFill` of the band, and never smaller
+                  than `minOnScreenPx` on screen
+         The floor WINS over the cap: a prop the visitor can actually see beats
+         a share target they cannot. The hard cap is `maxHalf`, which is
+         exactly what keeps the prop off the text. */
+      const maxHalf = Math.max(0.02, bandW * 0.5);
+      const capHalf = bandW * 0.5 * G.fill;
+      const floorHalf = Math.max(bandW * G.minFill * 0.5, minPxNdc * 0.5);
+      const wantHalf = Math.min(Math.max(capHalf, floorHalf), maxHalf);
+
+      /* Same idea vertically, so a prop is never a sliver. */
+      const availY = 2 - 2 * padY;
+      const maxHalfY = Math.max(0.02, availY * 0.5);
+      const capHalfY = availY * 0.5 * G.fill;
+      const floorHalfY = Math.max(availY * G.minFill * 0.5, (G.minOnScreenPx * 2 / vh) * 0.5);
+      const wantHalfY = Math.min(Math.max(capHalfY, floorHalfY), maxHalfY);
+
+      let fit = Math.min(
+        bounds[key].fitMax ?? Infinity,
+        wantHalf / halfWNdc,
+        wantHalfY / halfHNdc
+      );
+      /* The artistic ceiling is SOFT, and it may only be lifted far enough to
+         reach the on-screen minimum — never up to the full band. Without that
+         limit a prop with tiny geometry (the USB) would be scaled 10x to fill
+         a 474px band. Still bounded by `maxHalf`, so it stays off the text. */
+      const needForFloor = Math.min(
+        Math.max((minPxNdc * 0.5) / halfWNdc, ((G.minOnScreenPx * 2 / vh) * 0.5) / halfHNdc),
+        Math.min(maxHalf / halfWNdc, maxHalfY / halfHNdc)
+      );
+      fit = Math.max(fit, needForFloor);
+      if (safe) fit = Math.min(fit, G.safeScale * 2.4);
+
+      o.scale = fit;
+      o.hx = halfWNdc * fit;
+      o.hy = halfHNdc * fit;
+      /* Keep the whole box inside the viewport, not just its centre. */
+      const limY = Math.max(padY, 1 - o.hy - padY);
+      o.cy = clamp(o.cy, -limY, limY);
+
+      /* Behind a translucent card or card copy? Soft dim, never a hard block —
+         this is what keeps a prop readable in Features and Flow, where the
+         step grid spans the full column width. */
+      o.behind = !!softAt(s.sectionId, yPage - bandHalf, yPage + bandHalf)
+        || !!occupiedIn(cardText, s.sectionId, yPage - bandHalf, yPage + bandHalf);
     }
 
-    const wantRight = anchor.side === 'right';
-    const freePx = wantRight ? (outerR - innerR) * 0.5 * vw : (innerL - outerL) * 0.5 * vw;
-    const safe = freePx < G.minFreePx;
+    /* --- 2. separation: no two props may overlap --- */
+    separate();
 
-    /* --- 2. Clamp the preferred x into its own gutter --- */
-    let xNdc;
-    if (wantRight) {
-      xNdc = safe ? outerR : clamp(anchor.x, innerR, outerR);
-    } else {
-      xNdc = safe ? outerL : clamp(anchor.x, outerL, innerL);
-    }
-
-    /* --- 3. Unproject to world space, anchored to the camera --- */
-    const dist = camera.position.z + G.baseDistance + anchor.z + (safe ? G.safeDepth : 0);
-    const halfViewH = Math.tan((camera.fov * Math.PI) / 360) * dist;
-    const halfViewW = halfViewH * camera.aspect;
-    _camSpace.set(xNdc * halfViewW, anchor.y * halfViewH, -dist).applyQuaternion(camera.quaternion);
-    _world.copy(camera.position).add(_camSpace);
-
-    /* --- 4. Fit: the scale at which the prop fills its band, no more ---
-     * The prop is centred in the band, so the authored x only nudges it. This
-     * is what keeps it whole inside the gutter on any aspect ratio. */
-    const halfW = Math.max(opts.halfW || 0.001, 0.001);
-    const halfH = Math.max(opts.halfH || 0.001, 0.001);
-    const halfWNdc = halfW / halfViewW;
-    const halfHNdc = halfH / halfViewH;
-    const bandW = wantRight ? (outerR - innerR) : (innerL - outerL);
-    const fit = safe
-      ? G.safeScale
-      : Math.min(
-          opts.fitMax ?? Infinity,
-          (bandW * G.fill) / (2 * halfWNdc),
-          ((outerT - outerB) * G.fill) / (2 * halfHNdc)
-        );
-
-    if (!safe) {
-      const centre = wantRight ? (innerR + outerR) * 0.5 : (outerL + innerL) * 0.5;
-      const nudged = wantRight
-        ? clamp(anchor.x, innerR, outerR)
-        : clamp(anchor.x, outerL, innerL);
-      xNdc = lerp(centre, nudged, 0.30);
-      _camSpace.set(xNdc * halfViewW, anchor.y * halfViewH, -dist).applyQuaternion(camera.quaternion);
+    /* --- 3. unproject to world --- */
+    for (const key of OBJ_KEYS) {
+      const o = slots[key];
+      const halfViewH = Math.tan((camera.fov * Math.PI) / 360) * o.dist;
+      const halfViewW = halfViewH * camera.aspect;
+      _camSpace.set(o.cx * halfViewW, o.cy * halfViewH, -o.dist).applyQuaternion(camera.quaternion);
       _world.copy(camera.position).add(_camSpace);
+      const p = placement[key];
+      p.x = _world.x;
+      p.y = _world.y;
+      p.z = _world.z;
+      p.scale = o.scale;
+      p.safe = o.safe;
+      p.behind = o.behind;
+      p.hxNdc = o.hx;
+      p.hyNdc = o.hy;
     }
+    return placement;
+  }
 
-    target.x = _world.x;
-    target.y = _world.y;
-    target.z = _world.z;
-    target.scale = fit;
-    target.safe = safe;
-    return target;
+  /**
+   * Relaxation pass: push overlapping props apart along the shallower axis of
+   * penetration, then clamp them back inside the viewport. Three iterations is
+   * plenty for three boxes and keeps the cost off the frame budget.
+   */
+  function separate() {
+    const G = TUNING.gutters;
+    const vh = window.innerHeight;
+    const padY = (G.edgePadPx * 2) / vh;
+    for (let pass = 0; pass < 3; pass++) {
+      for (let i = 0; i < visible.length; i++) {
+        for (let j = i + 1; j < visible.length; j++) {
+          const a = visible[i], b = visible[j];
+          if (a.safe || b.safe) continue;
+          const dx = b.cx - a.cx;
+          const dy = b.cy - a.cy;
+          const needX = a.hx + b.hx + G.minSeparation;
+          const needY = a.hy + b.hy + G.minSeparation;
+          const ox = needX - Math.abs(dx);
+          const oy = needY - Math.abs(dy);
+          if (ox <= 0 || oy <= 0) continue;
+          if (ox < oy) {
+            const s = (dx >= 0 ? 1 : -1) * ox * 0.5;
+            a.cx -= s; b.cx += s;
+          } else {
+            const s = (dy >= 0 ? 1 : -1) * oy * 0.5;
+            a.cy -= s; b.cy += s;
+          }
+        }
+      }
+    }
+    /* Never let the push-off shove a prop off the top or bottom: clamp by
+       each prop's own half-height so nothing is ever clipped. */
+    for (const o of visible) {
+      const limY = Math.max(padY, 1 - o.hy - padY);
+      o.cy = clamp(o.cy, -limY, limY);
+    }
   }
 
   return {
     out,
     sample,
     computeProgress,
-    resolve,
+    layout,
+    textColumnAt,
+    softAt,
     remeasure,
     measureAnchors,
     measureContent,

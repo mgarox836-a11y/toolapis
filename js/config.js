@@ -163,27 +163,59 @@ export const TUNING = {
   /* ==== Text-clearance solver (phase (a)) ====
    * A prop may only sit in a horizontally free band at its own height. If the
    * band is narrower than `minFreePx` there is nowhere safe to put it, so the
-   * prop drops into `safe` mode: pushed far back, shrunk and dimmed. */
+   * prop drops into `safe` mode: pushed far back, shrunk and dimmed.
+   *
+   * Only TEXT is a hard obstacle. Translucent cards (`.glass-panel`,
+   * `.spot-card`) are soft: a prop may sit behind one, because the 3D layer is
+   * *behind* the page and the glass lets it read through — dimmed, as depth.
+   * Treating cards as hard collapsed every gutter to ~34px, which is what
+   * pushed the props into safe mode and pinned them on the viewport edge. */
   gutters: {
-    minFreePx:   110,   // narrower than this -> safe mode
-    marginPx:     26,   // breathing room between prop and text
-    edgePadPx:    20,   // breathing room between prop and the viewport edge
-    bandVh:     0.22,   // height of the query band, as a fraction of viewport h
-    baseDistance: 6.0,  // prop distance from the camera before anchor.z
-    fill:       0.86,   // fraction of the free band a prop may occupy
-    safeScale:  0.55,
-    safeDim:    0.45,
-    safeDepth: -3.2,    // extra world-Z push-back in safe mode
+    minFreePx:     90,   // narrower than this -> safe mode
+    marginPx:      26,   // breathing room between prop and text
+    edgePadPx:     26,   // breathing room between prop and the viewport edge
+    /* Props must stay FULLY inside the viewport, so there is no edge bleed.
+       Set to 0 deliberately; `searchStepVh` below is what makes room instead. */
+    edgeOverlapPx:   0,
+    bandVh:      0.22,   // query band height, as a fraction of viewport h
+    /* Vertical band search: when the authored anchor lands on a full-width
+       text row the solver walks these steps away from it looking for the
+       widest free band, so a prop lands in the gap between rows instead of
+       collapsing into safe mode. */
+    searchStepVh: 0.18,
+    baseDistance:  6.0,  // prop distance from the camera before anchor.z
+    /* Size the prop to `fill` of its free band, but never below `minFill` of
+       the band nor below `minOnScreenPx` on screen, and never so large that
+       it would reach the text. `minOnScreenPx` WINS over `fill`; the text edge
+       wins over both. */
+    fill:         0.62,
+    minFill:      0.40,
+    minOnScreenPx: 190,
+    /* Soft cards dim a prop that sits behind them. */
+    softDim:      0.55,
+    safeScale:   0.55,
+    safeDim:     0.45,
+    safeDepth:  -3.2,    // extra world-Z push-back in safe mode
+    /* Minimum NDC gap between two props' boxes, so they never intersect. */
+    minSeparation: 0.16,
   },
 
   /* ==== Per-prop ceiling on the automatic gutter fit ====
-   * resolve() sizes each prop to fill its free band, which normalises props of
-   * very different geometry. These caps keep the relative visual weight
-   * hand-authored (the USB is the smallest prop and must stay that way). */
+   * solve() sizes each prop to its free band, which normalises props of very
+   * different geometry. These caps keep the relative visual weight authored.
+   * They are a SOFT cap: a prop is still allowed to exceed one to reach
+   * `gutters.minOnScreenPx`, because a floor the visitor can see beats an
+   * artistic ceiling they cannot. */
+  /* The headline placement numbers, hoisted here so they are easy to find
+   * next to the per-prop caps. Authoritative values live in `gutters`,
+   * which the solver reads — these mirror it. */
   props: {
-    hd:      { fit: 2.60 },
-    usb:     { fit: 1.70 },
-    network: { fit: 2.20 },
+    fill:         0.62,   // share of the free band a prop may occupy
+    edgePadPx:    26,     // breathing room between prop and viewport edge
+    minSeparation: 0.16,  // minimum NDC gap between two props
+    hd:      { fit: 3.2 },
+    usb:     { fit: 2.4 },
+    network: { fit: 2.6 },
   },
 
   /* ==== Objects hidden on the mobile tier (no side gutters exist there) ==== */
@@ -254,10 +286,13 @@ export const STOPS = [
     id: 'hero',
     cam: [0, 0.15, 8.4], look: [0, 0.05, 0], fov: 42, yaw: 0.00,
     focal: 0, lineup: 0, converge: 0,
+    /* The network sits HIGH in the right gutter, well clear of the HD frame
+       below it. Two props share this gutter, so the network carries a small
+       scale and gutters.minSeparation guarantees the gap at any viewport. */
     anchors: {
-      hd:      { side: 'right', x:  0.74, y:  0.10, z:  0.0, scale: 1.00, dim: 1.00 },
-      usb:     { side: 'left',  x: -0.74, y: -0.20, z: -0.4, scale: 0.96, dim: 0.95 },
-      network: { side: 'right', x:  0.58, y:  0.46, z: -1.8, scale: 0.90, dim: 0.85 },
+      hd:      { side: 'right', x:  0.72, y: -0.16, z:  0.0, scale: 0.88, dim: 1.00 },
+      usb:     { side: 'left',  x: -0.72, y: -0.30, z: -0.4, scale: 0.96, dim: 0.95 },
+      network: { side: 'right', x:  0.66, y:  0.74, z: -1.8, scale: 0.40, dim: 0.85 },
     },
   },
   {
@@ -277,9 +312,9 @@ export const STOPS = [
        describes it, so the 3D mirrors the copy the visitor is reading. */
     focal: 1, lineup: 0, converge: 0,
     anchors: {
-      hd:      { side: 'right', x:  0.82, y:  0.34, z:  0.8, scale: 1.00, dim: 1.05 },
-      usb:     { side: 'left',  x: -0.82, y: -0.34, z: -1.0, scale: 1.00, dim: 0.95 },
-      network: { side: 'right', x:  0.74, y: -0.36, z: -2.2, scale: 1.00, dim: 0.85 },
+      hd:      { side: 'right', x:  0.82, y:  0.44, z:  0.8, scale: 1.00, dim: 1.05 },
+      usb:     { side: 'left',  x: -0.82, y: -0.40, z: -1.0, scale: 1.00, dim: 0.95 },
+      network: { side: 'right', x:  0.74, y: -0.44, z: -2.2, scale: 1.00, dim: 0.85 },
     },
   },
   {
@@ -288,10 +323,13 @@ export const STOPS = [
     /* Diagonal lineup, and the section where the flow links ignite. */
     focal: 0, lineup: 1, converge: 0,
     flow: 1,
+    /* Rising diagonal: USB low-left, HD mid-right, network high-right.
+       Only two props ever share a gutter, which is what the separation pass
+       in the solver is sized for. */
     anchors: {
-      hd:      { side: 'left',  x: -0.80, y:  0.40, z: -0.6, scale: 1.00, dim: 0.90 },
-      usb:     { side: 'left',  x: -0.66, y: -0.10, z:  0.0, scale: 1.00, dim: 1.00 },
-      network: { side: 'right', x:  0.80, y:  0.16, z: -0.8, scale: 1.00, dim: 0.92 },
+      hd:      { side: 'right', x:  0.80, y:  0.02, z: -0.6, scale: 1.00, dim: 0.90 },
+      usb:     { side: 'left',  x: -0.78, y: -0.62, z:  0.0, scale: 1.00, dim: 1.00 },
+      network: { side: 'right', x:  0.70, y:  0.68, z: -0.8, scale: 1.00, dim: 0.92 },
     },
   },
   {
@@ -300,10 +338,12 @@ export const STOPS = [
     /* Calm convergence: one shared baseline, symmetric, almost still. */
     focal: 0, lineup: 0, converge: 1,
     flow: 0,
+    /* Symmetric: HD and USB mirror each other at the same height, and the
+       network sits calm and low in the centre, clear of the CTA card. */
     anchors: {
-      hd:      { side: 'left',  x: -0.80, y:  0.22, z: -1.0, scale: 0.88, dim: 0.78 },
-      usb:     { side: 'right', x:  0.80, y:  0.22, z: -1.0, scale: 0.88, dim: 0.78 },
-      network: { side: 'right', x:  0.62, y: -0.26, z: -1.6, scale: 0.86, dim: 0.72 },
+      hd:      { side: 'left',  x: -0.80, y:  0.34, z: -1.0, scale: 0.88, dim: 0.78 },
+      usb:     { side: 'right', x:  0.80, y:  0.34, z: -1.0, scale: 0.88, dim: 0.78 },
+      network: { side: 'right', x:  0.66, y: -0.52, z: -1.6, scale: 0.80, dim: 0.72 },
     },
   },
 ];
@@ -314,16 +354,19 @@ export const STOPS = [
 
 /** Flow: three props on a rising diagonal, so the links read as a pipeline. */
 export const LINEUP = {
-  hd:      { x: -0.60, y:  0.44 },
-  usb:     { x:  0.00, y:  0.04 },
-  network: { x:  0.60, y: -0.36 },
+  hd:      { x: -0.70, y:  0.42 },
+  usb:     { x:  0.02, y:  0.02 },
+  network: { x:  0.70, y: -0.34 },
 };
 
-/** Clarity: a calm, symmetric, level row. */
+/**
+ * Clarity: a calm, symmetric frame around the CTA card — a mirrored pair
+ * flanking the panel, with the third resting high and quiet above them.
+ */
 export const CONVERGE = {
-  hd:      { x: -0.62, y: -0.16 },
-  usb:     { x:  0.00, y: -0.16 },
-  network: { x:  0.62, y: -0.16 },
+  hd:      { x: -0.74, y:  0.02 },
+  network: { x:  0.74, y:  0.02 },
+  usb:     { x:  0.00, y:  0.66 },
 };
 
 /**
