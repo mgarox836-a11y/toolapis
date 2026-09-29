@@ -36,6 +36,8 @@ html.intro-active body { overflow: hidden !important; }
   opacity: 0;
   visibility: hidden;
   pointer-events: none;
+  /* The exit animation is a keyframe (see tl-curtain-up), so only the
+     visibility handshake needs to transition here. */
   transition: opacity .5s ease, visibility .5s ease;
 }
 
@@ -143,14 +145,47 @@ html.intro-active[data-intro-stage="2"] #intro-overlay .intro-meta { opacity: 1;
   transition: opacity .5s ease, transform .6s cubic-bezier(.2, .9, .3, 1);
 }
 html.intro-active[data-intro-stage="2"] #intro-overlay .intro-panel { opacity: 1; transform: translateY(0); }
-/* Lift away: the whole inner column rises and dissolves. */
+
+/* ====================================================================
+   3.6s — the exit: a slide-up curtain.
+   --------------------------------------------------------------------
+   The whole panel translates up and out (transform only, so it stays on
+   the compositor), and its bottom hem bows outward for the first beat
+   of the move and then flattens as the panel leaves — the shape a rolled
+   curtain makes on its way up. js/intro.js removes the node when the
+   animation ends (with a timeout as the backstop).
+   ==================================================================== */
+@keyframes tl-curtain-up {
+  0% {
+    transform: translateY(0);
+    border-bottom-left-radius: 0;
+    border-bottom-right-radius: 0;
+  }
+  16% {
+    transform: translateY(-7%);
+    border-bottom-left-radius: 44% 7%;
+    border-bottom-right-radius: 44% 7%;
+  }
+  100% {
+    transform: translateY(-100%);
+    border-bottom-left-radius: 0;
+    border-bottom-right-radius: 0;
+  }
+}
+html.intro-active[data-intro-stage="3"] #intro-overlay {
+  animation: tl-curtain-up .9s cubic-bezier(.76, 0, .24, 1) forwards;
+  will-change: transform;
+}
+
+/* The content leaves faster than the panel, so the logo/counter are
+   already gone by the time the hem reaches them. */
 html.intro-active[data-intro-stage="3"] #intro-overlay .intro-inner {
   opacity: 0;
   transform: translateY(-2.5rem) scale(.97);
-  transition: opacity .7s ease, transform .7s cubic-bezier(.4, 0, .2, 1);
+  transition: opacity .42s ease, transform .42s cubic-bezier(.4, 0, .2, 1);
 }
 
-/* ---- 3.8-5.0s : hero content reveal (driven by intro.js) ---- */
+/* ---- 3.6-4.7s : hero content reveal (driven by intro.js) ---- */
 html.intro-done [data-intro-reveal] { opacity: 1 !important; transform: none !important; }
 
 @keyframes intro-dot-pulse {
@@ -163,10 +198,23 @@ html.intro-done [data-intro-reveal] { opacity: 1 !important; transform: none !im
     animation: none !important;
     transition-duration: .01ms !important;
   }
+  /* No curtain: one short fade (js/intro.js removes the node 320ms later,
+     so the whole intro is under 0.6s). */
+  html.intro-active[data-intro-stage="3"] #intro-overlay {
+    animation: none !important;
+    transform: none !important;
+    border-radius: 0 !important;
+    opacity: 0;
+    transition: opacity .3s linear, visibility .3s linear;
+  }
 }
 
 /* ====================================================================
-   3.8-5.0s — hero content reveal, staggered.
+   3.6s+ — hero content reveal, staggered.
+   The curtain starts lifting at 3.6s and js/intro.js adds
+   `html.intro-reveal` in the same beat, so the headline, sub-copy and
+   buttons assemble underneath the rising panel instead of after it.
+
    The hold below exists only while the intro owns the screen; it is
    scoped to html.intro-active, so with the class absent (or the module
    dead) the page shows its normal content immediately.
@@ -174,14 +222,39 @@ html.intro-done [data-intro-reveal] { opacity: 1 !important; transform: none !im
 html.intro-active [data-intro-reveal] {
   opacity: 0 !important;
   transform: translateY(18px) !important;
-  transition: opacity .6s ease, transform .6s cubic-bezier(.2, .9, .3, 1.05) !important;
+  transition: opacity .55s ease, transform .55s cubic-bezier(.2, .9, .3, 1.05) !important;
 }
 html.intro-active.intro-reveal [data-intro-reveal] {
   opacity: 1 !important;
   transform: none !important;
 }
-html.intro-active.intro-reveal [data-intro-reveal="1"] { transition-delay: 0ms   !important; }
-html.intro-active.intro-reveal [data-intro-reveal="2"] { transition-delay: 170ms !important; }
-html.intro-active.intro-reveal [data-intro-reveal="3"] { transition-delay: 340ms !important; }
-html.intro-active.intro-reveal [data-intro-reveal="4"] { transition-delay: 510ms !important; }
-html.intro-active.intro-reveal [data-intro-reveal="5"] { transition-delay: 680ms !important; }
+html.intro-active.intro-reveal [data-intro-reveal="1"] { transition-delay: 40ms  !important; }
+html.intro-active.intro-reveal [data-intro-reveal="2"] { transition-delay: 150ms !important; }
+html.intro-active.intro-reveal [data-intro-reveal="3"] { transition-delay: 260ms !important; }
+html.intro-active.intro-reveal [data-intro-reveal="4"] { transition-delay: 370ms !important; }
+html.intro-active.intro-reveal [data-intro-reveal="5"] { transition-delay: 480ms !important; }
+
+/* ====================================================================
+   ICON SAFETY NET
+   --------------------------------------------------------------------
+   script.js tags the card / flow icon boxes (`[data-motion-kind="icon"]`)
+   and parks each one at inline `opacity: 0` before handing it to Motion.
+   When that animation never starts, never resolves, or is dropped by a
+   throttled compositor, the box stays invisible and the card reads as
+   "no icon" — the phosphor webfont is fine, nothing is actually missing
+   from the markup.
+
+   The animation below pins the box back to visible ~1.5s after it is
+   tagged. `!important` inside the keyframe is deliberate: it outranks
+   both the inline style and any Web Animations fill, so it holds even
+   when Motion is stuck. It is time-based, not intro-based, so it also
+   covers sections the visitor only reaches later (Flow, Overview) and
+   never depends on the intro completing.
+
+   Only `opacity` is forced. `transform` is left alone so the hover pop
+   (style.css `.reveal:hover > div:first-child`) keeps working, and a
+   Motion that finishes normally simply overwrites this with the same
+   visible value.
+   ==================================================================== */
+@keyframes tl-icon-visible { to { opacity: 1 !important; } }
+[data-motion-kind="icon"] { animation: tl-icon-visible 1ms linear 1.5s forwards; }

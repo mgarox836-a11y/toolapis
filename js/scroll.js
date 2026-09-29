@@ -35,8 +35,12 @@ const CONTENT_SELECTOR = [
   'img', 'svg', 'video', 'iframe', '.btn',
 ].join(',');
 
-/* SOFT obstacles: translucent cards. The 3D layer is behind the page, so a prop
-   may sit behind one and read through the glass — it is only dimmed. */
+/* Cards are HARD obstacles too. The 3D layer sits behind the page, so a prop
+ * read through the glass could pass for depth — but at the sizes the solver
+ * was allowed before, it read as a prop covering the copy. A card is now
+ * measured with the same padding as text and the prop must go around it; it
+ * only still `dims` what ends up behind one (the card's inner copy, which is
+ * not part of the prop's own box). */
 const SOFT_SELECTOR = '.glass-panel, .spot-card';
 
 const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
@@ -51,10 +55,9 @@ export function createScrollEngine() {
   /** @type {Record<string, {x0:number,x1:number,y0:number,y1:number}[]>} translucent cards */
   let soft = {};
   /** @type {Record<string, {x0:number,x1:number,y0:number,y1:number}[]>} text inside a card.
-   *  Hard for the flow links (a link must never cross copy) but SOFT for the
-   *  props: the 3D layer sits behind the page, so a prop may read through a
-   *  translucent card. Treating card text as hard collapsed every Features and
-   *  Flow gutter to zero and shrank the props to nothing. */
+   *  Hard for the flow links (a link must never cross copy) and counted as
+   *  "behind" for the props' dim, but not part of the prop's own clearance
+   *  box: the CARD rect above already blocks the whole tile. */
   let cardText = {};
   /** @type {{centerX:number, pageTop:number, h:number}[]} Features cards, page space */
   let focalCards = [];
@@ -85,7 +88,9 @@ export function createScrollEngine() {
    */
   function measureContent() {
     const scrollY = window.scrollY;
-    const pad = 6;
+    /* Every obstacle is grown on all four sides before the solver ever sees
+       it, so "clear of the copy" means clear with room to breathe. */
+    const pad = TUNING.gutters.rectPadPx;
     content = {};
     soft = {};
     cardText = {};
@@ -95,7 +100,7 @@ export function createScrollEngine() {
       for (const el of section.querySelectorAll(selector)) {
         if (el.closest('[aria-hidden="true"]')) continue;
         /* Text inside a translucent card is measured separately: hard for the
-           links, transparent to the props. */
+           links, and it flags a prop as "behind" for the dim. */
         if (skipInCard && el.closest(SOFT_SELECTOR)) continue;
         const style = window.getComputedStyle(el);
         if (style.visibility === 'hidden' || style.display === 'none') continue;
@@ -120,6 +125,13 @@ export function createScrollEngine() {
       collect(section, CONTENT_SELECTOR, content, true);
       collect(section, CONTENT_SELECTOR, cardText, false);
       collect(section, SOFT_SELECTOR, soft);
+      /* A card blocks its own rect for the props, exactly like a paragraph
+         does. (It was soft before, which is what let the Overview props grow
+         behind the tool cards.) */
+      const cards = soft[id] || [];
+      if (cards.length) {
+        content[id] = (content[id] || []).concat(cards);
+      }
     }
     measured = true;
   }
@@ -349,11 +361,21 @@ export function createScrollEngine() {
    */
   function layout(s, scrollY, camera, bounds) {
     const G = TUNING.gutters;
+    const P = TUNING.props;
     const vw = window.innerWidth;
     const vh = window.innerHeight;
     const padX = (G.edgePadPx * 2) / vw;
     const padY = (G.edgePadPx * 2) / vh;
     const minPxNdc = (G.minOnScreenPx * 2) / vw;
+
+    /* ---- the absolute size cap ----------------------------------------
+     * NDC runs -1..1 across the WIDTH, so a box with half-width `h` covers
+     * exactly `h` of the viewport width. Capping it at
+     * `props.maxScreenFraction` therefore means "never wider than 32% of the
+     * screen". The same box on the Y axis is capped by the same PHYSICAL
+     * size, hence the vw/vh: the prop always fits inside a
+     * maxScreenFraction x vw square, whatever the aspect ratio. */
+    const screenHalf = Math.max(0.04, P.maxScreenFraction);
 
     for (const key of OBJ_KEYS) {
       const o = slots[key];
@@ -434,50 +456,58 @@ export function createScrollEngine() {
       const halfHNdc = Math.max(b.halfH, 0.001) / halfViewH;
 
       /* Half-width target in NDC.
-         `cap`   — the share of the free band the prop may occupy (gutters.fill)
-         `floor` — never smaller than `minFill` of the band, and never smaller
-                  than `minOnScreenPx` on screen
-         The floor WINS over the cap: a prop the visitor can actually see beats
-         a share target they cannot. The hard cap is `maxHalf`, which is
-         exactly what keeps the prop off the text. */
+         `maxHalf`     the free band itself — a prop never reaches the text
+         `screenHalf`  the absolute cap — 32% of the viewport width
+         `capHalf`     the TARGET inside both: `fill` of the free band
+         `floorHalf`   never smaller than `minFill` of the band (and never
+                       smaller than `minOnScreenPx` on screen) — but clipped
+                       by the hard caps above, so the floor can never be the
+                       thing that grows a prop over the copy.
+         Everything is a MINIMUM except the two hard caps. */
       const maxHalf = Math.max(0.02, bandW * 0.5);
+      const hardHalf = Math.min(maxHalf, screenHalf);
       const capHalf = bandW * 0.5 * G.fill;
-      const floorHalf = Math.max(bandW * G.minFill * 0.5, minPxNdc * 0.5);
-      const wantHalf = Math.min(Math.max(capHalf, floorHalf), maxHalf);
+      const floorHalf = Math.min(hardHalf, Math.max(bandW * G.minFill * 0.5, minPxNdc * 0.5));
+      const wantHalf = Math.min(Math.max(capHalf, floorHalf), hardHalf);
 
-      /* Same idea vertically, so a prop is never a sliver. */
+      /* Same idea vertically, so a prop is never a sliver and never a wall. */
       const availY = 2 - 2 * padY;
       const maxHalfY = Math.max(0.02, availY * 0.5);
+      const hardHalfY = Math.min(maxHalfY, screenHalf * (vw / vh));
       const capHalfY = availY * 0.5 * G.fill;
-      const floorHalfY = Math.max(availY * G.minFill * 0.5, (G.minOnScreenPx * 2 / vh) * 0.5);
-      const wantHalfY = Math.min(Math.max(capHalfY, floorHalfY), maxHalfY);
+      const floorHalfY = Math.min(
+        hardHalfY,
+        Math.max(availY * G.minFill * 0.5, (G.minOnScreenPx * 2 / vh) * 0.5)
+      );
+      const wantHalfY = Math.min(Math.max(capHalfY, floorHalfY), hardHalfY);
 
+      const cap = P[key] || {};
       let fit = Math.min(
         bounds[key].fitMax ?? Infinity,
+        cap.maxWorldScale ?? Infinity,
         wantHalf / halfWNdc,
         wantHalfY / halfHNdc
       );
-      /* The artistic ceiling is SOFT, and it may only be lifted far enough to
-         reach the on-screen minimum — never up to the full band. Without that
-         limit a prop with tiny geometry (the USB) would be scaled 10x to fill
-         a 474px band. Still bounded by `maxHalf`, so it stays off the text. */
-      const needForFloor = Math.min(
-        Math.max((minPxNdc * 0.5) / halfWNdc, ((G.minOnScreenPx * 2 / vh) * 0.5) / halfHNdc),
-        Math.min(maxHalf / halfWNdc, maxHalfY / halfHNdc)
-      );
-      fit = Math.max(fit, needForFloor);
+      /* No band, or a band too small to be worth using: push it back, shrink
+         it and dim it. The caps above still apply, so a "safe" prop is never
+         the giant one. */
       if (safe) fit = Math.min(fit, G.safeScale * 2.4);
 
       o.scale = fit;
       o.hx = halfWNdc * fit;
       o.hy = halfHNdc * fit;
-      /* Keep the whole box inside the viewport, not just its centre. */
+      /* Keep the whole box inside the viewport — on BOTH axes. The centre
+         alone is never allowed to sit on an edge, which is what used to crop
+         the Hero props at the viewport border. */
       const limY = Math.max(padY, 1 - o.hy - padY);
       o.cy = clamp(o.cy, -limY, limY);
+      const minCx = outerL + o.hx;
+      const maxCx = outerR - o.hx;
+      o.cx = minCx <= maxCx ? clamp(o.cx, minCx, maxCx) : (outerL + outerR) * 0.5;
 
-      /* Behind a translucent card or card copy? Soft dim, never a hard block —
-         this is what keeps a prop readable in Features and Flow, where the
-         step grid spans the full column width. */
+      /* Inside a card's own copy? The card rect is a hard obstacle already
+         (see measureContent), so this is only the DIM: a prop that has to
+         sit close to a card reads as behind it rather than in front of it. */
       o.behind = !!softAt(s.sectionId, yPage - bandHalf, yPage + bandHalf)
         || !!occupiedIn(cardText, s.sectionId, yPage - bandHalf, yPage + bandHalf);
     }
@@ -536,11 +566,17 @@ export function createScrollEngine() {
         }
       }
     }
-    /* Never let the push-off shove a prop off the top or bottom: clamp by
-       each prop's own half-height so nothing is ever clipped. */
+    /* Never let the push-off shove a prop off an edge: clamp by each
+       prop's own box, not just its centre, on both axes. */
+    const padX = (G.edgePadPx * 2) / window.innerWidth;
+    const outerR = 1 - padX;
+    const outerL = -1 + padX;
     for (const o of visible) {
       const limY = Math.max(padY, 1 - o.hy - padY);
       o.cy = clamp(o.cy, -limY, limY);
+      const minCx = outerL + o.hx;
+      const maxCx = outerR - o.hx;
+      o.cx = minCx <= maxCx ? clamp(o.cx, minCx, maxCx) : (outerL + outerR) * 0.5;
     }
   }
 

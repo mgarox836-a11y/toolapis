@@ -20,10 +20,25 @@
           if (b) { b.style.overflow = ''; b.style.touchAction = ''; b.classList.add('intro-done'); }
         } catch (e) {}
       }
-      var BOOT = performance.now();
 
       /* First executed statement: the hard failsafe. */
       window.setTimeout(cleanup, 5500);
+
+      /* Always open on the hero. The browser must never restore a scroll
+         position, and an empty / #overview hash must never become a jump to
+         the tool-cards section: both are handled here, before the page has a
+         layout, so nothing can beat them to it. */
+      try { if ('scrollRestoration' in history) history.scrollRestoration = 'manual'; } catch (e) {}
+      try {
+        var h = (location.hash || '').toLowerCase();
+        if (h === '' || h === '#' || h === '#overview') {
+          history.replaceState(history.state, '', location.pathname + location.search);
+        }
+      } catch (e) {}
+      try { if (window.scrollY) window.scrollTo(0, 0); } catch (e) {}
+
+      var BOOT = performance.now();
+
       document.documentElement.classList.add('intro-active');
       document.documentElement.setAttribute('data-intro-stage', '0');
       var tick = setInterval(function () {

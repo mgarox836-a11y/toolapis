@@ -160,20 +160,29 @@ export const TUNING = {
     twinkle: 0.55,
   },
 
-  /* ==== Text-clearance solver (phase (a)) ====
-   * A prop may only sit in a horizontally free band at its own height. If the
-   * band is narrower than `minFreePx` there is nowhere safe to put it, so the
-   * prop drops into `safe` mode: pushed far back, shrunk and dimmed.
+  /* ==== Text / card clearance solver (phase (a)) ====
+   * A prop may only sit in a horizontally free band at its own height, and it
+   * may never cross a TEXT rect or a CARD rect. Every measured rect is grown
+   * by `rectPadPx` on every side, so "clear" really means clear. Cards are
+   * hard obstacles like text: a prop behind a translucent card reads as a
+   * rendering bug, not as depth.
    *
-   * Only TEXT is a hard obstacle. Translucent cards (`.glass-panel`,
-   * `.spot-card`) are soft: a prop may sit behind one, because the 3D layer is
-   * *behind* the page and the glass lets it read through — dimmed, as depth.
-   * Treating cards as hard collapsed every gutter to ~34px, which is what
-   * pushed the props into safe mode and pinned them on the viewport edge. */
+   * If the band is narrower than `minFreePx` there is nowhere safe to put the
+   * prop, so it drops into `safe` mode: pushed far back, shrunk and dimmed.
+   *
+   * The two SIZE caps are hard and always win, in this order:
+   *   1. `props.maxScreenFraction` — the prop's box fits in a square of that
+   *      fraction of the VIEWPORT WIDTH (0.32 -> never wider than a third of
+   *      the screen, whatever the band or the aspect ratio).
+   *   2. `props[key].maxWorldScale` — the per-prop ceiling in world units.
+   * Below them sits the `fill` TARGET (0.55 of the free band), which is what
+   * a prop sizes to when it has room, and `minOnScreenPx`, the floor below
+   * which a prop is not worth drawing at all. */
   gutters: {
     minFreePx:     90,   // narrower than this -> safe mode
-    marginPx:      26,   // breathing room between prop and text
-    edgePadPx:     26,   // breathing room between prop and the viewport edge
+    marginPx:      26,   // breathing room between prop and a rect edge
+    rectPadPx:     24,   // every measured obstacle is grown by this on all sides
+    edgePadPx:     32,   // breathing room between prop and the viewport edge
     /* Props must stay FULLY inside the viewport, so there is no edge bleed.
        Set to 0 deliberately; `searchStepVh` below is what makes room instead. */
     edgeOverlapPx:   0,
@@ -182,15 +191,13 @@ export const TUNING = {
        text row the solver walks these steps away from it looking for the
        widest free band, so a prop lands in the gap between rows instead of
        collapsing into safe mode. */
-    searchStepVh: 0.18,
+    searchStepVh:  0.18,
     baseDistance:  6.0,  // prop distance from the camera before anchor.z
-    /* Size the prop to `fill` of its free band, but never below `minFill` of
-       the band nor below `minOnScreenPx` on screen, and never so large that
-       it would reach the text. `minOnScreenPx` WINS over `fill`; the text edge
-       wins over both. */
-    fill:         0.62,
+    /* Share of its free band a prop aims for. A TARGET, not a maximum: the
+       size caps above it are absolute. */
+    fill:         0.55,
     minFill:      0.40,
-    minOnScreenPx: 190,
+    minOnScreenPx: 150,   // floor for "a prop you can actually see"
     /* Soft cards dim a prop that sits behind them. */
     softDim:      0.55,
     safeScale:   0.55,
@@ -200,22 +207,23 @@ export const TUNING = {
     minSeparation: 0.16,
   },
 
-  /* ==== Per-prop ceiling on the automatic gutter fit ====
-   * solve() sizes each prop to its free band, which normalises props of very
-   * different geometry. These caps keep the relative visual weight authored.
-   * They are a SOFT cap: a prop is still allowed to exceed one to reach
-   * `gutters.minOnScreenPx`, because a floor the visitor can see beats an
-   * artistic ceiling they cannot. */
-  /* The headline placement numbers, hoisted here so they are easy to find
-   * next to the per-prop caps. Authoritative values live in `gutters`,
-   * which the solver reads — these mirror it. */
+  /* ==== Per-prop size caps ====
+   * The clearance solve runs per frame, and an unbounded "fill the band"
+   * rule is how a prop ends up covering the copy it was meant to sit beside.
+   * These caps make the size absolute:
+   *   maxScreenFraction  prop box <= 0.32 x viewport width (both axes, so the
+   *                      box stays inside that square at any aspect ratio)
+   *   maxWorldScale      per-prop ceiling in world units (the artistic cap)
+   *   fill / edgePadPx   mirrored here from `gutters` so a designer can find
+   *                      every placement number in one block */
   props: {
-    fill:         0.62,   // share of the free band a prop may occupy
-    edgePadPx:    26,     // breathing room between prop and viewport edge
+    maxScreenFraction: 0.32,
+    fill:         0.55,   // share of the free band a prop aims for
+    edgePadPx:    32,     // breathing room between prop and viewport edge
     minSeparation: 0.16,  // minimum NDC gap between two props
-    hd:      { fit: 3.2 },
-    usb:     { fit: 2.4 },
-    network: { fit: 2.6 },
+    hd:      { fit: 3.2, maxWorldScale: 2.2 },
+    usb:     { fit: 2.4, maxWorldScale: 2.2 },
+    network: { fit: 2.6, maxWorldScale: 2.2 },
   },
 
   /* ==== Objects hidden on the mobile tier (no side gutters exist there) ==== */

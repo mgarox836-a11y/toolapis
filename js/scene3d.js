@@ -67,7 +67,7 @@ const state = {
   inView: true,
   reduced: false,
   elapsed: 0,
-  intro: { active: false, t: 0 },   /* 3.8-5.0s fly-in */
+  intro: { active: false, t: 0, finished: false },   /* 3.6-4.9s fly-in */
   dolly: 0,                         /* intro camera dolly, added to cam.z */
   lastTime: 0,
 
@@ -812,16 +812,20 @@ function animate(now) {
 }
 
 /* ============================================================================
- * 10b. INTRO FLY-IN (3.8s - 5.0s)
+ * 10b. INTRO FLY-IN (3.6s - 4.9s)
  * Props arrive from depth with a stagger and a small overshoot, the camera
- * dollies in, and the particles fade up. Driven by the intro module, but the
- * scene is fully usable (and the props fully placed) whether or not it runs.
+ * dollies in, and the particles fade up. Driven by the intro module (which
+ * raises `toolapis:intro-curtain` the moment the loader curtain starts
+ * rising), but the scene is fully usable — and the props fully placed —
+ * whether or not it runs.
  * ==========================================================================*/
 const FLYIN_ORDER = ['network', 'hd', 'usb'];
-const FLYIN = { start: 3.8, end: 5.0, dolly: 2.2 };
+const FLYIN = { start: 3.6, end: 4.9, dolly: 2.2 };
 
 function startFlyIn() {
-  if (state.intro.active || state.reduced) return;
+  /* Once only: a late `intro-complete` must not replay the arrival after the
+     props have already settled. */
+  if (state.intro.active || state.intro.finished || state.reduced) return;
   state.intro.active = true;
   state.intro.t = performance.now();
   /* Park each prop deep in z so it has somewhere to fly in FROM. */
@@ -858,6 +862,7 @@ function updateFlyIn(now) {
   }
   if (ct >= 1) {
     state.intro.active = false;
+    state.intro.finished = true;
     for (const key of FLYIN_ORDER) {
       const o = state.objects[key];
       if (o) o.anchor.position.z = o.target.z;
@@ -1177,9 +1182,13 @@ function init() {
       start();
     }
 
-    /* The intro module owns the timeline; when it hands over we start the
-       3.8-5.0s fly-in. If the module never ran, this never fires and the
-       scene simply sits in its final, correct pose. */
+    /* The intro module owns the timeline: the fly-in starts when the loader
+       curtain starts rising (`intro-curtain`, ~3.6s) so the props arrive
+       while the hero is being uncovered. `intro-complete` stays wired as a
+       fallback for the short intro variants, and is a no-op once the fly-in
+       has already played. If neither ever fires, the scene simply sits in its
+       final, correct pose. */
+    window.addEventListener('toolapis:intro-curtain', () => { try { startFlyIn(); } catch (e) {} });
     window.addEventListener('toolapis:intro-complete', () => { try { startFlyIn(); } catch (e) {} });
 
     log('ready ·', state.tier, state.composer ? '+bloom' : 'no-bloom');
