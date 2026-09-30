@@ -148,6 +148,43 @@ export const TUNING = {
   /* ==== Float / spin ==== */
   float: { amp: 0.16, speed: 0.42, spin: 0.11 },
 
+  /* ==== Prop entrance (the intro's bottom-rise fly-in) =====================
+   *
+   * Everything the intro arrival does, in one place. The entrance is ADDITIVE:
+   * it is applied AFTER the solver writes its anchor and after every damp, as
+   * a screen-space offset converted to world units at the prop's own depth, so
+   * the solver's committed pose is never touched and the authored anchors are
+   * never altered. Each prop gets its own clock, so the stagger is exact and a
+   * frame hitch can never drift the animation.
+   *
+   *   delay         ms after the curtain starts rising before the first prop moves
+   *   duration      full 5s intro: ms per prop (curtain rises ~3.6s -> done ~5.1s)
+   *   hashDuration  the short 1.5s intro (deep link / no WebGL): ms per prop
+   *   stagger       ms between prop starts
+   *   riseFraction  how far below its place each prop starts, as a fraction of
+   *                 the viewport HEIGHT (0.006 ~= 0.6vh)
+   *   overshoot     the easeOutBack back amount (small: read as a pop, not a wobble)
+   *   startScale    props arrive at this scale and grow to 1
+   *   startRotY     radians, ~25 degrees of world-Y added while arriving
+   *
+   * Reduced motion never runs this: the props sit in their final, correct pose
+   * from the first frame. The independent 5.5s failsafe in <head> force-applies
+   * the final pose through `html.reveal-all`, and `failAtMs` is the scene's own
+   * backstop when that timer (or the intro) never arrives.
+   * ----------------------------------------------------------------------- */
+  entrance: {
+    order: ['hd', 'usb', 'network'],
+    delay: 120,
+    duration: 1300,
+    hashDuration: 900,
+    stagger: 120,
+    riseFraction: 0.006,
+    overshoot: 0.16,
+    startScale: 0.85,
+    startRotY: 0.436,            /* radians ≈ 25° */
+    failAtMs: 5200,
+  },
+
   /* ==== Mouse parallax ==== */
   parallax: { strength: 0.50, damping: 4.5 },
 

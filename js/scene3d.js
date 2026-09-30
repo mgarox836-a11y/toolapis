@@ -67,7 +67,7 @@ const state = {
   inView: true,
   reduced: false,
   elapsed: 0,
-  intro: { active: false, t: 0, finished: false },   /* 3.6-4.9s fly-in */
+  intro: { active: false, t: 0, finished: false, short: false },  /* prop entrance */
   scrollUnlocked: false,          /* the page left the hero; follow the scroll */
   dolly: 0,                         /* intro camera dolly, added to cam.z */
   lastTime: 0,
@@ -695,11 +695,7 @@ function placeObjects(s, dt, elapsed, scrollY) {
       : TUNING.scroll.damping * 1.6;
     o.anchor.position.x = damp(o.anchor.position.x, o.target.x, lambda, dt);
     o.anchor.position.y = damp(o.anchor.position.y, o.target.y, lambda, dt);
-    /* While a prop is flying in, updateFlyIn owns its z — damping it here
-       would cancel the motion. */
-    if (!(state.intro.active && o.introFrom !== undefined)) {
-      o.anchor.position.z = damp(o.anchor.position.z, o.target.z, lambda, dt);
-    }
+    o.anchor.position.z = damp(o.anchor.position.z, o.target.z, lambda, dt);
 
 
     /* --- Hover: the raycaster, or a hovered link/button carrying data-3d --- */
@@ -733,7 +729,8 @@ function placeObjects(s, dt, elapsed, scrollY) {
       Math.cos(elapsed * 0.19 + o.phase * 0.8) * 0.12 * (1 - 0.7 * s.converge)
       + V.tilt * vel * Math.sin(elapsed * 1.7 + o.phase);
 
-    /* --- Scale: the world scale the validator committed, times hover.
+    /* --- Scale: the world scale the validator committed, times hover (and,
+     * while the entrance is running, the prop's own arrival scale).
      * Velocity stretches along the local Z (the direction of travel). There is
      * no safe-mode multiplier any more: the validator refused any size below
      * its floor, and scaling it down again is what used to erase it. The
@@ -742,7 +739,26 @@ function placeObjects(s, dt, elapsed, scrollY) {
     const fitScale = place.scale;
     const target = fitScale * lerp(1, TUNING.hover.scale, o.hover);
     const cs = damp(o.group.scale.x, target, TUNING.hover.damping, dt);
-    o.group.scale.set(cs, cs, cs * (1 + V.stretch * vel));
+
+    /* --- ENTRANCE (additive, on top of everything the solver committed) ---
+     * The prop starts ~0.6vh BELOW its place (screen px converted to world
+     * units at its own depth, so the move reads the same size on any screen),
+     * at startScale, yawed ~25° to its side, hidden. As it arrives it rises,
+     * grows, straightens and lights up, easing out with a small overshoot.
+     *
+     * `introK` is the UNclamped curve so the overshoot passes through the
+     * position and rotation; `introP` is clamped for scale and opacity. When
+     * the intro never ran (`introP` undefined) or has finished, every term is
+     * 1/0 and the pose is exactly the solver's, byte for byte. */
+    const entra = state.intro.active && o.introK !== undefined
+      ? { k: o.introK, p: o.introP }
+      : { k: 0, p: 1 };
+    const riseWorld = ((1 - entra.k) * ENTRANCE.riseFraction * vh) / pxPerWorld;
+    o.group.position.y -= riseWorld;
+    o.group.rotation.y += (1 - entra.k) * ENTRANCE.startRotY;
+    const entrScale = lerp(ENTRANCE.startScale, 1, entra.p);
+    o.opacityVis = entra.p;
+    o.group.scale.set(cs * entrScale, cs * entrScale, cs * (1 + V.stretch * vel) * entrScale);
 
     /* --- USB: the plug yaws so its long axis and its cable point OUTWARD,
      * away from the text column. The side the solver settled on is the whole
@@ -772,22 +788,26 @@ function placeObjects(s, dt, elapsed, scrollY) {
      * out. It sits INSIDE the authored opacity, because an authored 0 is a
      * placement decision, not a dim, and must not be floored back into view. */
     const dim = Math.max(raw, P.minOpacity * layout.exposureMul) * o.opacity;
-    const glow = (0.55 + 0.45 * dim) * (1 + (TUNING.hover.glow - 1) * o.hover);
+    /* The entrance gates the WHOLE visual AFTER the authored-opacity floor, so
+       a prop that could not be placed stays invisible while it would have been
+       there and can never be floored back into view mid-arrival. */
+    const dimShown = dim * (o.opacityVis === undefined ? 1 : clamp(o.opacityVis, 0, 1));
+    const glow = (0.55 + 0.45 * dimShown) * (1 + (TUNING.hover.glow - 1) * o.hover);
 
 
     for (const m of o.materials) {
       const ud = m.userData || {};
       if (m.emissiveIntensity !== undefined && ud.baseEmissive !== undefined) {
-        m.emissiveIntensity = ud.baseEmissive * dim * glow;
+        m.emissiveIntensity = ud.baseEmissive * dimShown * glow;
       }
       if (ud.baseEnv !== undefined) {
-        m.envMapIntensity = ud.baseEnv * (0.5 + 0.5 * clamp(dim, 0, 1)) * (1 + 0.6 * o.hover);
+        m.envMapIntensity = ud.baseEnv * (0.5 + 0.5 * clamp(dimShown, 0, 1)) * (1 + 0.6 * o.hover);
       }
-      if (ud.rim) ud.rim.uRimStrength.value = (ud.baseRim || 0) * dim * glow;
+      if (ud.rim) ud.rim.uRimStrength.value = (ud.baseRim || 0) * dimShown * glow;
     }
 
     _objCtx.glow = clamp(glow, 0, 3);
-    _objCtx.dim = dim;
+    _objCtx.dim = dimShown;
     o.obj.update(elapsed, dt, _objCtx);
 
     _linkPositions[key] = o.anchor.position;
@@ -1152,7 +1172,7 @@ function animate(now) {
   const dt = Math.min((now - state.lastTime) / 1000, 0.05); /* clamp after tab switches */
   state.lastTime = now;
   state.elapsed += dt;
-  updateFlyIn(now);
+  updateEntrance(now);
   /* Before the intro is done the page is locked to the hero, so the scene must
      be too. Reading `window.scrollY` here would let a restored scroll position
      (or a stray touch) drag the whole 3D layout mid-intro. */
@@ -1231,62 +1251,132 @@ function unlockScrollFollow() {
 }
 
 /* ============================================================================
- * 10c. INTRO FLY-IN (3.6s - 4.9s)
- * Props arrive from depth with a stagger and a small overshoot, the camera
- * dollies in, and the particles fade up. Driven by the intro module (which
- * raises `toolapis:intro-curtain` the moment the loader curtain starts
- * rising), but the scene is fully usable — and the props fully placed —
- * whether or not it runs.
+ * 10c. INTRO ENTRANCE (3.6s - ~5.1s)
+ * Props arrive from the BOTTOM of the screen, additive: each one starts ~0.6vh
+ * below its solved place (converted to world units at its own depth), at 0.85x
+ * scale, ~25° yawed to its side and fully transparent, then rises, scales,
+ * straightens and lights up with a small overshoot. The camera dollies in
+ * behind them and the particles fade up. It is driven by the intro module
+ * (which raises `toolapis:intro-curtain` the moment the loader curtain starts
+ * rising; `toolapis:intro-complete` is the fallback for the short variants),
+ * but the scene is fully usable — and the props fully placed — whether or not
+ * it ever runs, and reduced motion snaps straight to the final pose.
+ *
+ * ADDITIVE, on purpose. The anchor the solver wrote is never touched: the
+ * entrance is layered on top of `placeObjects` every frame and removed the
+ * model its final, committed pose, so a scroll during the arrival cannot
+ * fight a half-written anchor.
  * ==========================================================================*/
-const FLYIN_ORDER = ['network', 'hd', 'usb'];
-const FLYIN = { start: 3.6, end: 4.9, dolly: 2.2 };
+const ENTRANCE = TUNING.entrance;
 
-function startFlyIn() {
+function startFlyIn(detail) {
   /* Once only: a late `intro-complete` must not replay the arrival after the
-     props have already settled. */
+     props have already settled. Reduced motion never plays it. */
   if (state.intro.active || state.intro.finished || state.reduced) return;
   state.intro.active = true;
   state.intro.t = performance.now();
-  /* Park each prop deep in z so it has somewhere to fly in FROM. */
-  for (const key of FLYIN_ORDER) {
-    const o = state.objects[key];
+  /* The curtain event carries when it fired relative to the intro's own boot.
+     Under ~2s it is the short 1.5s plan (deep link, no WebGL, a failure), and
+     the entrance compresses with it. `intro-complete` (no detail) is assumed
+     to be the full-length one. */
+  const d = (detail && detail.detail);
+  state.intro.short = !!(d && typeof d.at === 'number' && d.at < 2000);
+
+  /* The curtain starts rising, then `delay` ticks before the first prop moves;
+     after that each prop starts `stagger` later than the one before it. */
+  for (let i = 0; i < ENTRANCE.order.length; i++) {
+    const o = state.objects[ENTRANCE.order[i]];
     if (!o) continue;
-    o.baseScale = o.baseScale || 1;
-    o.introFrom = o.anchor.position.z + FLYIN.dolly * 3.4;
-    o.anchor.position.z = o.introFrom;
-    o.introT = performance.now() - FLYIN_ORDER.indexOf(key) * 130;
+    o.introP = 0;                       /* clamped 0..1, drives scale/yaw/opacity */
+    o.introK = 0;                       /* unclamped, lets the overshoot through */
+    o.introStart = state.intro.t + ENTRANCE.delay + i * ENTRANCE.stagger;
+    o.introDone = false;
   }
   if (state.particles) state.particles.material.opacity = 0;
+  if (state.props) {
+    for (const m of state.props.materials || []) {
+      if (m.userData.introBase === undefined && typeof m.opacity === 'number') {
+        m.userData.introBase = m.opacity;
+      }
+      m.opacity = 0;
+    }
+  }
 }
 
-function updateFlyIn(now) {
+/** The per-prop easeOutBack over its own span, plus the overshoot. */
+function entranceProgress(t) {
+  const c1 = 1 + ENTRANCE.overshoot;
+  const c3 = c1 + 1;
+  return 1 + c3 * Math.pow(t - 1, 3) + c1 * Math.pow(t - 1, 2);
+}
+
+function updateEntrance(now) {
   if (!state.intro.active) return;
-  const span = (FLYIN.end - FLYIN.start) * 1000;
-  for (const key of FLYIN_ORDER) {
+  const E = ENTRANCE;
+  const dur = state.intro.short ? E.hashDuration : E.duration;
+
+  /* The scene's own backstop, above and beyond the independent head failsafe:
+     past `failAtMs` (or the moment the head failsafe fires), everything is
+     snapped to its final pose and the entrance is over. */
+  const forced = (now - state.intro.t) >= E.failAtMs
+    || document.documentElement.classList.contains('reveal-all');
+
+  let latest = 0;
+  let remaining = 0;
+  for (const key of E.order) {
     const o = state.objects[key];
     if (!o) continue;
-    const t = (now - state.intro.t - (o.introT || 0)) / span;
-    if (t <= 0) continue;
-    /* easeOutBack: arrives with a small overshoot, settles back. */
-    const c1 = 1.24, c3 = c1 + 1;
-    const e = 1 + c3 * Math.pow(t - 1, 3) + c1 * Math.pow(t - 1, 2);
-    o.anchor.position.z = lerp(o.introFrom, o.target.z, Math.max(0, Math.min(1.08, e)));
+    const raw = (now - o.introStart) / dur;
+    const t = clamp(raw, 0, 1);
+    const k = forced ? 1 : entranceProgress(t);
+    const p = forced ? 1 : clamp(k, 0, 1);
+    o.introK = k;
+    o.introP = p;
+    /* Only a prop whose full span has passed is DONE: `p` hits 1 while the
+       overshoot tail is still resolving, so finishing on `p===1` would snap
+       the last prop mid-air. */
+    o.introDone = forced || raw >= 1;
+    if (raw < 1) remaining++;
+    latest = Math.max(latest, p);
   }
-  /* Short camera dolly-in, eased. */
-  const ct = Math.max(0, Math.min(1, (now - state.intro.t) / span));
-  const eased = 1 - Math.pow(1 - ct, 3);
-  state.dolly = (1 - eased) * FLYIN.dolly;
+
+  /* The particles ride the props: gone at the first frame, fully there by the
+     time the last prop settles. */
   if (state.particles) {
-    state.particles.material.opacity = Math.min(1, ct * 1.4);
+    state.particles.material.opacity = clamp(latest * 1.25, 0, 1);
   }
-  if (ct >= 1) {
+  /* Wire, rings and the ground glow follow SLOWER: they are the depth the props
+     sit against, so they surface just after their foreground holds still. */
+  if (state.props) {
+    const bg = clamp(Math.pow(latest * 1.05, 0.72) * 0.96, 0, 1);
+    for (const m of state.props.materials || []) {
+      if (m.userData.introBase === undefined) continue;
+      m.opacity = (m.userData.introBase || 1) * bg;
+    }
+  }
+
+  /* Short camera dolly-in while the props arrive; settled by the end. */
+  const ct = clamp((now - state.intro.t) / Math.min(dur + E.stagger * 3, 2600), 0, 1);
+  const eased = 1 - Math.pow(1 - ct, 3);
+  state.dolly = (1 - eased) * 2.2;
+
+  if (forced || remaining === 0) {
     state.intro.active = false;
     state.intro.finished = true;
-    unlockScrollFollow();
-    for (const key of FLYIN_ORDER) {
+    for (const key of E.order) {
       const o = state.objects[key];
-      if (o) o.anchor.position.z = o.target.z;
+      if (!o) continue;
+      o.introDone = true;
+      o.introP = 1;
+      o.introK = 1;
     }
+    if (state.particles) state.particles.material.opacity = 1;
+    if (state.props) {
+      for (const m of state.props.materials || []) {
+        if (m.userData.introBase !== undefined) m.opacity = m.userData.introBase;
+      }
+    }
+    unlockScrollFollow();
   }
 }
 
@@ -1366,6 +1456,23 @@ function setupInViewObserver() {
 function onMediaQueryChange(e) {
   if (e.matches) {
     state.reduced = true;
+    /* A mid-entrance switch to reduced motion must not leave a prop frozen
+       halfway up the screen: snap the arrival to its final pose. */
+    state.intro.active = false;
+    state.intro.finished = true;
+    for (const key of ENTRANCE.order) {
+      const o = state.objects[key];
+      if (!o) continue;
+      o.introP = 1;
+      o.introK = 1;
+      o.introDone = true;
+    }
+    if (state.particles) state.particles.material.opacity = 1;
+    if (state.props) {
+      for (const m of state.props.materials || []) {
+        if (m.userData.introBase !== undefined) m.opacity = m.userData.introBase;
+      }
+    }
     stop();
     if (TUNING.showStaticOnReducedMotion) renderOnce();
   } else {
@@ -1626,14 +1733,14 @@ function init() {
       start();
     }
 
-    /* The intro module owns the timeline: the fly-in starts when the loader
+    /* The intro module owns the timeline: the entrance starts when the loader
        curtain starts rising (`intro-curtain`, ~3.6s) so the props arrive
        while the hero is being uncovered. `intro-complete` stays wired as a
-       fallback for the short intro variants, and is a no-op once the fly-in
+       fallback for the short intro variants, and is a no-op once the entrance
        has already played. If neither ever fires, the scene simply sits in its
        final, correct pose. */
-    window.addEventListener('toolapis:intro-curtain', () => { try { startFlyIn(); } catch (e) {} });
-    window.addEventListener('toolapis:intro-complete', () => { try { startFlyIn(); } catch (e) {} });
+    window.addEventListener('toolapis:intro-curtain', (e) => { try { startFlyIn(e); } catch (err) {} });
+    window.addEventListener('toolapis:intro-complete', (e) => { try { startFlyIn(e); } catch (err) {} });
 
     /* Hand the scene over to the scroll position as soon as the intro is
        genuinely finished — the fly-in ending, the intro module saying so, or
