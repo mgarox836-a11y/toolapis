@@ -39,7 +39,7 @@ import { TUNING, PALETTE, OBJ_KEYS, STOPS, FOCAL_TARGET } from './config.js';
 import {
   buildObject, disposeObject, createBackgroundProps, createParticles, createFlowLinks,
 } from './objects.js';
-import { createScrollEngine } from './scroll.js';
+import { createScrollEngine, CENTER_TOLERANCE_PX } from './scroll.js';
 
 /* ============================================================================
  * 1. RUNTIME STATE
@@ -117,8 +117,6 @@ const _linkCy = { hd: 0, usb: 0, network: 0 };
 const _linkBand = [0, 0];
 let _linkScrollY = 0;
 const _linkCols = [null, null, null];
-const _box = new THREE.Box3();
-const _sizeV = new THREE.Vector3();
 const _colScratch = [-1, 1];
 
 /* ============================================================================
@@ -268,7 +266,9 @@ function createObjects() {
       hit: obj.hit || [],
       target: new THREE.Vector3(),
       baseScale: TUNING.objectScale,
-      docked: false,
+      state: 'authored',
+      collided: false,
+      opacity: 1,
       hover: 0,
       hoverTarget: 0,
       spinMul: 1,
@@ -281,15 +281,22 @@ function createObjects() {
     };
     for (const m of obj.materials) state.trackedMats.push(m);
 
-    /* Measure the prop once, in its own local units. The clearance solver
-       needs this to size the prop so it fills its gutter WITHOUT crossing the
-       viewport edge or the text, at any aspect ratio. */
-    _box.setFromObject(obj.group);
-    _box.getSize(_sizeV);
+    /* The prop's own box, in its own local units. js/objects.js centres the
+       prop on this box and js/scroll.js projects all 8 corners of it through
+       the live camera, so the box the validator clears is the box the mesh
+       draws. `quat` and `offX`/`offY` carry what the group is doing RIGHT NOW,
+       so the box follows the prop's own spin and float instead of assuming a
+       rest pose the page never holds. */
+    const half = obj.half || { w: 0.5, h: 0.5, d: 0.5 };
     state.bounds[key] = {
-      halfW: Math.max(0.05, _sizeV.x * 0.5),
-      halfH: Math.max(0.05, _sizeV.y * 0.5),
+      half: { w: half.w, h: half.h, d: half.d },
+      halfW: half.w,
+      halfH: half.h,
+      halfD: half.d,
       fitMax: TUNING.props[key].fit,
+      quat: new THREE.Quaternion(),
+      offX: 0,
+      offY: 0,
     };
   }
 }
@@ -509,6 +516,10 @@ function applyTier(tier) {
 
   for (const key of OBJ_KEYS) {
     const o = state.objects[key];
+    /* The tier's `scaleMul` only SEEDS the scale: from the first solve on, the
+       world scale is the one the validator sized the prop to, so a quality step
+       can never quietly put the drawn size back under the floor the box
+       reports. */
     o.baseScale = TUNING.objectScale * layout.scaleMul;
     o.group.scale.setScalar(o.baseScale);
     o.group.visible = !(tier === 'mobile' && TUNING.hideOnMobile.includes(key));
@@ -605,6 +616,11 @@ function applySample(s) {
     state.camera.updateProjectionMatrix();
   }
   state.camera.lookAt(s.look.x, s.look.y, s.look.z);
+  /* The layout validator projects the props' 8 corners through this camera
+     BEFORE the frame is rendered, so the world matrix and its inverse have to
+     be current here — otherwise every box is one frame stale from the pose the
+     camera is actually drawn at. */
+  state.camera.updateMatrixWorld(true);
 
   /* "Dim + push away": thicker fog and lower exposure away from the hero. */
   const dim = s.exposure * layout.exposureMul;
@@ -616,14 +632,15 @@ function applySample(s) {
 /**
  * Places every prop for the current scroll position.
  *
- * The clearance solver (scroll.js) returns a world position that is guaranteed
- * to sit in a horizontally free band at the prop's own height, at or above its
- * size floor. If no such band exists anywhere the solver relocates the prop —
- * to another column, to the centre of the free band between two sections, or
- * docked against a side edge with part of it cropped by the screen — and it
- * says which in `place.docked`. It never answers "shrink it to nothing and dim
- * it until nobody can see it": that ladder is why the props used to vanish in
- * Features, Flow and Clarity.
+ * The layout validator (scroll.js) takes the AUTHORED position for the section
+ * and checks it against the measured page: inside the band, clear of the copy,
+ * clear of the props already placed. On a collision it tries the authored
+ * `alt`, then nudges the prop at its full size along the nearest free
+ * direction, and it says which in `place.state`. It never answers "shrink it to
+ * nothing and dim it until nobody can see it" — that ladder is why the props
+ * used to vanish in Features, Flow and Clarity. `place.opacity` is the only
+ * thing that can take a prop out of the frame, and it is damped, so a prop
+ * that cannot be placed FADES rather than cuts.
  */
 function placeObjects(s, dt, elapsed, scrollY) {
   const layout = TUNING.TIER[state.tier];
@@ -634,8 +651,21 @@ function placeObjects(s, dt, elapsed, scrollY) {
   const vh = window.innerHeight;
   _linkScrollY = scrollY;
 
-  /* One batch solve for all three props: find the free bands, size them, push
-     them apart, and unproject — in that order, so nothing can overlap. */
+  /* Hand the validator the pose each prop is actually drawn in right now, so
+     the box it projects is the box the mesh occupies this frame rather than a
+     rest pose the page never holds. */
+  for (const key of OBJ_KEYS) {
+    const o = state.objects[key];
+    const b = state.bounds[key];
+    if (!o || !b) continue;
+    b.quat.copy(o.group.quaternion);
+    b.offX = o.group.position.x;
+    b.offY = o.group.position.y;
+  }
+
+  /* One batch solve for all three props: validate the authored spots, size
+     them at or above their floor, keep them apart, and unproject the box
+     CENTRE — in that order, so nothing can overlap. */
   const places = state.engine.layout(s, scrollY, state.camera, state.bounds);
 
   for (const key of OBJ_KEYS) {
@@ -644,7 +674,8 @@ function placeObjects(s, dt, elapsed, scrollY) {
 
     const anchor = s.anchors[key];
     const place = places[key];
-    o.docked = place.docked;
+    o.state = place.state;
+    o.collided = place.collided;
     _linkCy[key] = place.cy;
 
     /* Damp toward the solved position so a changing free band glides. If the
@@ -653,7 +684,10 @@ function placeObjects(s, dt, elapsed, scrollY) {
        rate so it cannot sit visibly off its anchor while the page keeps its
        place. World distance is converted to screen px at the prop's depth. */
     o.target.set(place.x, place.y, place.z);
-    const distProp = state.camera.position.z + G.baseDistance + anchor.z;
+    /* `place.z` is the prop's own world depth — the solver unprojects to the
+       distance it sized for — so the view-axis distance is the camera's z
+       minus that, not a remembered base distance plus a remembered z. */
+    const distProp = Math.max(0.5, state.camera.position.z - o.target.z);
     const pxPerWorld = vh / (2 * Math.tan((state.camera.fov * Math.PI) / 360) * distProp);
     const lagPx = Math.hypot(o.anchor.position.x - o.target.x, o.anchor.position.y - o.target.y) * pxPerWorld;
     const lambda = lagPx > TUNING.scroll.lagCapPx
@@ -699,11 +733,13 @@ function placeObjects(s, dt, elapsed, scrollY) {
       Math.cos(elapsed * 0.19 + o.phase * 0.8) * 0.12 * (1 - 0.7 * s.converge)
       + V.tilt * vel * Math.sin(elapsed * 1.7 + o.phase);
 
-    /* --- Scale: the solver's size x the authored per-stop scale x hover.
+    /* --- Scale: the world scale the validator committed, times hover.
      * Velocity stretches along the local Z (the direction of travel). There is
-     * no safe-mode multiplier any more: the solver already refused any size
-     * below its floor, and scaling it down again is what used to erase it. --- */
-    const fitScale = place.scale * anchor.scale * o.baseScale;
+     * no safe-mode multiplier any more: the validator refused any size below
+     * its floor, and scaling it down again is what used to erase it. The
+     * commit is the DRAWING, so the box the overlay draws and the mesh the
+     * GPU renders are the same size. --- */
+    const fitScale = place.scale;
     const target = fitScale * lerp(1, TUNING.hover.scale, o.hover);
     const cs = damp(o.group.scale.x, target, TUNING.hover.damping, dt);
     o.group.scale.set(cs, cs, cs * (1 + V.stretch * vel));
@@ -718,20 +754,24 @@ function placeObjects(s, dt, elapsed, scrollY) {
       o.obj.outwardYaw = damp(o.obj.outwardYaw, o.obj.outwardTarget, TUNING.hover.damping * 0.7, dt);
     }
 
-    /* --- Glow: section dim x behind-card dim x reserved-header fade x focus
-     *         x hover --- */
+    /* --- Glow: section dim x behind-card dim x band fade x authored opacity
+     *         x focus x hover --- */
     const softMul = place.behind ? G.softDim : 1;
     /* `place.fade` is 1 everywhere except the reserved strip under the sticky
      * header, where it ramps to 0. That is what turns the old hard straight
      * cut across a prop into a soft dissolve. */
     const bandMul = place.fade === undefined ? 1 : place.fade;
+    /* The authored opacity is DAMPED, so a prop the validator could not place
+       dissolves instead of cutting, and a prop the page stops asking for fades
+       out the same way. */
+    o.opacity = damp(o.opacity, place.opacity === undefined ? 1 : place.opacity, TUNING.focus.damping, dt);
     const raw = clamp(s.exposure * anchor.dim * layout.exposureMul, 0, 1.4)
       * focusMul * softMul * bandMul;
     /* `props.minOpacity` is the floor that makes "always visible" true even at
      * the worst moment of the header fade: the prop softens, it never goes
-     * out. A docked prop gets the same floor, which is why docking reads as
-     * "moved to the edge", not as "punished". */
-    const dim = Math.max(raw, P.minOpacity * layout.exposureMul);
+     * out. It sits INSIDE the authored opacity, because an authored 0 is a
+     * placement decision, not a dim, and must not be floored back into view. */
+    const dim = Math.max(raw, P.minOpacity * layout.exposureMul) * o.opacity;
     const glow = (0.55 + 0.45 * dim) * (1 + (TUNING.hover.glow - 1) * o.hover);
 
 
@@ -816,21 +856,42 @@ function removeDebugOverlay() {
   _debugSig = '';
 }
 
-/** Shared scratch for the debug overlay's NDC->viewport conversion. */
-const _ndcOut = { x: 0, y: 0, w: 0, h: 0 };
-
 /** Shared scratch for the debug overlay's world->screen projection check. */
 const _proj = new THREE.Vector3();
 
-/** An NDC box (centre + px size) -> a viewport rect in the `_ndcOut` scratch.
- *  Returns the shared object; the caller reads it before the next call. */
-function ndcRect(cx, cy, wPx, hPx, vw, vh) {
-  const hy = hPx / vh;
-  _ndcOut.x = (cx * 0.5 + 0.5) * vw - wPx * 0.5;
-  _ndcOut.y = (1 - (cy - hy)) * 0.5 * vh;
-  _ndcOut.w = wPx;
-  _ndcOut.h = hPx;
-  return _ndcOut;
+/**
+ * ?scene3d=debug: draws what the validator SAW, not what it hoped for.
+ *
+ *   1. the measured obstacles, in red, in viewport space
+ *   2. the band the boxes have to live in, and the reserved header band
+ *   3. each prop's AUTHORED anchor, as a dashed cross
+ *   4. each prop's PROJECTED box, from the same 8 corners the mesh is drawn
+ *      from, with the numeric size, the offset from its authored anchor, and
+ *      what the validator did about it
+ *   5. the floor line under each box, so an under-sized prop is visible
+ *
+ * The box and the cross share a centre by construction (scroll.js centres the
+ * prop on its own box and unprojects that centre), so the offset readout is the
+ * projection's own error, not a fudge factor.
+ */
+const _liveVec = new THREE.Vector3();
+
+/**
+ * The prop's ACTUAL rendered centre, read back off its own anchor and pushed
+ * through the live camera — not the solver's number. This is the self-check:
+ * the solver's NDC, the unprojection, the group offset and the scale the scene
+ * applied all have to agree with it, or the box is being drawn somewhere the
+ * prop is not. The float/bob offset is deliberate motion layered on top of the
+ * placement, so it is not part of what is being checked.
+ */
+function liveMark(key, place, vw, vh) {
+  const o = state.objects[key];
+  if (!o || !o.anchor) return null;
+  _liveVec.copy(o.anchor.position).project(state.camera);
+  const x = (_liveVec.x * 0.5 + 0.5) * vw;
+  const y = (1 - _liveVec.y * 0.5) * 0.5 * vh;
+  if (!Number.isFinite(x) || !Number.isFinite(y)) return null;
+  return { x, y, err: place ? Math.hypot(x - place.cxPx, y - place.cyPx) : 0 };
 }
 
 function drawDebugOverlay(places) {
@@ -846,6 +907,8 @@ function drawDebugOverlay(places) {
   }
   const g = _debugCtx;
   g.setTransform(dpr, 0, 0, dpr, 0, 0);
+  let worstLive = 0;
+  let worstLiveAt = '—';
   g.clearRect(0, 0, vw, vh);
 
   const data = state.engine.debugData;
@@ -862,18 +925,16 @@ function drawDebugOverlay(places) {
     g.strokeRect(r.x0, y, r.x1 - r.x0, r.y1 - r.y0);
   }
 
-  /* 2. the search trail: accepted bright, refused almost invisible */
-  for (const c of data.candidates) {
-    if (c.wPx < 1) continue;
-    const r = ndcRect(c.cx, c.cy, c.wPx, c.hPx, vw, vh);
-    if (r.y > vh || r.y + r.h < 0) continue;
-    g.strokeStyle = c.ok
-      ? 'rgba(163,230,53,0.5)'
-      : 'rgba(163,230,53,0.10)';
-    g.strokeRect(r.x, r.y, r.w, r.h);
-  }
-
-  /* 3. the reserved sticky-header band */
+  /* 2. the band a box has to stay inside, and the reserved header strip */
+  g.strokeStyle = 'rgba(249,115,22,0.55)';
+  g.setLineDash([6, 4]);
+  g.beginPath();
+  g.moveTo(0, Math.round(data.bandTopPx) + 0.5);
+  g.lineTo(vw, Math.round(data.bandTopPx) + 0.5);
+  g.moveTo(0, Math.round(data.bandBottomPx) + 0.5);
+  g.lineTo(vw, Math.round(data.bandBottomPx) + 0.5);
+  g.stroke();
+  g.setLineDash([]);
   if (data.bandPx > 0) {
     g.fillStyle = 'rgba(56,189,248,0.10)';
     g.fillRect(0, 0, vw, data.bandPx);
@@ -884,82 +945,108 @@ function drawDebugOverlay(places) {
     g.stroke();
   }
 
-  /* 4. what each prop committed to */
   g.font = '11px ui-monospace, SFMono-Regular, Menlo, monospace';
   g.textBaseline = 'top';
+
+  /* 3 + 4 + 5. the authored cross, the projected box, and the numbers */
   for (const key of OBJ_KEYS) {
     const p = places[key];
     if (!p) continue;
-    const r = ndcRect(p.cx, p.cy, p.wPx, p.hPx, vw, vh);
-    const color = DEBUG_KEY_COLORS[key] || '#ffffff';
-    g.strokeStyle = color;
-    g.lineWidth = p.docked ? 3 : 2;
-    g.strokeRect(r.x, r.y, r.w, r.h);
-    g.fillStyle = color;
-    const tag = `${key} ${Math.round(p.wPx)}px${p.docked ? ' DOCKED' : ''}`;
-    g.fillText(tag, Math.max(2, r.x), Math.max(2, r.y - 13));
-  }
-
-  /* 5. the vertical middle band: its edges and the preferred centre line */
-  const P = TUNING.props;
-  g.lineWidth = 1;
-  g.strokeStyle = 'rgba(249,115,22,0.55)';
-  g.setLineDash([6, 4]);
-  g.beginPath(); g.moveTo(0, vh * P.bandTop + 0.5); g.lineTo(vw, vh * P.bandTop + 0.5); g.stroke();
-  g.beginPath(); g.moveTo(0, vh * P.bandBottom + 0.5); g.lineTo(vw, vh * P.bandBottom + 0.5); g.stroke();
-  g.setLineDash([]);
-  g.strokeStyle = 'rgba(163,230,53,0.5)';
-  g.beginPath(); g.moveTo(0, vh * P.preferredCenter + 0.5); g.lineTo(vw, vh * P.preferredCenter + 0.5); g.stroke();
-
-  /* 6. projection SELF-CHECK: the damped world anchor is projected back to the
-        screen with the very camera it was solved with, and compared against
-        the NDC the solver intended. Green crosshair when it agrees (< 2px at
-        rest), red when a prop is still chasing its target mid-scroll — which
-        also reveals any screen-to-world drift if the worlds ever disagree. */
-  state.camera.updateMatrixWorld(true);
-  state.camera.matrixWorldInverse.copy(state.camera.matrixWorld).invert();
-  for (const key of OBJ_KEYS) {
     const o = state.objects[key];
-    const p = places[key];
-    if (!o || !p || !o.group.visible) continue;
-    _proj.copy(o.anchor.position)
-      .applyMatrix4(state.camera.matrixWorldInverse)
-      .applyMatrix4(state.camera.projectionMatrix);
-    const sx = (p.cx * 0.5 + 0.5) * vw;
-    const sy = (1 - p.cy) * 0.5 * vh;
-    const psx = (_proj.x * 0.5 + 0.5) * vw;
-    const psy = (1 - (_proj.y * 0.5 + 0.5)) * vh;
-    const err = Math.hypot(psx - sx, psy - sy);
-    g.strokeStyle = err < 2 ? 'rgba(74,222,128,0.9)' : 'rgba(248,113,113,0.9)';
-    g.beginPath(); g.moveTo(psx - 5, psy); g.lineTo(psx + 5, psy); g.stroke();
-    g.beginPath(); g.moveTo(psx, psy - 5); g.lineTo(psx, psy + 5); g.stroke();
-    g.fillStyle = err < 2 ? '#bbf7d0' : '#fecaca';
-    g.fillText(`${key} Δ${err.toFixed(1)}px`, psx + 7, psy);
+    const color = DEBUG_KEY_COLORS[key] || '#ffffff';
+    const auth = data.authored[key] || { x: 0, y: 0, size: 0 };
+    const hidden = p.state === 'hidden';
+
+    /* the authored anchor, as asked for */
+    const ax = auth.x;
+    const ay = auth.y - scrollY;
+    if (ay > -40 && ay < vh + 40) {
+      g.strokeStyle = hidden ? 'rgba(148,163,184,0.45)' : 'rgba(148,163,184,0.8)';
+      g.setLineDash([3, 3]);
+      g.lineWidth = 1;
+      g.beginPath();
+      g.moveTo(ax - 9, ay); g.lineTo(ax + 9, ay);
+      g.moveTo(ax, ay - 9); g.lineTo(ax, ay + 9);
+      g.stroke();
+      g.setLineDash([]);
+    }
+
+    /* the projected box, exactly as the mesh's 8 corners land on screen */
+    g.strokeStyle = p.collided ? 'rgba(248,113,113,0.95)' : color;
+    g.lineWidth = p.nudged ? 3 : 2;
+    g.strokeRect(p.x0, p.y0 - scrollY, p.wPx, p.hPx);
+    if (o) {
+      /* the box the GPU is actually drawing, filled in faintly */
+      g.fillStyle = hidden ? 'rgba(100,116,139,0.10)' : 'rgba(226,232,240,0.07)';
+      g.fillRect(p.x0, p.y0 - scrollY, p.wPx, p.hPx);
+    }
+
+    /* the floor it may not go under, and the size it committed to */
+    const floorY = p.y0 - scrollY + p.hPx + 6;
+    const shortBy = p.floorPx - p.committedPx;
+    g.strokeStyle = shortBy > 1 ? 'rgba(248,113,113,0.9)' : 'rgba(74,222,128,0.55)';
+    g.lineWidth = 1;
+    g.beginPath();
+    g.moveTo(p.x0, floorY + 0.5);
+    g.lineTo(p.x0 + p.wPx, floorY + 0.5);
+    g.stroke();
+    /* where the prop is actually being drawn, read back off its own anchor */
+    const live = liveMark(key, p, vw, vh);
+    g.strokeStyle = live ? color : 'rgba(248,113,113,0.95)';
+    g.lineWidth = 2;
+    g.beginPath();
+    g.moveTo(live.x - 7, live.y); g.lineTo(live.x + 7, live.y);
+    g.moveTo(live.x, live.y - 7); g.lineTo(live.x, live.y + 7);
+    g.stroke();
+    g.fillStyle = p.collided ? '#fecaca' : '#e2e8f0';
+    const tag = `${key} ${Math.round(p.committedPx)}px`
+      + (p.clamped
+        ? (p.committedPx < p.authoredPx ? ` (floor ${Math.round(p.floorPx)})` : ' (cap)')
+        : '')
+      + ` Δ${live ? live.err.toFixed(1) : '--'}`
+      + (p.state === 'nudged' ? ' NUDGED' : p.state === 'alt' ? ' ALT' : '');
+    g.fillText(tag, Math.max(2, p.x0), Math.max(2, p.y0 - scrollY - 14));
+    if (p.collided) {
+      g.fillStyle = '#fecaca';
+      g.fillText('NO FREE BOX — faded out', Math.max(2, p.x0), Math.max(2, p.y0 - scrollY + p.hPx + 10));
+    }
+    if (live && live.err > worstLive) { worstLive = live.err; worstLiveAt = key; }
   }
 
-  /* 7. one block of state, top-left, out of the way of the nav */
+  /* 6. one block of state, top-left, out of the way of the nav */
+  const st = data.stats || {};
   g.lineWidth = 1;
   g.fillStyle = 'rgba(11,15,18,0.75)';
-  g.fillRect(0, data.bandPx + 4, 292, 54);
+  g.fillRect(0, data.bandPx + 4, 300, 68);
   g.fillStyle = '#e2e8f0';
-  g.fillText(`#${data.sectionId}  ${Math.round(window.scrollY)}px  ${vw}x${vh}`, 8, data.bandPx + 10);
+  g.fillText(`#${data.sectionId}  ${Math.round(window.scrollY)}px  ${vw}x${vh}  ${data.variant}`, 8, data.bandPx + 10);
   g.fillStyle = '#94a3b8';
-  g.fillText(`cands ${data.candidates.length}  obstacles ${data.obstacles.length}`, 8, data.bandPx + 26);
-  g.fillText(`band ${Math.round(vh * P.bandTop)}-${Math.round(vh * P.bandBottom)}  pref ${Math.round(vh * P.preferredCenter)}`, 8, data.bandPx + 42);
+  g.fillText(`obstacles ${data.obstacles.length} (text ${st.text || 0} box ${st.box || 0} chip ${st.chip || 0} card ${st.card || 0} chrome ${st.chrome || 0})`, 8, data.bandPx + 26);
+  g.fillText(`dropped ${st.wrapper || 0} wrappers  ${st.wide || 0} over-wide  band ${Math.round(data.bandTopPx)}-${Math.round(data.bandBottomPx)}`, 8, data.bandPx + 42);
+  g.fillStyle = worstLive < CENTER_TOLERANCE_PX ? '#86efac' : '#fecaca';
+  g.fillText(`worst box/marker offset ${worstLive.toFixed(2)}px at ${worstLiveAt}`
+    + ` (tolerance ${CENTER_TOLERANCE_PX}px)`, 8, data.bandPx + 58);
 }
 
+/** One console line per section: what was asked for, and what was committed. */
 function logPlacement(places, sectionId) {
   const parts = OBJ_KEYS
-    .map((k) => `${k}=${places[k] && places[k].docked ? 'docked' : 'free'}`)
+    .map((k) => `${k}=${places[k] ? places[k].state : '-'}`)
     .join(' ');
   const sig = `${sectionId}|${parts}`;
   if (sig === _debugSig) return;
   _debugSig = sig;
-  const sizes = OBJ_KEYS.map((k) => `${k} ${Math.round(places[k] ? places[k].wPx : 0)}px`).join('  ');
+  const sizes = OBJ_KEYS
+    .map((k) => {
+      const p = places[k];
+      if (!p) return `${k} -`;
+      return `${k} ${Math.round(p.committedPx)}px@${Math.round(p.cxPx)}`;
+    })
+    .join('  ');
+  const lost = OBJ_KEYS.filter((k) => places[k] && places[k].collided);
   const floor = Math.round(TUNING.props.minScreenFraction * window.innerWidth);
-  const docked = OBJ_KEYS.filter((k) => places[k] && places[k].docked);
-  if (docked.length) {
-    log(`placement ${sectionId}: ${parts} — no free column at the anchor, so ${docked.join('+')} docked against a side edge instead of shrinking below the ${floor}px floor`);
+  if (lost.length) {
+    log(`placement ${sectionId}: ${parts} — ${lost.join('+')} had no free box inside the band after the nudge, so it faded out at full size instead of shrinking under the ${floor}px floor`);
   } else {
     log(`placement ${sectionId}: ${parts} — ${sizes}`);
   }
@@ -1023,12 +1110,19 @@ function renderOnce() {
   const s = state.engine.sample(state.progress, scrollY);
   state.yaw = s.yaw;
   applySample(s);
+  for (const key of OBJ_KEYS) {
+    const o = state.objects[key];
+    const b = state.bounds[key];
+    if (b) { b.quat.copy(o.group.quaternion); b.offX = o.group.position.x; b.offY = o.group.position.y; }
+  }
   const places = state.engine.layout(s, scrollY, state.camera, state.bounds);
   for (const key of OBJ_KEYS) {
     const o = state.objects[key];
     if (!o.group.visible) continue;
     const place = places[key];
-    o.docked = place.docked;
+    o.state = place.state;
+    o.collided = place.collided;
+    o.opacity = place.opacity;
     o.target.set(place.x, place.y, place.z);
     o.anchor.position.set(place.x, place.y, place.z);
     o.spinY = 0;
@@ -1037,7 +1131,7 @@ function renderOnce() {
       state.yaw,
       Math.cos(o.phase * 0.8) * 0.12
     );
-    o.group.scale.setScalar(place.scale * s.anchors[key].scale * o.baseScale);
+    o.group.scale.setScalar(place.scale);
     _linkPositions[key] = o.anchor.position;
     _linkCy[key] = place.cy;
   }
@@ -1414,8 +1508,7 @@ function exposeDebugHandle() {
       pixelRatio: state.pixelRatio,
       running: state.running,
       section: state.engine.out.sectionId,
-      focal: state.engine.out.focal.toFixed(2),
-      lineup: state.engine.out.lineup.toFixed(2),
+      variant: state.engine.out.variant,
       converge: state.engine.out.converge.toFixed(2),
       flow: state.engine.out.flow.toFixed(2),
       velocity: state.velocity.toFixed(2),
@@ -1423,8 +1516,13 @@ function exposeDebugHandle() {
       ray: state.rayKey || '-',
       props: OBJ_KEYS.map((k) => {
         const o = state.objects[k];
-        return `${k}:${o.docked ? 'docked' : 'free'}`;
-      }).join(' '),
+        const p = state.engine.debugData.chosen[k];
+        /* the live anchor vs the box: the number that would go red if the
+           solver and the scene ever disagreed again */
+        const live = liveMark(k, p, window.innerWidth, window.innerHeight);
+        return `${k}:${o.state}${o.collided ? '!' : ''}`
+          + (p ? ` ${Math.round(p.committedPx)}px Δ${live ? live.err.toFixed(1) : '--'}` : '');
+      }).join('  '),
       drawCalls: state.renderer.info.render.calls,
       triangles: state.renderer.info.render.triangles,
       programs: state.renderer.info.programs?.length ?? 0,
@@ -1432,8 +1530,8 @@ function exposeDebugHandle() {
       textures: state.renderer.info.memory.textures,
     }),
     dispose,
-    /* The live solve, for the console: measured rects in page space, the
-       candidate trail, and the box each prop committed to. */
+    /* The live solve, for the console: the measured rects in page space, the
+       authored anchor per prop, and the projected box each prop committed to. */
     debug: state.engine.debugData,
   };
   log('debug handle on window.__scene3d');

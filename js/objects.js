@@ -1082,10 +1082,61 @@ const FACTORIES = {
   network: createNetworkObject,
 };
 
+/** Scratch for the one-time recentre below. */
+const _measureBox = new THREE.Box3();
+const _measureC = new THREE.Vector3();
+
+/**
+ * Builds a prop and puts its ORIGIN at the centre of its own bounding box.
+ *
+ * This is the fix for the box/render mismatch. The builders place geometry
+ * where it is convenient to build it — the constellation's golden-angle shell
+ * has no vertical centre, the plug's cable runs deep in -Z, the HD letters sit
+ * in front of the frame — so the group's origin was never the middle of what
+ * the visitor sees. A collision box centred on that origin is drawn where the
+ * prop is NOT: up to a third of the object's height off, which is exactly the
+ * 65-230px the ?scene3d=debug overlay used to report.
+ *
+ * The shift is applied ONCE, to the built group, and the returned `group` is a
+ * thin wrapper around it, so the animation (which owns `group.position` for
+ * the float and the parallax, and `group.rotation` for the spin) can never
+ * cancel it. The wrapper's origin is now the centre of the projected bounds,
+ * which is what makes the anchor the centre of the box the solver commits.
+ */
 export function buildObject(key) {
   const factory = FACTORIES[key];
   if (!factory) throw new Error(`scene3d: unknown object "${key}"`);
-  return factory();
+  const built = factory();
+
+  /* One update at t=0 first: the constellation and the flow packets are
+   * InstancedMeshes whose per-instance matrices are written by update(), so
+   * measuring before that reads a single unit icosahedron instead of the
+   * object and every size derived from it is wrong. */
+  try { built.update(0, 0, null); } catch (err) { /* a prop still has to build */ }
+
+  _measureBox.setFromObject(built.group);
+  if (!_measureBox.isEmpty()) {
+    _measureBox.getCenter(_measureC);
+    built.group.position.sub(_measureC);
+  }
+
+  const group = new THREE.Group();
+  group.add(built.group);
+  built.group = group;
+
+  /* Half extents in local units: the solver projects these 8 corners with the
+   * live camera, so the box it commits is the mesh's real screen bounds. */
+  _measureBox.setFromObject(group);
+  const sx = _measureBox.max.x - _measureBox.min.x;
+  const sy = _measureBox.max.y - _measureBox.min.y;
+  const sz = _measureBox.max.z - _measureBox.min.z;
+  built.half = {
+    w: Math.max(0.05, sx * 0.5),
+    h: Math.max(0.05, sy * 0.5),
+    d: Math.max(0.05, sz * 0.5),
+  };
+  built.offCentre = Math.abs(_measureC.x) + Math.abs(_measureC.y) + Math.abs(_measureC.z);
+  return built;
 }
 
 export function disposeObject(obj) {
