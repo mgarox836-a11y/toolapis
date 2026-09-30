@@ -108,6 +108,15 @@ const state = {
 const _objCtx = { glow: 1, dim: 1, flow: 0 };
 const _linkCtx = { flow: 0, column: [-1, 1] };
 const _linkPositions = { hd: null, usb: null, network: null };
+/* NDC y of each placed prop this frame, and the page-space y a flow link
+   actually runs through. Both feed the per-link text column. */
+const _linkCy = { hd: 0, usb: 0, network: 0 };
+/* Shared scratch for linkPageBand(): the frame loop resolves one band per link
+   and each is consumed by the very next statement, so one buffer is enough and
+   the loop stays allocation-free. */
+const _linkBand = [0, 0];
+let _linkScrollY = 0;
+const _linkCols = [null, null, null];
 const _box = new THREE.Box3();
 const _sizeV = new THREE.Vector3();
 const _colScratch = [-1, 1];
@@ -162,7 +171,11 @@ function createRenderer() {
     stencil: false,
     powerPreference: 'high-performance',
   });
-  renderer.setClearColor(PALETTE.bg, 0);
+  /* Clear to FULLY TRANSPARENT black. Not "bg with alpha 0" and not an opaque
+     colour: a WebGL layer that never has an opinion about the page behind it
+     cannot tint it, whatever the tone mapping, the exposure or the composer
+     does later in the frame. `scene.background` is deliberately never set. */
+  renderer.setClearColor(0x000000, 0);
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
   renderer.toneMappingExposure = TUNING.exposure.near;
@@ -255,7 +268,7 @@ function createObjects() {
       hit: obj.hit || [],
       target: new THREE.Vector3(),
       baseScale: TUNING.objectScale,
-      safe: false,
+      docked: false,
       hover: 0,
       hoverTarget: 0,
       spinMul: 1,
@@ -289,6 +302,44 @@ function createProps() {
 function addFlowLinks() {
   state.links = createFlowLinks();
   state.scene.add(state.links.group);
+  /* One column PER LINK, resolved from the height that link actually runs
+     through. A link between two props that sit in the same free band finds no
+     copy at its own height and therefore draws in full; a link that would run
+     across a paragraph is faded out exactly across that paragraph. */
+  _linkCtx.columnFor = (a, b, index) => linkColumnFor(index);
+}
+
+/** Page-space y band a link occupies, in page coordinates. Returns the shared
+ *  `_linkBand` scratch, or null. Nothing keeps a reference past the call. */
+function linkPageBand(index) {
+  const pair = state.links.pairs[index];
+  if (!pair) return null;
+  const ya = _linkCy[pair[0]];
+  const yb = _linkCy[pair[1]];
+  if (typeof ya !== 'number' || typeof yb !== 'number') return null;
+  const vh = window.innerHeight;
+  const half = 0.5 * vh;
+  const a = (1 - ya) * half + _linkScrollY;
+  const b = (1 - yb) * half + _linkScrollY;
+  _linkBand[0] = a < b ? a : b;
+  _linkBand[1] = a < b ? b : a;
+  return _linkBand;
+}
+
+/**
+ * The hard text column at ONE link's own height. Returns null when there is
+ * nothing to avoid, which objects.js reads as "draw the link in full".
+ */
+function linkColumnFor(index) {
+  const band = linkPageBand(index);
+  if (!band) return null;
+  let col = _linkCols[index];
+  if (!col) { col = [-1, 1]; _linkCols[index] = col; }
+  const vh = window.innerHeight;
+  const ids = state.engine.sectionsOnScreen(_linkScrollY, vh);
+  /* A few px of slack so a link that grazes a line of text still fades. */
+  const found = state.engine.textColumnAt(ids, band[0] - 24, band[1] + 24, col);
+  return found ? col : null;
 }
 
 /* ============================================================================
@@ -566,15 +617,21 @@ function applySample(s) {
  * Places every prop for the current scroll position.
  *
  * The clearance solver (scroll.js) returns a world position that is guaranteed
- * to sit in a horizontally free band at the prop's own height. If no such band
- * exists the prop is pushed far back, shrunk and dimmed instead of overlapping
- * the copy.
+ * to sit in a horizontally free band at the prop's own height, at or above its
+ * size floor. If no such band exists anywhere the solver relocates the prop —
+ * to another column, to the centre of the free band between two sections, or
+ * docked against a side edge with part of it cropped by the screen — and it
+ * says which in `place.docked`. It never answers "shrink it to nothing and dim
+ * it until nobody can see it": that ladder is why the props used to vanish in
+ * Features, Flow and Clarity.
  */
 function placeObjects(s, dt, elapsed, scrollY) {
   const layout = TUNING.TIER[state.tier];
   const G = TUNING.gutters;
+  const P = TUNING.props;
   const V = TUNING.velocity;
   const vel = state.velocity;
+  _linkScrollY = scrollY;
 
   /* One batch solve for all three props: find the free bands, size them, push
      them apart, and unproject — in that order, so nothing can overlap. */
@@ -586,7 +643,8 @@ function placeObjects(s, dt, elapsed, scrollY) {
 
     const anchor = s.anchors[key];
     const place = places[key];
-    o.safe = place.safe;
+    o.docked = place.docked;
+    _linkCy[key] = place.cy;
 
     /* Damp toward the solved position so a changing free band glides. */
     o.target.set(place.x, place.y, place.z);
@@ -598,6 +656,7 @@ function placeObjects(s, dt, elapsed, scrollY) {
     if (!(state.intro.active && o.introFrom !== undefined)) {
       o.anchor.position.z = damp(o.anchor.position.z, o.target.z, lambda, dt);
     }
+
 
     /* --- Hover: the raycaster, or a hovered link/button carrying data-3d --- */
     o.hover = damp(o.hover, o.hoverTarget, TUNING.hover.damping, dt);
@@ -630,25 +689,41 @@ function placeObjects(s, dt, elapsed, scrollY) {
       Math.cos(elapsed * 0.19 + o.phase * 0.8) * 0.12 * (1 - 0.7 * s.converge)
       + V.tilt * vel * Math.sin(elapsed * 1.7 + o.phase);
 
-    /* --- Scale: the solver's fit x the authored per-stop scale x hover.
-     * Velocity stretches along the local Z (the direction of travel). --- */
-    const safeScale = o.safe ? G.safeScale : 1;
-    const fitScale = place.scale * anchor.scale * o.baseScale * safeScale;
+    /* --- Scale: the solver's size x the authored per-stop scale x hover.
+     * Velocity stretches along the local Z (the direction of travel). There is
+     * no safe-mode multiplier any more: the solver already refused any size
+     * below its floor, and scaling it down again is what used to erase it. --- */
+    const fitScale = place.scale * anchor.scale * o.baseScale;
     const target = fitScale * lerp(1, TUNING.hover.scale, o.hover);
     const cs = damp(o.group.scale.x, target, TUNING.hover.damping, dt);
     o.group.scale.set(cs, cs, cs * (1 + V.stretch * vel));
 
-    /* --- Glow: section dim x safe dim x behind-card dim x focus x hover
-     *         x reserved-header fade --- */
+    /* --- USB: the plug yaws so its long axis and its cable point OUTWARD,
+     * away from the text column. The side the solver settled on is the whole
+     * signal, so a prop that had to cross to the other gutter still points
+     * out of the composition. --- */
+    if (key === 'usb' && o.obj.outwardTarget !== undefined) {
+      const U = P.usb;
+      o.obj.outwardTarget = U.cableOutward ? (place.side === 'left' ? U.yaw : -U.yaw) : 0;
+      o.obj.outwardYaw = damp(o.obj.outwardYaw, o.obj.outwardTarget, TUNING.hover.damping * 0.7, dt);
+    }
+
+    /* --- Glow: section dim x behind-card dim x reserved-header fade x focus
+     *         x hover --- */
     const softMul = place.behind ? G.softDim : 1;
     /* `place.fade` is 1 everywhere except the reserved strip under the sticky
-       header, where it ramps to 0. That is what turns the old hard straight
-       cut across a prop into a soft dissolve. */
+     * header, where it ramps to 0. That is what turns the old hard straight
+     * cut across a prop into a soft dissolve. */
     const bandMul = place.fade === undefined ? 1 : place.fade;
-    const dim = clamp(s.exposure * anchor.dim * layout.exposureMul, 0, 1.4)
+    const raw = clamp(s.exposure * anchor.dim * layout.exposureMul, 0, 1.4)
       * focusMul * softMul * bandMul;
-    const safeDim = o.safe ? G.safeDim : 1;
-    const glow = (0.55 + 0.45 * dim) * safeDim * (1 + (TUNING.hover.glow - 1) * o.hover);
+    /* `props.minOpacity` is the floor that makes "always visible" true even at
+     * the worst moment of the header fade: the prop softens, it never goes
+     * out. A docked prop gets the same floor, which is why docking reads as
+     * "moved to the edge", not as "punished". */
+    const dim = Math.max(raw, P.minOpacity * layout.exposureMul);
+    const glow = (0.55 + 0.45 * dim) * (1 + (TUNING.hover.glow - 1) * o.hover);
+
 
     for (const m of o.materials) {
       const ud = m.userData || {};
@@ -668,23 +743,174 @@ function placeObjects(s, dt, elapsed, scrollY) {
     _linkPositions[key] = o.anchor.position;
   }
 
-  /* Feed the flow links the text column at their own height so they can fade
-     out exactly where they would cross copy. */
-  if (s.flow > 0.02) {
-    const vh = window.innerHeight;
-    const yTop = -1, yBot = 1;
-    state.engine.textColumnAt(
-      s.sectionId,
-      (1 - yTop) * 0.5 * vh + scrollY - vh * 0.5,
-      (1 - yBot) * 0.5 * vh + scrollY + vh * 0.5,
-      _colScratch
-    );
+  /* Feed the flow links the text column at their OWN height (see
+     linkColumnFor) so a tube fades out exactly where it would cross copy —
+     and stays at full strength where it would not. */
+  if (state.links) {
     _linkCtx.flow = s.flow;
-    _linkCtx.column = _colScratch;
-    state.links.update(state.elapsed, dt, _linkCtx, _linkPositions, state.camera);
-  } else if (state.links) {
-    _linkCtx.flow = 0;
-    state.links.update(state.elapsed, dt, _linkCtx, _linkPositions, state.camera);
+    if (s.flow > 0.02) {
+      /* _linkCtx.columnFor resolves per link; `column` stays a sane default
+         for a frame where the per-link path is not available. */
+      _linkCtx.column = _colScratch;
+      state.links.update(state.elapsed, dt, _linkCtx, _linkPositions, state.camera);
+    } else {
+      _linkCtx.flow = 0;
+      state.links.update(state.elapsed, dt, _linkCtx, _linkPositions, state.camera);
+    }
+  }
+
+  if (TUNING.debug) {
+    drawDebugOverlay(places);
+    logPlacement(places, s.sectionId);
+  }
+}
+
+/* ============================================================================
+ * 10a. DEBUG OVERLAY + PLACEMENT LOG (?scene3d=debug)
+ * ----------------------------------------------------------------------------
+ * The clearance solver is a search, so "why is that prop over that sentence?"
+ * is not answerable by reading the page — it needs the search itself. This
+ * draws the three things the solve was working from:
+ *
+ *   red   the measured obstacles (real text line extents, boxes, cards)
+ *   green every candidate that was ACCEPTED, faint the ones that were refused
+ *   blue  the header band reserved for the sticky nav
+ *   solid the box each prop actually committed to, plus its size in px
+ *
+ * `logPlacement()` prints the same story to the console, but only when the
+ * picture actually changes — the section, or a prop docking — so scrolling
+ * through a section does not produce a line per frame.
+ * ==========================================================================*/
+
+const DEBUG_KEY_COLORS = { hd: '#38bdf8', usb: '#a3e635', network: '#f472b6' };
+let _debugCanvas = null;
+let _debugCtx = null;
+let _debugSig = '';
+
+function ensureDebugOverlay() {
+  if (!TUNING.debug || _debugCanvas || !document.body) return;
+  const c = document.createElement('canvas');
+  c.id = 'scene3d-debug';
+  c.setAttribute('aria-hidden', 'true');
+  c.style.cssText = 'position:fixed;inset:0;width:100%;height:100%;'
+    + 'z-index:65;pointer-events:none;';
+  document.body.appendChild(c);
+  _debugCanvas = c;
+  _debugCtx = c.getContext('2d');
+}
+
+function removeDebugOverlay() {
+  if (_debugCanvas && _debugCanvas.parentNode) _debugCanvas.parentNode.removeChild(_debugCanvas);
+  _debugCanvas = null;
+  _debugCtx = null;
+  _debugSig = '';
+}
+
+/** Shared scratch for the debug overlay's NDC->viewport conversion. */
+const _ndcOut = { x: 0, y: 0, w: 0, h: 0 };
+
+/** An NDC box (centre + px size) -> a viewport rect in the `_ndcOut` scratch.
+ *  Returns the shared object; the caller reads it before the next call. */
+function ndcRect(cx, cy, wPx, hPx, vw, vh) {
+  const hy = hPx / vh;
+  _ndcOut.x = (cx * 0.5 + 0.5) * vw - wPx * 0.5;
+  _ndcOut.y = (1 - (cy - hy)) * 0.5 * vh;
+  _ndcOut.w = wPx;
+  _ndcOut.h = hPx;
+  return _ndcOut;
+}
+
+function drawDebugOverlay(places) {
+  if (!_debugCtx) return;
+  const vw = window.innerWidth;
+  const vh = window.innerHeight;
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  const w = Math.round(vw * dpr);
+  const h = Math.round(vh * dpr);
+  if (_debugCanvas.width !== w || _debugCanvas.height !== h) {
+    _debugCanvas.width = w;
+    _debugCanvas.height = h;
+  }
+  const g = _debugCtx;
+  g.setTransform(dpr, 0, 0, dpr, 0, 0);
+  g.clearRect(0, 0, vw, vh);
+
+  const data = state.engine.debugData;
+  const scrollY = _linkScrollY;
+
+  /* 1. measured obstacles, in viewport space */
+  g.lineWidth = 1;
+  g.strokeStyle = 'rgba(248,113,113,0.5)';
+  g.fillStyle = 'rgba(248,113,113,0.08)';
+  for (const r of data.obstacles) {
+    const y = r.y0 - scrollY;
+    if (y > vh || y + (r.y1 - r.y0) < 0) continue;
+    g.fillRect(r.x0, y, r.x1 - r.x0, r.y1 - r.y0);
+    g.strokeRect(r.x0, y, r.x1 - r.x0, r.y1 - r.y0);
+  }
+
+  /* 2. the search trail: accepted bright, refused almost invisible */
+  for (const c of data.candidates) {
+    if (c.wPx < 1) continue;
+    const r = ndcRect(c.cx, c.cy, c.wPx, c.hPx, vw, vh);
+    if (r.y > vh || r.y + r.h < 0) continue;
+    g.strokeStyle = c.ok
+      ? 'rgba(163,230,53,0.5)'
+      : 'rgba(163,230,53,0.10)';
+    g.strokeRect(r.x, r.y, r.w, r.h);
+  }
+
+  /* 3. the reserved sticky-header band */
+  if (data.bandPx > 0) {
+    g.fillStyle = 'rgba(56,189,248,0.10)';
+    g.fillRect(0, 0, vw, data.bandPx);
+    g.strokeStyle = 'rgba(56,189,248,0.45)';
+    g.beginPath();
+    g.moveTo(0, data.bandPx + 0.5);
+    g.lineTo(vw, data.bandPx + 0.5);
+    g.stroke();
+  }
+
+  /* 4. what each prop committed to */
+  g.font = '11px ui-monospace, SFMono-Regular, Menlo, monospace';
+  g.textBaseline = 'top';
+  for (const key of OBJ_KEYS) {
+    const p = places[key];
+    if (!p) continue;
+    const r = ndcRect(p.cx, p.cy, p.wPx, p.hPx, vw, vh);
+    const color = DEBUG_KEY_COLORS[key] || '#ffffff';
+    g.strokeStyle = color;
+    g.lineWidth = p.docked ? 3 : 2;
+    g.strokeRect(r.x, r.y, r.w, r.h);
+    g.fillStyle = color;
+    const tag = `${key} ${Math.round(p.wPx)}px${p.docked ? ' DOCKED' : ''}`;
+    g.fillText(tag, Math.max(2, r.x), Math.max(2, r.y - 13));
+  }
+
+  /* 5. one line of state, top-left, out of the way of the nav */
+  g.lineWidth = 1;
+  g.fillStyle = 'rgba(11,15,18,0.75)';
+  g.fillRect(0, data.bandPx + 4, 268, 40);
+  g.fillStyle = '#e2e8f0';
+  g.fillText(`#${data.sectionId}  ${Math.round(window.scrollY)}px  ${vw}x${vh}`, 8, data.bandPx + 10);
+  g.fillStyle = '#94a3b8';
+  g.fillText(`cands ${data.candidates.length}  obstacles ${data.obstacles.length}`, 8, data.bandPx + 26);
+}
+
+function logPlacement(places, sectionId) {
+  const parts = OBJ_KEYS
+    .map((k) => `${k}=${places[k] && places[k].docked ? 'docked' : 'free'}`)
+    .join(' ');
+  const sig = `${sectionId}|${parts}`;
+  if (sig === _debugSig) return;
+  _debugSig = sig;
+  const sizes = OBJ_KEYS.map((k) => `${k} ${Math.round(places[k] ? places[k].wPx : 0)}px`).join('  ');
+  const floor = Math.round(TUNING.props.minScreenFraction * window.innerWidth);
+  const docked = OBJ_KEYS.filter((k) => places[k] && places[k].docked);
+  if (docked.length) {
+    log(`placement ${sectionId}: ${parts} — no free column at the anchor, so ${docked.join('+')} docked against a side edge instead of shrinking below the ${floor}px floor`);
+  } else {
+    log(`placement ${sectionId}: ${parts} — ${sizes}`);
   }
 }
 
@@ -741,15 +967,18 @@ function onClick(e) {
 /** Renders exactly one frame with no time-based motion (reduced motion, resize). */
 function renderOnce() {
   if (!state.renderer) return;
-  const s = state.engine.sample(state.progress, window.scrollY);
+  const scrollY = window.scrollY || 0;
+  _linkScrollY = scrollY;
+  const s = state.engine.sample(state.progress, scrollY);
   state.yaw = s.yaw;
   applySample(s);
-  const places = state.engine.layout(s, window.scrollY, state.camera, state.bounds);
+  const places = state.engine.layout(s, scrollY, state.camera, state.bounds);
   for (const key of OBJ_KEYS) {
     const o = state.objects[key];
     if (!o.group.visible) continue;
     const place = places[key];
-    o.safe = place.safe;
+    o.docked = place.docked;
+    o.target.set(place.x, place.y, place.z);
     o.anchor.position.set(place.x, place.y, place.z);
     o.spinY = 0;
     o.group.rotation.set(
@@ -757,10 +986,9 @@ function renderOnce() {
       state.yaw,
       Math.cos(o.phase * 0.8) * 0.12
     );
-    o.group.scale.setScalar(
-      place.scale * s.anchors[key].scale * o.baseScale * (o.safe ? TUNING.gutters.safeScale : 1)
-    );
+    o.group.scale.setScalar(place.scale * s.anchors[key].scale * o.baseScale);
     _linkPositions[key] = o.anchor.position;
+    _linkCy[key] = place.cy;
   }
   if (state.links) {
     _linkCtx.flow = s.flow;
@@ -769,6 +997,7 @@ function renderOnce() {
   }
   if (state.particles) state.particles.material.uniforms.uTime.value = 0;
   renderFrame();
+  if (TUNING.debug) drawDebugOverlay(places);
 }
 
 function animate(now) {
@@ -1100,6 +1329,7 @@ function dispose() {
     state.canvas.parentNode.removeChild(state.canvas);
   }
   state.canvas = null;
+  removeDebugOverlay();
   document.documentElement.classList.remove('scene3d');
   log('disposed');
 }
@@ -1112,6 +1342,7 @@ function bail(reason, err) {
   if (state.canvas && state.canvas.parentNode) state.canvas.parentNode.removeChild(state.canvas);
   state.canvas = null;
   state.renderer = null;
+  removeDebugOverlay();
   /* Removing the class is what re-opens .hero-bg's opaque background. */
   document.documentElement.classList.remove('scene3d');
   /* Tell the intro it should stop waiting on a scene that will never exist. */
@@ -1139,7 +1370,10 @@ function exposeDebugHandle() {
       velocity: state.velocity.toFixed(2),
       focus: state.focusKey || '-',
       ray: state.rayKey || '-',
-      safe: OBJ_KEYS.map((k) => `${k}:${state.objects[k].safe ? 'safe' : 'gutter'}`).join(' '),
+      props: OBJ_KEYS.map((k) => {
+        const o = state.objects[k];
+        return `${k}:${o.docked ? 'docked' : 'free'}`;
+      }).join(' '),
       drawCalls: state.renderer.info.render.calls,
       triangles: state.renderer.info.render.triangles,
       programs: state.renderer.info.programs?.length ?? 0,
@@ -1147,6 +1381,9 @@ function exposeDebugHandle() {
       textures: state.renderer.info.memory.textures,
     }),
     dispose,
+    /* The live solve, for the console: measured rects in page space, the
+       candidate trail, and the box each prop committed to. */
+    debug: state.engine.debugData,
   };
   log('debug handle on window.__scene3d');
 }
@@ -1227,6 +1464,7 @@ function init() {
 
     document.documentElement.classList.add('scene3d');
     state.canvas.classList.add('is-ready');
+    ensureDebugOverlay();
 
     addListeners();
     setupInViewObserver();

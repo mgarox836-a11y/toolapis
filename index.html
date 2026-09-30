@@ -34,18 +34,35 @@
             <html> (the page ships `scroll-smooth`) is what beats a late
             browser restore: a plain scrollTo(0, 0) is animated by CSS and
             loses the race to the restore it is meant to cancel.
+
+
+             The scroll position is pinned, not merely requested. Two extra
+             assignments do the work:
+               * `overflow-anchor: none` on <html> stops the browser from
+                 "helping" by re-anchoring content when the intro overlay is
+                 removed from the flow above us;
+               * `overscroll-behavior: none` stops a restore from being
+                 interpreted as momentum, which some engines do on a reload.
+             Both are inline styles on <html>, and cleanup() clears them, so
+             the finished page scrolls exactly as it always did.
          ========================================================================== */
       function forceTop() {
         try {
           var d = document.documentElement;
           if (!d) return;
           var prev = d.style.scrollBehavior;
+          var prevAnchor = d.style.overflowAnchor;
+          var prevOver = d.style.overscrollBehavior;
           d.style.scrollBehavior = 'auto';
+          d.style.overflowAnchor = 'none';
+          d.style.overscrollBehavior = 'none';
           try { window.scrollTo({ top: 0, left: 0, behavior: 'instant' }); }
           catch (e) { try { window.scrollTo(0, 0); } catch (e2) {} }
           d.scrollTop = 0;
           try { if (document.body) document.body.scrollTop = 0; } catch (e) {}
           d.style.scrollBehavior = prev;
+          d.style.overflowAnchor = prevAnchor;
+          d.style.overscrollBehavior = prevOver;
         } catch (e) {}
       }
       /* js/intro.js reuses this exact function instead of owning a second one. */
@@ -63,6 +80,15 @@
           if (d) { d.classList.remove('intro-active'); d.style.overflow = '';
                    d.style.touchAction = ''; d.classList.add('intro-done'); }
           if (b) { b.style.overflow = ''; b.style.touchAction = ''; b.classList.add('intro-done'); }
+        } catch (e) {}
+        /* The top is re-asserted AFTER the overlay leaves the flow, because
+           that reflow is the classic moment for a restored position to snap
+           back in. Two frames and a short delay cover the cases where the
+           engine commits its restore on the next layout pass instead. */
+        try {
+          requestAnimationFrame(function () { forceTop(); requestAnimationFrame(forceTop); });
+          setTimeout(forceTop, 60);
+          setTimeout(forceTop, 250);
         } catch (e) {}
       }
 
@@ -124,7 +150,19 @@
       startGuard(1200);
 
       document.addEventListener('DOMContentLoaded', forceTop, true);
-      window.addEventListener('load', function () { forceTop(); startGuard(600); }, true);
+      window.addEventListener('load', function () {
+        forceTop();
+        startGuard(600);
+        /* The restore can also be committed late on some engines, well after
+           load. A short decaying sweep covers that window, and it stops the
+           moment the visitor touches the page or the intro hands over. */
+        [0, 100, 300, 800, 1500].forEach(function (ms) {
+          setTimeout(function () {
+            try { if (guardStop) return; } catch (e) {}
+            forceTop();
+          }, ms);
+        });
+      }, true);
       /* bfcache restores, and anything that could run a restore of its own. */
       window.addEventListener('pageshow', function (e) {
         forceTop();
@@ -408,7 +446,7 @@
         <div class="reveal tilt spot-card sheen glass-panel p-6 md:p-8 rounded-2xl space-y-4 hover:border-accent-mint/30 transition-colors duration-300" data-tilt="8">
           <div class="relative w-12 h-12 rounded-xl bg-accent-mint/10 border border-accent-mint/20 flex items-center justify-center text-accent-mint">
             <span aria-hidden="true" class="absolute -inset-1 rounded-xl bg-accent-mint/10 blur-lg"></span>
-            <svg class="ph ph-usb" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><circle cx="7.4" cy="7.4" r="1.3"/><path d="M8.5 8.5 11.6 11.6"/><path d="M4 20.4 11.6 12.8"/><path d="M11.6 12.8 17.2 7.2"/><path d="M15.8 7.2h2.8"/><path d="M11.6 12.8 16.2 17.4"/><rect x="16.2" y="17.4" width="3" height="3" rx=".5"/></svg>
+            <svg class="ph ph-usb" viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><circle cx="7.4" cy="7.4" r="1.3"/><path d="M8.5 8.5 11.6 11.6"/><path d="M4 20.4 11.6 12.8"/><path d="M11.6 12.8 17.2 7.2"/><path d="M15.8 7.2h2.8"/><path d="M11.6 12.8 16.2 17.4"/><rect x="16.2" y="17.4" width="3" height="3" rx=".5"/></svg>
           </div>
           <h3 class="font-display font-bold text-xl text-white">Gnirehtet Tethering</h3>
           <p class="text-slate-400 text-sm leading-relaxed">
@@ -426,7 +464,7 @@
         <div class="reveal tilt spot-card sheen glass-panel p-6 md:p-8 rounded-2xl space-y-4 hover:border-accent-mint/30 transition-colors duration-300" data-tilt="8">
           <div class="relative w-12 h-12 rounded-xl bg-accent-mint/10 border border-accent-mint/20 flex items-center justify-center text-accent-mint">
             <span aria-hidden="true" class="absolute -inset-1 rounded-xl bg-accent-mint/10 blur-lg"></span>
-            <svg class="ph ph-share-network" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><circle cx="18" cy="5.5" r="2.4"/><circle cx="6" cy="12" r="2.4"/><circle cx="18" cy="18.5" r="2.4"/><path d="M8.1 10.8 15.9 6.7"/><path d="M8.1 13.2 15.9 17.3"/></svg>
+            <svg class="ph ph-share-network" viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><circle cx="18" cy="5.5" r="2.4"/><circle cx="6" cy="12" r="2.4"/><circle cx="18" cy="18.5" r="2.4"/><path d="M8.1 10.8 15.9 6.7"/><path d="M8.1 13.2 15.9 17.3"/></svg>
           </div>
           <h3 class="font-display font-bold text-xl text-white">Social Media Hub</h3>
           <p class="text-slate-400 text-sm leading-relaxed">
@@ -503,7 +541,7 @@
         <!-- Step 1 -->
         <div class="reveal flex-1 flex md:flex-col items-start md:items-center gap-4 md:gap-5 md:text-center">
           <div class="w-12 h-12 shrink-0 rounded-full glass-panel border border-accent-mint/30 flex items-center justify-center text-accent-mint">
-            <svg class="ph ph-cursor-click" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M7.6 3.4v12.4l3.2-3.1 2.2 5.4 2.9-1.2-2.2-5.4h4.5z"/></svg>
+            <svg class="ph ph-cursor-click" viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M7.6 3.4v12.4l3.2-3.1 2.2 5.4 2.9-1.2-2.2-5.4h4.5z"/></svg>
           </div>
           <div>
             <h3 class="font-display font-bold text-white">Pick a tool</h3>
@@ -517,7 +555,7 @@
         <!-- Step 2 -->
         <div class="reveal flex-1 flex md:flex-col items-start md:items-center gap-4 md:gap-5 md:text-center">
           <div class="w-12 h-12 shrink-0 rounded-full glass-panel border border-accent-mint/30 flex items-center justify-center text-accent-mint">
-            <svg class="ph ph-rocket-launch" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M12 2.8c2.7 2.1 4.1 5.1 4.1 8.4 0 1.9-.3 3.6-1 5.1H8.9c-.7-1.5-1-3.2-1-5.1 0-3.3 1.4-6.3 4.1-8.4Z"/><circle cx="12" cy="9.4" r="1.9"/><path d="M8.9 16.3 6.7 19.4l3-1.1"/><path d="M15.1 16.3l2.2 3.1-3-1.1"/><path d="M10.5 19.1c.5 1.2 1 1.9 1.5 1.9s1-.7 1.5-1.9"/></svg>
+            <svg class="ph ph-rocket-launch" viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M12 2.8c2.7 2.1 4.1 5.1 4.1 8.4 0 1.9-.3 3.6-1 5.1H8.9c-.7-1.5-1-3.2-1-5.1 0-3.3 1.4-6.3 4.1-8.4Z"/><circle cx="12" cy="9.4" r="1.9"/><path d="M8.9 16.3 6.7 19.4l3-1.1"/><path d="M15.1 16.3l2.2 3.1-3-1.1"/><path d="M10.5 19.1c.5 1.2 1 1.9 1.5 1.9s1-.7 1.5-1.9"/></svg>
           </div>
           <div>
             <h3 class="font-display font-bold text-white">Launch it</h3>
@@ -531,7 +569,7 @@
         <!-- Step 3 -->
         <div class="reveal flex-1 flex md:flex-col items-start md:items-center gap-4 md:gap-5 md:text-center">
           <div class="w-12 h-12 shrink-0 rounded-full glass-panel border border-accent-mint/30 flex items-center justify-center text-accent-mint">
-            <svg class="ph ph-check-circle" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="8.6"/><path d="m8.3 12.2 2.7 2.7 4.7-5.3"/></svg>
+            <svg class="ph ph-check-circle" viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="8.6"/><path d="m8.3 12.2 2.7 2.7 4.7-5.3"/></svg>
           </div>
           <div>
             <h3 class="font-display font-bold text-white">You're done</h3>

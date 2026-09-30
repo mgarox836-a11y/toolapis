@@ -432,7 +432,13 @@ const CABLE_FRAG_INJECT = /* glsl */`
 `;
 
 function createUSBObject() {
+  /* The whole plug lives in an `inner` group whose Y rotation is driven by the
+   * scroll solver (js/scene3d.js): the plug's long axis — shell, moulded body
+   * and cable — is yawed to point OUTWARD, away from the text column, so the
+   * cable curls out of the composition instead of across the headline. */
   const group = new THREE.Group();
+  const inner = new THREE.Group();
+  group.add(inner);
   const materials = [];
   const textures = [];
   const hit = [];
@@ -448,14 +454,14 @@ function createUSBObject() {
   shellGeo.translate(0, 0, SHELL_D / 2 - 0.06);
   const shellMat = track(makeMetal({ rim: 0.5, rimPower: 3.0 }));
   const shell = new THREE.Mesh(shellGeo, shellMat);
-  group.add(shell);
+  inner.add(shell);
   materials.push(shellMat);
   hit.push(shell);
 
   /* --- Back plate closing the tube --- */
   const backGeo = new RoundedBoxGeometry(SHELL_W - 0.06, SHELL_H - 0.06, 0.05, 2, 0.02);
   const darkMat = track(makeGlossy({ color: 0x06090b, metalness: 0.2, roughness: 0.6, clearcoat: 0.2, rim: 0.18 }));
-  group.add(new THREE.Mesh(backGeo, darkMat));
+  inner.add(new THREE.Mesh(backGeo, darkMat));
   materials.push(darkMat);
 
   /* --- Inner tongue with four lime contact pads --- */
@@ -463,7 +469,7 @@ function createUSBObject() {
   const tongueGeo = new RoundedBoxGeometry(SHELL_W - 0.12, 0.075, 0.34, 2, 0.015);
   tongueGeo.translate(0, -0.075, 0.11);
   const tongue = new THREE.Mesh(tongueGeo, tongueMat);
-  group.add(tongue);
+  inner.add(tongue);
   materials.push(tongueMat);
   hit.push(tongue);
 
@@ -476,7 +482,7 @@ function createUSBObject() {
     pads.setMatrixAt(i, _m);
   }
   pads.instanceMatrix.needsUpdate = true;
-  group.add(pads);
+  inner.add(pads);
   materials.push(padMat);
 
   /* --- Two retention holes in the top wall --- */
@@ -485,7 +491,7 @@ function createUSBObject() {
   for (const sx of [-1, 1]) {
     const h = new THREE.Mesh(holeGeo, holeMat);
     h.position.set(sx * 0.11, SHELL_H / 2 - 0.012, 0.16);
-    group.add(h);
+    inner.add(h);
   }
   materials.push(holeMat);
 
@@ -494,24 +500,28 @@ function createUSBObject() {
   const bodyGeo = new RoundedBoxGeometry(0.50, 0.40, 0.46, 4, 0.07);
   bodyGeo.translate(0, 0, -0.30);
   const body = new THREE.Mesh(bodyGeo, bodyMat);
-  group.add(body);
+  inner.add(body);
   materials.push(bodyMat);
   hit.push(body);
 
   const reliefGeo = new THREE.CylinderGeometry(0.11, 0.15, 0.22, 16, 1, false);
   reliefGeo.rotateX(Math.PI / 2);
   reliefGeo.translate(0, 0, -0.60);
-  group.add(new THREE.Mesh(reliefGeo, bodyMat));
+  inner.add(new THREE.Mesh(reliefGeo, bodyMat));
 
-  /* --- Cable: TubeGeometry along a CatmullRomCurve3 that undulates --- */
+  /* --- Cable: TubeGeometry along a CatmullRomCurve3 that undulates ---
+   * Deliberately SHORT (it used to run 2.2 units behind the plug, which in the
+   * hero reached straight across the headline). The visible length is now
+   * under 1.5 units, and the outward yaw foreshortens it further, so it reads
+   * as a cable leaving frame rather than as a line drawn through the copy. */
   const curve = new THREE.CatmullRomCurve3([
     new THREE.Vector3( 0.00,  0.00, -0.66),
-    new THREE.Vector3( 0.03,  0.10, -1.05),
-    new THREE.Vector3(-0.18,  0.16, -1.45),
-    new THREE.Vector3(-0.34, -0.02, -1.85),
-    new THREE.Vector3(-0.20, -0.20, -2.22),
+    new THREE.Vector3( 0.02,  0.09, -0.92),
+    new THREE.Vector3(-0.14,  0.13, -1.16),
+    new THREE.Vector3(-0.24, -0.02, -1.36),
+    new THREE.Vector3(-0.14, -0.16, -1.50),
   ], false, 'catmullrom', 0.5);
-  const cableGeo = new THREE.TubeGeometry(curve, 88, 0.072, 12, false);
+  const cableGeo = new THREE.TubeGeometry(curve, 64, 0.072, 12, false);
   const cableMat = track(makeGlossy({
     color: 0x0a0e12, metalness: 0.1, roughness: 0.45, clearcoat: 0.7, rim: 0.55,
   }));
@@ -537,7 +547,7 @@ function createUSBObject() {
       .replace('#include <opaque_fragment>', `#include <opaque_fragment>\n${CABLE_FRAG_INJECT}`);
   }, 'toolapis-cable-pulse');
   const cable = new THREE.Mesh(cableGeo, cableMat);
-  group.add(cable);
+  inner.add(cable);
   materials.push(cableMat);
   hit.push(cable);
 
@@ -545,12 +555,18 @@ function createUSBObject() {
   const ringGeo = new THREE.TorusGeometry(0.10, 0.016, 8, 28);
   ringGeo.translate(0, 0, -0.68);
   const ringMat = track(makeLime({ intensity: 2.2 }));
-  group.add(new THREE.Mesh(ringGeo, ringMat));
+  inner.add(new THREE.Mesh(ringGeo, ringMat));
   materials.push(ringMat);
 
   return {
     key: 'usb',
     group,
+    /* Exposed so js/scene3d.js can yaw the plug outward from the text. The
+     * target is set per frame from the anchor side the solver chose; this
+     * value is the current (damped) angle. */
+    inner,
+    outwardYaw: 0,
+    outwardTarget: 0,
     materials,
     textures,
     hit,
@@ -558,6 +574,12 @@ function createUSBObject() {
       pulseUniforms.uTime.value = elapsed;
       /* pulses brighten with the glow the loop assigns to this object */
       pulseUniforms.uPulseStrength.value = (ctx ? ctx.glow : 0.6) * 0.9;
+      /* Outward yaw, with a slow breathing tilt so it is never rigid. The
+       * solver owns the base angle; the wobble is this object's own. */
+      const yaw = this.outwardYaw;
+      inner.rotation.y = yaw + Math.sin(elapsed * 0.21) * 0.06;
+      inner.rotation.z = 0.14 + Math.cos(elapsed * 0.17) * 0.05;
+      inner.rotation.x = -0.10 + Math.sin(elapsed * 0.13 + 1.1) * 0.05;
     },
   };
 }
@@ -713,44 +735,55 @@ function radialCanvasTexture(size, stops) {
 export function createBackgroundProps() {
   const group = new THREE.Group();
   const textures = [];
+  const B = TUNING.background;
 
-  /* Faint wireframe icosahedron, far behind everything */
+  /* Faint wireframe icosahedron, far behind everything.
+   * Every value here is deliberately at the floor of visibility: this layer
+   * sits BEHIND the whole page, so anything more than a whisper reads as a
+   * pattern behind the headline rather than as depth. */
   const wireMat = new THREE.MeshBasicMaterial({
-    color: PALETTE.accent, wireframe: true, transparent: true, opacity: 0.055,
+    color: PALETTE.accent, wireframe: true, transparent: true, opacity: B.wire.opacity,
     depthWrite: false, fog: true,
   });
-  const wire = new THREE.Mesh(new THREE.IcosahedronGeometry(7.5, 1), wireMat);
-  wire.position.set(0, 0.5, -20);
+  const wire = new THREE.Mesh(new THREE.IcosahedronGeometry(B.wire.radius, 1), wireMat);
+  wire.position.set(0, 0.5, B.wire.z);
   wire.rotation.set(0.4, 0.2, 0);
   group.add(wire);
 
-  /* Two tilted orbit rings, same treatment */
+  /* Two tilted orbit rings, same treatment, and thinner than a hairline. */
   const ringMat = new THREE.MeshBasicMaterial({
-    color: PALETTE.accent, transparent: true, opacity: 0.045, depthWrite: false, fog: true,
+    color: PALETTE.accent, transparent: true, opacity: B.ring.opacity, depthWrite: false, fog: true,
   });
-  const ringA = new THREE.Mesh(new THREE.TorusGeometry(10.5, 0.022, 6, 120), ringMat);
-  ringA.position.set(0, 0.5, -19);
+  const ringA = new THREE.Mesh(new THREE.TorusGeometry(B.ring.radiusA, B.ring.tube, 6, 120), ringMat);
+  ringA.position.set(0, 0.5, B.ring.z);
   ringA.rotation.set(1.15, 0.35, 0.2);
   group.add(ringA);
-  const ringB = new THREE.Mesh(new THREE.TorusGeometry(13.0, 0.016, 6, 120), ringMat);
-  ringB.position.set(0, 0.5, -19);
+  const ringB = new THREE.Mesh(new THREE.TorusGeometry(B.ring.radiusB, B.ring.tube * 0.8, 6, 120), ringMat);
+  ringB.position.set(0, 0.5, B.ring.z);
   ringB.rotation.set(1.55, -0.5, -0.3);
   group.add(ringB);
 
-  /* Ground glow: additive radial sprite, so there is no floor plane edge */
+  /* Ground glow: a SMALL additive radial sprite hugging the bottom edge.
+   * It is not a floor plane and it is not a horizon: at full width it turned
+   * the bottom of every section into an olive band, so it is capped at
+   * `background.groundGlow.opacity` (0.12), sized well inside the frame, and
+   * dropped far enough down that only its top sliver is ever on screen. */
   const glowTex = radialCanvasTexture(256, [
-    [0.0, 'rgba(163,230,53,0.30)'],
-    [0.45, 'rgba(163,230,53,0.10)'],
-    [1.0, 'rgba(163,230,53,0.0)'],
+    [0.0, `rgba(163,230,53,${B.groundGlow.core})`],
+    [0.45, `rgba(163,230,53,${B.groundGlow.mid})`],
+    [1.0, `rgba(163,230,53,${B.groundGlow.edge})`],
   ]);
   textures.push(glowTex);
   const glowMat = new THREE.MeshBasicMaterial({
-    map: glowTex, transparent: true, opacity: 0.55,
+    map: glowTex, transparent: true, opacity: B.groundGlow.opacity,
     blending: THREE.AdditiveBlending, depthWrite: false, fog: false,
   });
-  const ground = new THREE.Mesh(new THREE.PlaneGeometry(46, 30), glowMat);
+  const ground = new THREE.Mesh(
+    new THREE.PlaneGeometry(B.groundGlow.sizeX, B.groundGlow.sizeZ),
+    glowMat
+  );
   ground.rotation.x = -Math.PI / 2;
-  ground.position.set(0, -4.4, -2);
+  ground.position.set(0, B.groundGlow.y, B.groundGlow.z);
   group.add(ground);
 
   return {
@@ -978,13 +1011,18 @@ export function createFlowLinks() {
     group,
     materials,
     textures,
+    /* The endpoint keys, in draw order. js/scene3d.js reads this so it can
+       resolve the text column at each link's OWN height — the link's index
+       here is the index the shader gets as `i`. */
+    pairs: FLOW_PAIRS,
     update(elapsed, dt, ctx, positions, camera) {
       const flow = ctx ? ctx.flow : 0;
       const visible = flow > 0.02;
       group.visible = visible;
       if (!visible) return;
 
-      for (const link of links) {
+      for (let i = 0; i < links.length; i++) {
+        const link = links[i];
         const a = positions[link.from];
         const b = positions[link.to];
         if (!a || !b) { link.mesh.visible = false; continue; }
@@ -1017,7 +1055,14 @@ export function createFlowLinks() {
         link.mat.opacity = 0.12 + 0.34 * w;
         link.uniforms.uTime.value = elapsed;
         link.uniforms.uPulseStrength.value = 1.6 * w;
-        if (ctx && ctx.column) link.uniforms.uColumn.value.set(ctx.column[0], ctx.column[1]);
+        /* Never cross copy: the caller hands us the text column for THIS
+         * link's own height (a link that runs through a free band gets no
+         * column at all and draws in full; one that would cross the copy
+         * fades out across it). */
+        const col = (ctx && typeof ctx.columnFor === 'function')
+          ? ctx.columnFor(a, b, i)
+          : (ctx ? ctx.column : null);
+        if (col) link.uniforms.uColumn.value.set(col[0], col[1]);
       }
     },
     dispose() {

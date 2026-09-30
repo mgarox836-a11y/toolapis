@@ -73,10 +73,14 @@ export const TUNING = {
 
   /* ==== Lighting / exposure — keep the blacks BLACK ====
    * Exposure is deliberately low: props are lit by a single soft key plus two
-   * small lime accents, never by a bright ambient wash. */
+   * small lime accents, never by a bright ambient wash.
+   * NOTE: the page background is CSS, so exposure can only ever DARKEN the
+   * props — it can never lift the black of the page. That is why the
+   * per-section dim is applied to the materials (emissive / rim) and not to
+   * the canvas, and why `near` and `far` stay close together. */
   exposure: {
-    near: 0.82,   // hero
-    far:  0.50,   // clarity
+    near: 0.85,   // hero
+    far:  0.66,   // clarity
   },
   lights: {
     key:  0.75,   // soft white directional
@@ -84,7 +88,7 @@ export const TUNING = {
     kick: 4.5,    // opposite-side accent kicker
     hemi: 0.10,   // shadow-side fill — anything higher greys out the blacks
   },
-  env: { enabled: true, intensity: 0.30 },
+  env: { enabled: true, intensity: 0.20 },
 
   /* ==== Fog ====
    * FogExp2 densities, not linear near/far. The colour MUST equal
@@ -103,12 +107,42 @@ export const TUNING = {
   mobileMaxPixelRatio: 1.25,
   antialias: true,
 
-  /* ==== Bloom — desktop tier only ==== */
+  /* ==== Bloom ====
+   * DISABLED BY DEFAULT, ON PURPOSE. UnrealBloomPass composites additively
+   * over the whole frame; on a canvas whose clear alpha is 0 that lifts the
+   * transparent black to a uniform grey haze and the page stops being
+   * #0B0F12 (the "butek" cast). The emissive glow that bloom was only
+   * exaggerating is already carried by the Fresnel rim + the lime materials +
+   * the additive ground sprite, so nothing is lost visually.
+   *
+   * To bring it back: set enabled = true AND keep threshold >= 0.9, so only
+   * the lime emissive parts pass the high-pass. A lower threshold lifts the
+   * blacks no matter what. */
   bloom: {
-    enabled: true,
+    enabled: false,
     strength: 0.42,
     radius: 0.62,
-    threshold: 0.80,
+    threshold: 0.90,
+  },
+
+  /* ==== Background props (js/objects.js -> createBackgroundProps) ====
+   * These live BEHIND every section, so every one of them is a direct
+   * contributor to the page's apparent colour. All of them are therefore
+   * near-invisible by construction: they may only add a whisper of lime at
+   * the very bottom edge, never a full-screen wash. */
+  background: {
+    /* wireframe icosahedron + two orbit rings */
+    wire: {
+      opacity: 0.055, radius: 5.2, z: -20, tube: 0.016,
+    },
+    ring: {
+      opacity: 0.05, radiusA: 7.4, radiusB: 9.2, tube: 0.012, z: -19,
+    },
+    /* additive ground glow: small, low, and at most 0.12 of the frame */
+    groundGlow: {
+      opacity: 0.12, sizeX: 24, sizeZ: 11, y: -5.4, z: -2.5,
+      core: 0.55, mid: 0.16, edge: 0.0,   /* canvas gradient stops */
+    },
   },
 
   /* ==== Float / spin ==== */
@@ -145,13 +179,16 @@ export const TUNING = {
     clickScroll: true,
   },
 
-  /* ==== Particles: 3 depth layers in one draw call ==== */
+  /* ==== Particles: 3 depth layers in one draw call ====
+   * Additive, so every point is a little lime added to the page. Kept faint
+   * on purpose: the field should read as dust in a black room, never as a
+   * uniform lift. */
   particles: {
     count:        900,
     countTablet:  420,
     countMobile:  200,
-    size:  0.050,
-    opacity: 0.50,
+    size:        0.050,
+    opacity:     0.40,
     layers: 3,
     /* per-layer z band centre + radius, and drift multiplier */
     layerZ:  [-2.0, 3.0, 9.0],
@@ -160,29 +197,21 @@ export const TUNING = {
     twinkle: 0.55,
   },
 
-  /* ==== Text / card clearance solver (phase (a)) ====
-   * A prop may only sit in a horizontally free band at its own height, and it
-   * may never cross a TEXT rect or a CARD rect. Every measured rect is grown
-   * by `rectPadPx` on every side, so "clear" really means clear. Cards are
-   * hard obstacles like text: a prop behind a translucent card reads as a
-   * rendering bug, not as depth.
+  /* ==== Obstacle measurement + candidate search (phase (a)) ====
    *
-   * If the band is narrower than `minFreePx` there is nowhere safe to put the
-   * prop, so it drops into `safe` mode: pushed far back, shrunk and dimmed.
+   * An obstacle is the REAL extent of something the visitor reads: the line
+   * boxes of a heading or a paragraph (Range.getClientRects), the box of a
+   * card, pill or icon. Never the full-width section container, which used to
+   * measure as a wall from margin to margin and left no gutter at all.
+   * Every rect is grown by `rectPadPx` at measure time, so "clear" already
+   * means "clear with air around it".
    *
-   * The two SIZE caps are hard and always win, in this order:
-   *   1. `props.maxScreenFraction` — the prop's box fits in a square of that
-   *      fraction of the VIEWPORT WIDTH (0.32 -> never wider than a third of
-   *      the screen, whatever the band or the aspect ratio).
-   *   2. `props[key].maxWorldScale` — the per-prop ceiling in world units.
-   * Below them sits the `fill` TARGET (0.55 of the free band), which is what
-   * a prop sizes to when it has room, and `minOnScreenPx`, the floor below
-   * which a prop is not worth drawing at all. */
+   * `gutters` holds the MEASUREMENT and the SEARCH parameters; `props` (below)
+   * holds the SIZE and EDGE rules a designer is most likely to touch.
+   */
   gutters: {
-    minFreePx:     90,   // narrower than this -> safe mode
-    marginPx:      26,   // breathing room between prop and a rect edge
     rectPadPx:     24,   // every measured obstacle is grown by this on all sides
-    edgePadPx:     32,   // breathing room between prop and the viewport edge
+    marginPx:      18,   // breathing room between prop and a rect edge
     /* The sticky header is a RESERVED BAND, never a clip. `#navbar` is
        `position: fixed` and paints an opaque (0.8 alpha) strip over the
        canvas once it is solid, so a prop that reaches into it is cut by a
@@ -194,64 +223,56 @@ export const TUNING = {
     headerReservePx:  88,
     headerPadPx:      16,  // extra breathing room under the measured navbar
     headerFadePx:    160,  // dim ramp over this distance below the band
-    /* Full-box clearance. The band solve is horizontal, so a prop whose
-       solved half-height is taller than the query band used to spill over the
-       text above and below it. These govern the pass that walks the WHOLE box
-       against every rect of the section the prop is in AND the one it is
-       travelling to, shrinking it until it is clear. */
-    verticalClearPadPx: 24,  // minimum gap, on every side, at every scroll pos
-    shrinkStep:      0.88,   // per-pass shrink while the box still hits copy
-    /* Deep enough for a prop to squeeze into a page gutter: 0.88^14 = 0.17, and
-       the narrowest real gutter is ~104px, so a full-width card row no longer
-       forces the prop to disappear — it shrinks and dims into the gutter, which
-       is what `safe` mode already did. The ladder stops at the first clear size,
-       so the common case costs one test. */
-    shrinkPasses:    14,
-    /* How far the clearance pass may walk from the solved height, in
-       `searchStepVh` steps, up and down. Reaches past a full-width row of
-       cards, which leaves no free column at all and can only be escaped
-       vertically. 9 * 0.18 = 1.62 NDC, i.e. the whole viewport. */
-    clearSearchSteps: 9,
-    /* Props must stay FULLY inside the viewport, so there is no edge bleed.
-       Set to 0 deliberately; `searchStepVh` below is what makes room instead. */
-    edgeOverlapPx:   0,
-    bandVh:      0.22,   // query band height, as a fraction of viewport h
-    /* Vertical band search: when the authored anchor lands on a full-width
-       text row the solver walks these steps away from it looking for the
-       widest free band, so a prop lands in the gap between rows instead of
-       collapsing into safe mode. */
-    searchStepVh:  0.18,
-    baseDistance:  6.0,  // prop distance from the camera before anchor.z
-    /* Share of its free band a prop aims for. A TARGET, not a maximum: the
-       size caps above it are absolute. */
-    fill:         0.55,
-    minFill:      0.40,
-    minOnScreenPx: 150,   // floor for "a prop you can actually see"
-    /* Soft cards dim a prop that sits behind them. */
-    softDim:      0.55,
-    safeScale:   0.55,
-    safeDim:     0.45,
-    safeDepth:  -3.2,    // extra world-Z push-back in safe mode
+    baseDistance:   6.0,   // prop distance from the camera before anchor.z
+    /* Vertical band search: candidate heights are the CENTRES of the free
+       bands found at the prop's own x-range, plus the authored anchor. That
+       is what puts a prop in the empty gap between two sections instead of on
+       top of the copy that surrounds it. */
+    bandStepVh:   0.16,   // fallback ladder step, in viewport heights
+    bandLadder:      6,   // how many ladder steps either way, as a last resort
+    /* NDC x candidates, |x|. The preferred side is tried first, so a prop
+       keeps its authored side whenever anything works on it. */
+    candidateX: [0.86, 0.70, 0.54, 0.36, 0.18, 0.0],
+    /* A dim a prop takes when it has to sit behind a translucent card. */
+    softDim:      0.62,
     /* Minimum NDC gap between two props' boxes, so they never intersect. */
-    minSeparation: 0.16,
+    minSeparation: 0.14,
   },
 
-  /* ==== Per-prop size caps ====
-   * The clearance solve runs per frame, and an unbounded "fill the band"
-   * rule is how a prop ends up covering the copy it was meant to sit beside.
-   * These caps make the size absolute:
-   *   maxScreenFraction  prop box <= 0.32 x viewport width (both axes, so the
-   *                      box stays inside that square at any aspect ratio)
-   *   maxWorldScale      per-prop ceiling in world units (the artistic cap)
-   *   fill / edgePadPx   mirrored here from `gutters` so a designer can find
-   *                      every placement number in one block */
+  /* ==== Per-prop size + edge rules ====
+   * The clearance solve runs per frame, and an unbounded "fill the band" rule
+   * is how a prop ends up covering the copy it was meant to sit beside. These
+   * make the size absolute and, just as importantly, make it a FLOOR:
+   *
+   *   maxScreenFraction  never wider than 30% of the viewport width
+   *   minScreenFraction  a prop sizes to at LEAST 16% of the viewport width...
+   *   minScreenPx        ...and never below 150px on the desktop tier. That
+   *                      absolute floor is the one the edge-docking rule below
+   *                      is allowed to fall back to, which is what guarantees
+   *                      "a prop is always visible in every section" even
+   *                      where a full-width card row leaves no gutter.
+   *   minOpacity         a prop is never dimmed below this
+   *   edgePadPx          breathing room between a prop and the viewport edge
+   *   edgeCropMax        last resort: a prop may dock flush against a LEFT or
+   *                      RIGHT edge with up to this much of its width cropped
+   *                      by the screen (side edges only, never top/bottom,
+   *                      and never over copy)
+   * The gap between two props is `gutters.minSeparation` — one number, one
+   * place, so it can never disagree with itself.
+   */
   props: {
-    maxScreenFraction: 0.32,
-    fill:         0.55,   // share of the free band a prop aims for
-    edgePadPx:    32,     // breathing room between prop and viewport edge
-    minSeparation: 0.16,  // minimum NDC gap between two props
+    maxScreenFraction: 0.30,
+    minScreenFraction: 0.16,
+    minScreenPx:    150,
+    minOpacity:    0.75,
+    edgePadPx:      32,
+    edgeCropMax:   0.35,
     hd:      { fit: 3.2, maxWorldScale: 2.2 },
-    usb:     { fit: 2.4, maxWorldScale: 2.2 },
+    /* `cableOutward` yaws the whole plug so its long axis (and the cable)
+       points AWAY from the text column, and the cable geometry itself is
+       short, so in the hero it curls out of frame instead of across the
+       headline. */
+    usb:     { fit: 2.4, maxWorldScale: 2.2, cableOutward: true, yaw: 1.05 },
     network: { fit: 2.6, maxWorldScale: 2.2 },
   },
 
@@ -323,18 +344,28 @@ export const STOPS = [
     id: 'hero',
     cam: [0, 0.15, 8.4], look: [0, 0.05, 0], fov: 42, yaw: 0.00,
     focal: 0, lineup: 0, converge: 0,
-    /* The network sits HIGH in the right gutter, well clear of the HD frame
-       below it. Two props share this gutter, so the network carries a small
-       scale and gutters.minSeparation guarantees the gap at any viewport. */
+    /* HERO COMPOSITION (issue 3)
+     * The copy column is centred, so both gutters are real: the headline's
+     * measured text extent is narrower than its `max-w-3xl` box, which is what
+     * leaves room for three props at full size.
+     *   usb     left gutter, well clear of the headline; its cable yaws
+     *           OUTWARD (see props.usb.cableOutward) so it curls away from
+     *           the text instead of across it
+     *   hd      right gutter, sized by the solver to 22-28% of the viewport
+     *   network upper right, ABOVE the HD frame with gutters.minSeparation
+     *           between the two boxes (the solver rejects any anchor whose
+     *           box would touch an already-placed prop) */
     anchors: {
-      hd:      { side: 'right', x:  0.72, y: -0.16, z:  0.0, scale: 0.88, dim: 1.00 },
-      usb:     { side: 'left',  x: -0.72, y: -0.30, z: -0.4, scale: 0.96, dim: 0.95 },
-      network: { side: 'right', x:  0.66, y:  0.74, z: -1.8, scale: 0.40, dim: 0.85 },
+      hd:      { side: 'right', x:  0.76, y: -0.10, z:  0.0, scale: 0.94, dim: 1.00 },
+      usb:     { side: 'left',  x: -0.78, y: -0.34, z: -0.4, scale: 0.96, dim: 0.95 },
+      network: { side: 'right', x:  0.68, y:  0.66, z: -1.8, scale: 0.42, dim: 0.85 },
     },
   },
   {
     id: 'overview',
     cam: [0.5, -0.4, 9.2], look: [0, 0.30, 0], fov: 44, yaw: 0.28,
+    /* USB left, HD right, constellation upper right — one prop per gutter
+       position, never on the cards. */
     focal: 0, lineup: 0, converge: 0,
     anchors: {
       hd:      { side: 'right', x:  0.78, y:  0.26, z:  0.2, scale: 0.92, dim: 0.90 },
@@ -345,8 +376,9 @@ export const STOPS = [
   {
     id: 'features',
     cam: [1.8, 1.2, 10.0], look: [0, -0.20, 0], fov: 46, yaw: -0.42,
-    /* One focal object per card: each prop is pulled onto the tile that
-       describes it, so the 3D mirrors the copy the visitor is reading. */
+    /* One focal object per card: each prop takes the HEIGHT of the card that
+       describes it and then finds a free column (or the free band above /
+       below the grid) beside it, so the 3D mirrors the copy being read. */
     focal: 1, lineup: 0, converge: 0,
     anchors: {
       hd:      { side: 'right', x:  0.82, y:  0.44, z:  0.8, scale: 1.00, dim: 1.05 },
@@ -360,27 +392,22 @@ export const STOPS = [
     /* Diagonal lineup, and the section where the flow links ignite. */
     focal: 0, lineup: 1, converge: 0,
     flow: 1,
-    /* Rising diagonal: USB low-left, HD mid-right, network high-right.
-       Only two props ever share a gutter, which is what the separation pass
-       in the solver is sized for. */
     anchors: {
-      hd:      { side: 'right', x:  0.80, y:  0.02, z: -0.6, scale: 1.00, dim: 0.90 },
-      usb:     { side: 'left',  x: -0.78, y: -0.62, z:  0.0, scale: 1.00, dim: 1.00 },
-      network: { side: 'right', x:  0.70, y:  0.68, z: -0.8, scale: 1.00, dim: 0.92 },
+      hd:      { side: 'right', x:  0.76, y:  0.10, z: -0.6, scale: 1.00, dim: 0.90 },
+      usb:     { side: 'left',  x: -0.76, y: -0.54, z:  0.0, scale: 1.00, dim: 1.00 },
+      network: { side: 'right', x:  0.66, y:  0.66, z: -0.8, scale: 1.00, dim: 0.92 },
     },
   },
   {
     id: 'clarity',
     cam: [0, 0.6, 11.4], look: [0, 0.1, 0], fov: 45, yaw: 0.00,
-    /* Calm convergence: one shared baseline, symmetric, almost still. */
+    /* Calm convergence: a mirrored pair flanking the CTA card, one per side. */
     focal: 0, lineup: 0, converge: 1,
     flow: 0,
-    /* Symmetric: HD and USB mirror each other at the same height, and the
-       network sits calm and low in the centre, clear of the CTA card. */
     anchors: {
-      hd:      { side: 'left',  x: -0.80, y:  0.34, z: -1.0, scale: 0.88, dim: 0.78 },
-      usb:     { side: 'right', x:  0.80, y:  0.34, z: -1.0, scale: 0.88, dim: 0.78 },
-      network: { side: 'right', x:  0.66, y: -0.52, z: -1.6, scale: 0.80, dim: 0.72 },
+      hd:      { side: 'left',  x: -0.80, y:  0.06, z: -1.0, scale: 0.88, dim: 0.78 },
+      usb:     { side: 'right', x:  0.80, y:  0.06, z: -1.0, scale: 0.88, dim: 0.78 },
+      network: { side: 'right', x:  0.72, y: -0.56, z: -1.6, scale: 0.80, dim: 0.72 },
     },
   },
 ];
@@ -389,21 +416,23 @@ export const STOPS = [
  * Composition targets the weights above blend toward (NDC).
  * -------------------------------------------------------------------------*/
 
-/** Flow: three props on a rising diagonal, so the links read as a pipeline. */
+/** Flow: three props on a RISING diagonal (low left -> high right), placed in
+ *  whatever free space the stepper leaves — the side gutters where they exist,
+ *  the empty band above / below the section where they do not. */
 export const LINEUP = {
-  hd:      { x: -0.70, y:  0.42 },
-  usb:     { x:  0.02, y:  0.02 },
-  network: { x:  0.70, y: -0.34 },
+  usb:     { x: -0.72, y: -0.54 },
+  hd:      { x:  0.74, y:  0.10 },
+  network: { x:  0.66, y:  0.66 },
 };
 
 /**
  * Clarity: a calm, symmetric frame around the CTA card — a mirrored pair
- * flanking the panel, with the third resting high and quiet above them.
+ * flanking the panel on the same baseline, the third resting low and quiet.
  */
 export const CONVERGE = {
-  hd:      { x: -0.74, y:  0.02 },
-  network: { x:  0.74, y:  0.02 },
-  usb:     { x:  0.00, y:  0.66 },
+  hd:      { x: -0.80, y:  0.06 },
+  usb:     { x:  0.80, y:  0.06 },
+  network: { x:  0.00, y: -0.62 },
 };
 
 /**

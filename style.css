@@ -12,18 +12,38 @@
     }
     body { background-color: #0B0F12; color: #E2E8F0; }
 
-    /* Hero backdrop: dark base + mint glows + faint grid (no raster image) */
+    /* Hero backdrop: dark base + mint glows + faint grid (no raster image)
+       The two mint alphas are a fraction of what they were (0.15/0.08 ->
+       0.055/0.03). These are painted OVER the copy and OVER the WebGL layer,
+       and at the old values they read as a flat olive wash across the top of
+       the hero and again in the bottom-right corner, rather than as a glow
+       behind it — that wash is the "butek"/green cast on the black. A glow has
+       to be invisible as a colour and visible only as a gradient; at these
+       values it is only just that. The grid and the base colour are the same
+       pixels they were. */
     .hero-bg {
       background-color: #0B0F12;
       background-image:
-        radial-gradient(1100px 600px at 50% -10%, rgba(163, 230, 53, 0.15), transparent 62%),
-        radial-gradient(900px 560px at 105% 115%, rgba(163, 230, 53, 0.08), transparent 60%),
+        radial-gradient(1100px 600px at 50% -10%, rgba(163, 230, 53, 0.055), transparent 62%),
+        radial-gradient(900px 560px at 105% 115%, rgba(163, 230, 53, 0.03), transparent 60%),
         linear-gradient(rgba(255, 255, 255, 0.035) 1px, transparent 1px),
         linear-gradient(90deg, rgba(255, 255, 255, 0.035) 1px, transparent 1px);
       background-size: auto, auto, 56px 56px, 56px 56px;
     }
 
-    /* ---- Hero bottom fade: smooth transition into the next section (no sharp edge) ---- */
+    /* The hero's drifting blobs carry the same mint, at 0.16/0.14 inside
+       480-520px blurred circles — the other half of the wash. Reduced to
+       0.16 flat. An id + attribute selector outranks Tailwind's `.opacity-*`
+       utility classes, so this wins without !important. Both elements are
+       aria-hidden decoration: nothing changes but how much green sits on the
+       black. */
+    #glow-field > div[aria-hidden="true"] { opacity: 0.16; }
+
+    /* ---- Hero bottom fade: smooth transition into the next section (no sharp edge) ----
+       Every stop is the page token itself. The old ramp ended on #0d0e12, which
+       is NOT #0B0F12: a fade that terminates on a different black draws a
+       visible band wherever it crosses the transparent WebGL layer, because the
+       two blacks are not the same black. */
     #hero::after {
       content: "";
       position: absolute;
@@ -33,7 +53,7 @@
       height: min(45vh, 22rem);
       z-index: 0;
       pointer-events: none;
-      background: linear-gradient(to bottom, transparent 0%, rgba(13, 14, 18, 0.4) 50%, rgba(13, 14, 18, 0.8) 80%, #0d0e12 100%);
+      background: linear-gradient(to bottom, rgba(11, 15, 18, 0) 0%, rgba(11, 15, 18, 0.4) 50%, rgba(11, 15, 18, 0.8) 80%, #0b0f12 100%);
     }
 
     /* ---- Hero layout: centered copy (no 3D background) ---- */
@@ -209,6 +229,38 @@
       backdrop-filter: blur(16px);
       -webkit-backdrop-filter: blur(16px);
       box-shadow: 0 1px 0 rgba(255, 255, 255, 0.06);
+    }
+
+    /* ---- Inline card + stepper glyphs ----
+       Five icons are hand-written inline <svg> (script-free, font-free) inside
+       the 48px `w-12 h-12` boxes: the two Overview tool cards (ph-usb,
+       ph-share-network) and the three Flow steps (ph-cursor-click,
+       ph-rocket-launch, ph-check-circle). Each was sized `width="1em"
+       height="1em"`, which resolves to 16px — a third of its box — while every
+       sibling icon in the same 48px box is a `text-2xl` Phosphor glyph at
+       24px. So those five read as undersized marks adrift in an empty tile,
+       and the Flow steps read worst of all because their box is a bare ring
+       with nothing in it but a small mark.
+
+       24px with a 2px round-joined stroke is exactly the optical size of the
+       `text-2xl` icons beside them, so all five boxes now agree with each
+       other and with the rest of the page.
+
+       Declared here as well as on the elements because the Phosphor web
+       stylesheet also carries a `.ph` rule, and a class rule from a
+       stylesheet beats a presentation attribute on the element — so the
+       attributes alone would not have held. */
+    #overview .w-12.h-12 > svg.ph,
+    #flow .w-12.h-12 > svg.ph {
+      width: 24px;
+      height: 24px;
+      stroke-width: 2;
+    }
+    /* Holds the stroke at 2px if a box is ever scaled up on a large display,
+       instead of letting it thicken with the glyph. */
+    #overview .w-12.h-12 > svg.ph :where(path, circle, rect, line, polyline),
+    #flow .w-12.h-12 > svg.ph :where(path, circle, rect, line, polyline) {
+      vector-effect: non-scaling-stroke;
     }
 
     /* ---- 3D tilt cards ---- */
@@ -494,7 +546,11 @@
     }
     .footer-nav a:hover::after { right: 0; }
 
-    /* ---- Page transition overlay ---- */
+    /* ---- Page transition overlay ----
+       The radial is graded the same way as the hero's: 0.09 was a mint tint
+       over a full-screen #0B0F12 plate, so the whole overlay read greener than
+       the page it is meant to look identical to. It only ever shows during a
+       route change, so it needs to be a hint, not a colour. */
     #page-transition {
       position: fixed;
       inset: 0;
@@ -505,7 +561,7 @@
       justify-content: center;
       gap: 1.1rem;
       background-color: #0B0F12;
-      background-image: radial-gradient(600px circle at 50% 115%, rgba(163, 230, 53, 0.09), transparent 60%);
+      background-image: radial-gradient(600px circle at 50% 115%, rgba(163, 230, 53, 0.045), transparent 60%);
       opacity: 0;
       visibility: hidden;
       transition: opacity .45s ease, visibility .45s;
@@ -578,13 +634,14 @@
     html.scene3d body { background-color: transparent; }
     html.scene3d .hero-bg { background-color: transparent; }
 
-    /* The hero's bottom fade used to end on #0d0e12, which is NOT the page
-       background. With a transparent canvas that off-black band would show as
-       a visible strip across the props, so the fade is re-graded onto the
-       real page token instead of being switched off. */
+    /* The hero's bottom fade is already graded onto #0b0f12 in the base rule,
+       which is also the page background, so this re-grade is redundant. Kept
+       anyway as a safety net for a stale cached stylesheet: if the base rule
+       has not updated, the fade still terminates on the page token instead of
+       on a second black. */
     html.scene3d #hero::after {
       background: linear-gradient(to bottom,
-        transparent 0%,
+        rgba(11, 15, 18, 0) 0%,
         rgba(11, 15, 18, 0.40) 50%,
         rgba(11, 15, 18, 0.80) 80%,
         #0b0f12 100%);

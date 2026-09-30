@@ -46,7 +46,6 @@ const body = document.body;
 let cleaned = false;
 let lifted = false;
 let finished = false;
-let landedAt = 0;
 let timers = [];
 let planTimers = [];
 let stopProgress = null;
@@ -64,8 +63,18 @@ export function cleanup() {
   if (stopProgress) { try { stopProgress(); } catch (e) {} stopProgress = null; }
 
   /* The overlay is gone, so the page must be handed back AT THE TOP: this is
-     the moment a late browser restore would otherwise win. */
+     the moment a late browser restore would otherwise win.
+
+     Re-asserted after the DOM change as well, because removing the overlay is
+     a reflow and some engines commit their restored scroll position on the
+     next layout pass rather than the one we just cancelled. Two frames, plus a
+     couple of short delays, cover the difference. */
   scrollToTop();
+  try {
+    requestAnimationFrame(function () { scrollToTop(); requestAnimationFrame(scrollToTop); });
+    setTimeout(scrollToTop, 60);
+    setTimeout(scrollToTop, 250);
+  } catch (e) { /* no rAF, no problem: the inline failsafe still holds */ }
 
   const overlay = document.getElementById('intro-overlay');
   if (overlay) {
@@ -195,12 +204,22 @@ export function scrollToTop() {
   const d = document.documentElement;
   try {
     const prev = d ? d.style.scrollBehavior : '';
-    if (d) d.style.scrollBehavior = 'auto';
+    const anchor = d ? d.style.overflowAnchor : '';
+    const over = d ? d.style.overscrollBehavior : '';
+    if (d) {
+      d.style.scrollBehavior = 'auto';
+      d.style.overflowAnchor = 'none';
+      d.style.overscrollBehavior = 'none';
+    }
     try { window.scrollTo({ top: 0, left: 0, behavior: 'instant' }); }
     catch (e) { try { window.scrollTo(0, 0); } catch (e2) {} }
     if (d) d.scrollTop = 0;
     if (body) body.scrollTop = 0;
-    if (d) d.style.scrollBehavior = prev;
+    if (d) {
+      d.style.scrollBehavior = prev;
+      d.style.overflowAnchor = anchor;
+      d.style.overscrollBehavior = over;
+    }
   } catch (e) { /* nothing to do */ }
 }
 
@@ -221,6 +240,13 @@ function setNavActive(id) {
  * "take me to the top", not "take me to the cards". Everything else keeps
  * the browser's native anchor behaviour (html has scroll-smooth and
  * style.css sets scroll-margin-top).
+ *
+ * While the intro still owns the screen, NO in-page anchor is honoured. The
+ * curtain is up, the scroll is locked, and a native anchor jump would move a
+ * document that is about to be handed to the visitor at the top — leaving the
+ * 3D layer solving placements for a section nobody scrolled to. The click is
+ * swallowed, not deferred: the visitor is looking at a loader, and the nav
+ * that answers it is the one that was going to be there anyway.
  */
 function setupAnchorPolicy() {
   document.addEventListener('click', (e) => {
@@ -229,6 +255,14 @@ function setupAnchorPolicy() {
     if (!link) return;
     const href = link.getAttribute('href');
     if (!href || href.charAt(0) !== '#') return;
+
+    /* The intro owns navigation until it hands over. Out-page links are left
+       alone: opening the HD Enhancer in a new tab is not a scroll position. */
+    if (!finished && !cleaned && !html.classList.contains('intro-done')) {
+      e.preventDefault();
+      return;
+    }
+
     if (!isTopHash(href.toLowerCase())) return;
 
     e.preventDefault();
@@ -396,12 +430,9 @@ function lift() {
 }
 
 /** The curtain is gone: take the overlay out of the DOM, give the page its
-    scroll back and mark the intro done. */
+    scroll back, hold the top and mark the intro done. */
 function land() {
   if (cleaned) return;
-  /* Remember where the page came to rest: finish() must undo any late anchor
-     jump, but it must not yank a visitor who has already started scrolling. */
-  try { landedAt = window.scrollY || 0; } catch (e) { landedAt = 0; }
   cleanup();
 }
 
@@ -418,11 +449,30 @@ function finish(reason) {
   if (deepTarget) {
     try { deepTarget.scrollIntoView({ block: 'start' }); } catch (e) { /* ignore */ }
   } else {
-    /* The hero is the destination unless the visitor moved in the last
-       moments of the intro, in which case their position wins. */
-    let moved = false;
-    try { moved = Math.abs((window.scrollY || 0) - landedAt) > 2; } catch (e) { moved = false; }
-    if (!moved) { scrollToTop(); clearTopHash(); }
+    /* No deep link, so the hero IS the destination — unconditionally.
+     *
+     * There is deliberately no "did the visitor move?" escape hatch here. The
+     * scroll is locked for the whole intro (`html.style.overflow = 'hidden'`
+     * is only released in cleanup()), so there is no way for a deliberate
+     * gesture to have produced a non-zero position by now. Any position that
+     * exists at this moment came from the browser's own session restore, and
+     * that is precisely what must not survive the handover.
+     *
+     * The old check compared scrollY against `landedAt` and skipped the reset
+     * whenever the two disagreed — which is the *normal* case after a restore
+     * lands between land() and finish(), so the reset was being skipped
+     * exactly when it was needed.
+     */
+    scrollToTop();
+    try {
+      requestAnimationFrame(function () { scrollToTop(); requestAnimationFrame(scrollToTop); });
+      setTimeout(scrollToTop, 60);
+      setTimeout(scrollToTop, 250);
+    } catch (e) { /* no rAF: the inline failsafe still holds the top */ }
+    clearTopHash();
+    /* The page's own scroll listeners read a position for the first time
+       right after the event, so the nav has to be in its hero state before
+       it is emitted. */
     setNavActive('overview');
   }
   emit('toolapis:intro-complete', { reason: reason || 'timed' });
