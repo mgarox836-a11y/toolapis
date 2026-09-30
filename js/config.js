@@ -85,15 +85,17 @@ export const TUNING = {
   lights: {
     /* Faint COOL key (cyan): the shape is read by the rims and the warm fill,
        never by the key itself — the room stays the near-black the design owns.
-       Painterly warmth arrives from below (kick) and from the mapped fill. */
+       Painterly warmth arrives from below (kick) and from the mapped fill.
+       The extra gloss the premium look needs comes from the studio env bake
+       (`env`), so the real lights stay deliberately starved. */
     keyColor: 0xa8c8dd,
-    key: 0.60,
+    key: 0.55,
     lime: 9.0,    // accent point light
     /* Low warm side kicker, oriented along X: the shadow side of a prop gets a
        quiet warm lift so the blacks stay black without reading dead. */
     kickColor: 0xe8a06a,
-    kick: 4.5,
-    hemi: 0.10,   // shadow-side fill — anything higher greys out the blacks
+    kick: 4.0,
+    hemi: 0.08,   // shadow-side fill — anything higher greys out the blacks
     /* The painterly 6200K the "dims" are mapped onto: used as the hemisphere
        SKY colour, so the fill every dark side of a prop sits under is warm and
        the fade bands read as a warm dissolve rather than a grey one. */
@@ -104,7 +106,51 @@ export const TUNING = {
        the rims, it never invents one. 0 = unchanged. */
     rimFloor: 0.95,
   },
-  env: { enabled: true, intensity: 0.20 },
+
+  /* ==== Custom studio environment (js/scene3d.js -> createEnvironment) ====
+   * The premium gloss comes from a procedural dark-room bake, not from the
+   * generic RoomEnvironment: a soft cool strip high/front, a dim warm kicker
+   * low/back and a thin lime top strip, all rendered into a PMREM cube via a
+   * throwaway scene. `intensity` is what every material multiplies its
+   * envMapIntensity by (PALETTE.black multiplies nothing); `stripIntensity`
+   * and `limeStrip` scale the two studio contributions inside the bake. */
+  env: {
+    enabled: true,
+    intensity: 0.20,
+    stripIntensity: 1.0,   // × the cool key strip in the bake
+    limeStrip: 1.0,        // × the lime top strip in the bake
+  },
+
+  /* ==== Fresnel rims (js/objects.js -> addRim) ====
+   * Multipliers on top of every authored rim. `thickness` scales the power
+   * (>1 = sharper falloff = thinner, crisper edge), `intensity` scales the
+   * strength/amount. Each is a plain × on the authored value: 1/1 is exactly
+   * the authored rim, and the rim floor still lifts nothing below it. */
+  rim: { thickness: 1.15, intensity: 1.1 },
+
+  /* ==== Tone mapping ====
+   * 'aces' (current) or 'agx' (also in the pinned r160 build). Both are
+   * filmic; ACES stays the default because it is what the page has shipped. */
+  toneMapping: 'aces',
+
+  /* ==== Halo glow sprites (js/objects.js) ====
+   * Additive radial sprites behind the key emissive parts, carrying the
+   * "bloom without bloom" glow. `size` scales the sprite, `opacity` is the
+   * base alpha the per-prop glow multiplies. */
+  halo: { enabled: true, size: 1.0, opacity: 0.5 },
+
+  /* ==== Per-prop material personality (js/objects.js) ====
+   * The builders' defaults. `makeGlossy`/`makeMetal` use these when the
+   * builder did not hand-tune a value, so one number here re-tunes a whole
+   * prop. The USB anisotropy is the r160 brushed-metal highlight along X. */
+  materials: {
+    hd:      { roughness: 0.28, metalness: 0.15, clearcoat: 1, clearcoatRoughness: 0.08 },
+    usb:     { roughness: 0.32, metalness: 0.90, clearcoat: 0.35, clearcoatRoughness: 0.16,
+               anisotropy: 0.55, anisotropyRotation: 0 },
+    network: { roughness: 0.14, metalness: 0.50, clearcoat: 1, clearcoatRoughness: 0.06 },
+    /* procedural micro-noise / brushed textures: on/off and their strengths */
+    noise: { maps: true, uvScale: 6.0, brushUvScale: 2.0, strength: 0.55 },
+  },
 
   /* ==== Emissive (the lime signal) ====
    * The bright element the bloom high-pass would catch. `color` is the signal

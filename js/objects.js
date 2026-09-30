@@ -61,18 +61,28 @@ function inject(material, fn, cacheKey) {
 /**
  * Lime Fresnel rim, added after <opaque_fragment> so scene fog still applies
  * to it — distant geometry dissolves into the page instead of into bright edges.
+ *
+ * Two upgrades over the flat lime rim:
+ *   - TUNING.rim.{thickness,intensity} multiply every authored power/strength
+ *     (1/1 = authored, exactly; the floor below still only lifts, never invents).
+ *   - the rim colour rises from lime at the sides toward a yellow-white at the
+ *     top of the prop (fr :: vNormal.y), which is what the Fresnel hot spot
+ *     reads as on real glossy black plastic.
  */
-function addRim(material, color, power, strength) {
+function addRim(material, color, power, strength, rimTopColor, rimTop) {
   /* Scene truth (the "thicker 0.95 rims"): any material that already opts into
      a rim is never drawn thinner than `lights.rimFloor` (0.95), so the Fresnel
      edge reads consistent and warm across every stop. Authored zero-rims
      (holes, plain plate) stay zero — the floor lifts, it never invents. */
   const floor = TUNING.lights.rimFloor || 0;
   if (floor > 0 && strength < floor) strength = floor;
+  const R = TUNING.rim || {};
   const uniforms = {
     uRimColor:    { value: new THREE.Color(color) },
-    uRimPower:    { value: power },
-    uRimStrength: { value: strength },
+    uRimColorTop: { value: new THREE.Color(rimTopColor || 0xf3f6c8) },
+    uRimTop:      { value: rimTop ?? 0.45 },
+    uRimPower:    { value: power * (R.thickness ?? 1) },
+    uRimStrength: { value: strength * (R.intensity ?? 1) },
   };
   material.userData.rim = uniforms;
   return inject(material, (shader) => {
@@ -80,11 +90,14 @@ function addRim(material, color, power, strength) {
     shader.fragmentShader = shader.fragmentShader
       .replace('#include <common>', `#include <common>
         uniform vec3 uRimColor;
+        uniform vec3 uRimColorTop;
+        uniform float uRimTop;
         uniform float uRimPower;
         uniform float uRimStrength;`)
       .replace('#include <opaque_fragment>', `#include <opaque_fragment>
         float rim = pow( 1.0 - saturate( dot( normalize( vNormal ), normalize( vViewPosition ) ) ), uRimPower );
-        gl_FragColor.rgb += uRimColor * rim * uRimStrength;`);
+        vec3 rimCol = mix( uRimColor, uRimColorTop, uRimTop * clamp( vNormal.y, 0.0, 1.0 ) );
+        gl_FragColor.rgb += rimCol * rim * uRimStrength;`);
   });
 }
 
@@ -92,38 +105,196 @@ function addRim(material, color, power, strength) {
  * 2. MATERIALS
  * ==========================================================================*/
 
+/** Deterministic hash-based value noise — no RNG state, safe per-pixel. */
+function _hash2(x, y) {
+  let n = (x * 374761393 + y * 668265263) | 0;
+  n = ((n ^ (n >> 13)) | 0) * 1274126177;
+  n = (n ^ (n >> 16)) >>> 0;
+  return n / 4294967296;
+}
+function _vnoise(x, y) {
+  const xi = Math.floor(x), yi = Math.floor(y);
+  const xf = x - xi, yf = y - yi;
+  const u = xf * xf * (3 - 2 * xf);
+  const v = yf * yf * (3 - 2 * yf);
+  const a = _hash2(xi, yi), b = _hash2(xi + 1, yi);
+  const c = _hash2(xi, yi + 1), d = _hash2(xi + 1, yi + 1);
+  return a + (b - a) * u + (c - a) * v + (a - b - c + d) * u * v;
+}
+function _fbm(x, y, oct) {
+  let s = 0, amp = 0.5, f = 1;
+  for (let i = 0; i < oct; i++) { s += _vnoise(x * f, y * f) * amp; amp *= 0.5; f *= 2.06; }
+  return s;
+}
+
+/* Shared, cached procedural canvas textures. One per kind; every material
+   references these, so a 256px canvas built once is never rebuilt. Set as data
+   maps (NoColorSpace): roughness reads .g, normal reads .rgb. */
+const _textureCache = new Map();
+let _materialQuality = 'high';
+
+/** 'high' | 'medium' | 'low': 'low' detaches the procedural maps (their cost). */
+export function setMaterialQuality(q) {
+  _materialQuality = q || 'high';
+}
+export function disposeSharedTextures() {
+  for (const t of _textureCache.values()) t.dispose();
+  _textureCache.clear();
+}
+
+/** Builds { roughness, normal } for a kind ('micro' | 'brush').
+ *  'micro' — fine isotropic crystal noise for glossy black plastic.
+ *  'brush' — horizontal streaks (fast along X, slow along Y) for the satin USB. */
+function _makeMaterialMaps(kind) {
+  const cached = _textureCache.get(kind);
+  if (cached) return cached;
+
+  const N = TUNING.materials.noise || {};
+  const size = 256;
+  const height = new Float32Array(size * size);
+  const rough = document.createElement('canvas');
+  const norm = document.createElement('canvas');
+  rough.width = rough.height = size;
+  norm.width = norm.height = size;
+  const rg = rough.getContext('2d');
+  const ng = norm.getContext('2d');
+  const rd = rg.createImageData(size, size);
+  const nd = ng.createImageData(size, size);
+
+  const freqX = kind === 'brush' ? (N.brushUvScale || 2) * 28 : (N.uvScale || 6) * 6;
+  const freqY = kind === 'brush' ? (N.brushUvScale || 2) * 1.6 : (N.uvScale || 6) * 6;
+
+  for (let y = 0; y < size; y++) {
+    for (let x = 0; x < size; x++) {
+      const h = _fbm((x / size) * freqX, (y / size) * freqY, 3);
+      height[y * size + x] = h;
+      const v = 0.55 + 0.45 * h;               /* ~0.1..1.0 around 0.55 */
+      rd.data[(y * size + x) * 4] = v * 255;   /* .r (colour) */
+      rd.data[(y * size + x) * 4 + 1] = v * 255; /* .g (roughness) */
+      rd.data[(y * size + x) * 4 + 2] = v * 255;
+      rd.data[(y * size + x) * 4 + 3] = 255;
+    }
+  }
+  /* finite-difference normals from the height field */
+  const st = N.strength ?? 0.55;
+  for (let y = 0; y < size; y++) {
+    for (let x = 0; x < size; x++) {
+      const xl = height[y * size + ((x + size - 1) % size)];
+      const xr = height[y * size + ((x + 1) % size)];
+      const yd = height[(((y + size - 1) % size) * size) + x];
+      const yu = height[(((y + 1) % size) * size) + x];
+      let nx = (xl - xr) * st;
+      let ny = (yd - yu) * st;
+      const inv = 1 / Math.sqrt(nx * nx + ny * ny + 1);
+      const o = (y * size + x) * 4;
+      nd.data[o] = (nx * inv * 0.5 + 0.5) * 255;
+      nd.data[o + 1] = (ny * inv * 0.5 + 0.5) * 255;
+      nd.data[o + 2] = 255;
+      nd.data[o + 3] = 255;
+    }
+  }
+  rg.putImageData(rd, 0, 0);
+  ng.putImageData(nd, 0, 0);
+
+  const makeTex = (canvas, repeat) => {
+    const t = new THREE.CanvasTexture(canvas);
+    t.wrapS = t.wrapT = THREE.RepeatWrapping;
+    t.repeat.set(repeat, repeat);
+    t.colorSpace = THREE.NoColorSpace;   /* data map, not colour */
+    t.anisotropy = 1;
+    return t;
+  };
+  const maps = {
+    roughness: makeTex(rough, 1),
+    normal: makeTex(norm, 1),
+  };
+  _textureCache.set(kind, maps);
+  return maps;
+}
+
+/** Applies the micro-noise / brush maps to a material when the quality tier
+ *  wants them (low tier strips them for the old Intel iGPU budget). */
+function _attachMaps(mat, kind) {
+  if (!TUNING.materials.noise || !TUNING.materials.noise.maps) return;
+  if (_materialQuality === 'low') return;
+  const maps = _makeMaterialMaps(kind);
+  mat.roughnessMap = maps.roughness;
+  mat.normalMap = maps.normal;
+  mat.normalScale = new THREE.Vector2(kind === 'brush' ? 0.9 : 0.55, kind === 'brush' ? 0.9 : 0.55);
+  mat.needsUpdate = true;
+}
+
+/** r160 physical-material anisotropy (the satin brushed highlight on the USB
+ *  shell). Guarded: it is optional in the pinned build. */
+function _attachAnisotropy(mat, value, rotation) {
+  if (!value || mat.anisotropy === undefined) return;
+  mat.anisotropy = value;
+  mat.anisotropyRotation = rotation ?? 0;
+}
+
+/** Additive radial-glow sprite — the "bloom without bloom" halo. Shared
+ *  texture, one quad per sprite, fog:false so it reads as light, not dust. */
+function _makeHalo(scale, colorStops) {
+  const stops = colorStops || TUNING.halo.colorStops || [
+    [0.0, 'rgba(51,235,77,0.55)'],
+    [0.35, 'rgba(51,235,77,0.20)'],
+    [1.0, 'rgba(51,235,77,0)'],
+  ];
+  const tex = radialCanvasTexture(128, stops);
+  const mat = new THREE.SpriteMaterial({
+    map: tex, transparent: true, opacity: TUNING.halo.opacity,
+    depthWrite: false, blending: THREE.AdditiveBlending, fog: false,
+  });
+  mat.userData.baseHalo = TUNING.halo.opacity;
+  const sprite = new THREE.Sprite(mat);
+  const s = TUNING.halo.size * scale;
+  sprite.scale.set(s, s, 1);
+  return { sprite, mat, tex };
+}
+
 /** Dark glossy piano-black base used by every prop body. */
 export function makeGlossy(opts = {}) {
+  const D = (opts.materialKey && TUNING.materials[opts.materialKey]) || {};
   const mat = new THREE.MeshPhysicalMaterial({
     color: opts.color ?? PALETTE.card,
-    metalness: opts.metalness ?? 0.30,
-    roughness: opts.roughness ?? 0.18,
-    clearcoat: opts.clearcoat ?? 1,
-    clearcoatRoughness: opts.clearcoatRoughness ?? 0.08,
+    metalness: opts.metalness ?? D.metalness ?? 0.30,
+    roughness: opts.roughness ?? D.roughness ?? 0.18,
+    clearcoat: opts.clearcoat ?? D.clearcoat ?? 1,
+    clearcoatRoughness: opts.clearcoatRoughness ?? D.clearcoatRoughness ?? 0.08,
     envMapIntensity: TUNING.env.intensity,
   });
+  _attachMaps(mat, opts.maps === 'brush' ? 'brush' : 'micro');
+  _attachAnisotropy(mat, opts.anisotropy ?? D.anisotropy, opts.anisotropyRotation ?? D.anisotropyRotation);
   return addRim(
     mat,
     opts.rimColor ?? PALETTE.accent,
     opts.rimPower ?? 2.6,
-    opts.rim ?? 0.5
+    opts.rim ?? 0.5,
+    opts.rimTopColor,
+    opts.rimTop
   );
 }
 
 /** Brushed metal — the USB shell. */
 export function makeMetal(opts = {}) {
+  const D = (opts.materialKey && TUNING.materials[opts.materialKey]) || {};
+  const mat = new THREE.MeshPhysicalMaterial({
+    color: opts.color ?? PALETTE.metal,
+    metalness: opts.metalness ?? D.metalness ?? 0.95,
+    roughness: opts.roughness ?? D.roughness ?? 0.32,
+    clearcoat: opts.clearcoat ?? D.clearcoat ?? 0.6,
+    clearcoatRoughness: opts.clearcoatRoughness ?? 0.18,
+    envMapIntensity: TUNING.env.intensity * 1.35,
+  });
+  _attachMaps(mat, opts.maps === 'micro' ? 'micro' : 'brush');
+  _attachAnisotropy(mat, opts.anisotropy ?? D.anisotropy, opts.anisotropyRotation ?? D.anisotropyRotation);
   return addRim(
-    new THREE.MeshPhysicalMaterial({
-      color: opts.color ?? PALETTE.metal,
-      metalness: opts.metalness ?? 0.95,
-      roughness: opts.roughness ?? 0.24,
-      clearcoat: opts.clearcoat ?? 0.6,
-      clearcoatRoughness: 0.18,
-      envMapIntensity: TUNING.env.intensity * 1.35,
-    }),
+    mat,
     opts.rimColor ?? PALETTE.accent,
     opts.rimPower ?? 3.2,
-    opts.rim ?? 0.42
+    opts.rim ?? 0.42,
+    opts.rimTopColor,
+    opts.rimTop
   );
 }
 
@@ -308,7 +479,7 @@ function createHDObject() {
     curveSegments: 16,
   });
   frameGeo.center();
-  const frameMat = track(makeGlossy({ metalness: 0.55, roughness: 0.20, rim: 0.70, rimPower: 2.2 }));
+  const frameMat = track(makeGlossy({ materialKey: 'hd', rim: 0.70, rimPower: 2.8 }));
   const frame = new THREE.Mesh(frameGeo, frameMat);
   group.add(frame);
   materials.push(frameMat);
@@ -372,7 +543,7 @@ function createHDObject() {
   /* --- Extruded "HD" floating in front of the screen --- */
   const LW = 0.62, LH = 0.86, LS = 0.17;
   const letterMat = track(makeGlossy({
-    color: 0x11180d, metalness: 0.25, roughness: 0.16, rim: 1.0, rimPower: 1.8,
+    materialKey: 'hd', color: 0x11180d, rim: 1.0, rimPower: 2.6,
   }));
   const letters = [];
   const hGeo = new THREE.ExtrudeGeometry(letterH(LW, LH, LS), {
@@ -401,6 +572,14 @@ function createHDObject() {
   group.add(edge);
   materials.push(edgeMat);
 
+  /* --- Halo: a soft additive lime glow sitting BEHIND the frame, so the
+     letters and the screen read as light sources without any bloom pass. --- */
+  const halo = _makeHalo(1.75);
+  halo.sprite.position.set(0, 0.05, -0.5);
+  group.add(halo.sprite);
+  materials.push(halo.mat);
+  textures.push(halo.tex);
+
   /* --- Sweep cadence: a full pass every ~4.2s, sharp in between --- */
   const SWEEP_PERIOD = 4.2;
   return {
@@ -420,6 +599,7 @@ function createHDObject() {
       for (const l of letters) {
         l.position.y = Math.sin(elapsed * 0.9) * 0.012;
       }
+      halo.mat.opacity = (halo.mat.userData.baseHalo || TUNING.halo.opacity) * (ctx ? ctx.glow : 1);
     },
   };
 }
@@ -460,7 +640,7 @@ function createUSBObject() {
   });
   shellGeo.center();
   shellGeo.translate(0, 0, SHELL_D / 2 - 0.06);
-  const shellMat = track(makeMetal({ rim: 0.5, rimPower: 3.0 }));
+  const shellMat = track(makeMetal({ materialKey: 'usb', rim: 0.5, rimPower: 3.6 }));
   const shell = new THREE.Mesh(shellGeo, shellMat);
   inner.add(shell);
   materials.push(shellMat);
@@ -566,6 +746,14 @@ function createUSBObject() {
   inner.add(new THREE.Mesh(ringGeo, ringMat));
   materials.push(ringMat);
 
+  /* --- Halo: soft lime glow behind the plug + cable joint, riding the same
+     rotation as the plug so it reads as light the plug omits. --- */
+  const halo = _makeHalo(1.45);
+  halo.sprite.position.set(0, -0.05, -0.65);
+  inner.add(halo.sprite);
+  materials.push(halo.mat);
+  textures.push(halo.tex);
+
   return {
     key: 'usb',
     group,
@@ -582,6 +770,7 @@ function createUSBObject() {
       pulseUniforms.uTime.value = elapsed;
       /* pulses brighten with the glow the loop assigns to this object */
       pulseUniforms.uPulseStrength.value = (ctx ? ctx.glow : 0.6) * 0.9;
+      halo.mat.opacity = (halo.mat.userData.baseHalo || TUNING.halo.opacity) * (ctx ? ctx.glow : 1);
       /* Outward yaw, with a slow breathing tilt so it is never rigid. The
        * solver owns the base angle; the wobble is this object's own. */
       const yaw = this.outwardYaw;
@@ -630,13 +819,30 @@ function createNetworkObject() {
 
   /* --- Nodes: one InstancedMesh, per-instance scale pulse on the CPU --- */
   const nodeMat = track(makeGlossy({
-    color: 0x0f1519, metalness: 0.5, roughness: 0.14, clearcoat: 1, rim: 0.95, rimPower: 2.0,
+    materialKey: 'network', color: 0x0f1519, rim: 0.95, rimPower: 2.6,
   }));
   const nodeGeo = new THREE.IcosahedronGeometry(1, 2);
   const nodeMesh = new THREE.InstancedMesh(nodeGeo, nodeMat, nodes.length);
   group.add(nodeMesh);
   materials.push(nodeMat);
   hit.push(nodeMesh);
+
+  /* --- Halos: a tight lime glow behind the hub, and a broad faint relief
+     behind the whole constellation so the shape reads as lit from within. --- */
+  const hubHalo = _makeHalo(0.95);
+  hubHalo.sprite.position.set(0, 0, -0.06);
+  group.add(hubHalo.sprite);
+  materials.push(hubHalo.mat);
+  textures.push(hubHalo.tex);
+  const reliefHalo = _makeHalo(2.6, [
+    [0.0, 'rgba(51,235,77,0.30)'],
+    [0.45, 'rgba(51,235,77,0.10)'],
+    [1.0, 'rgba(51,235,77,0)'],
+  ]);
+  reliefHalo.sprite.position.set(0, 0, -0.35);
+  group.add(reliefHalo.sprite);
+  materials.push(reliefHalo.mat);
+  textures.push(reliefHalo.tex);
 
   /* --- Links: LineSegments, centre hub + three cross edges --- */
   const linkPairs = [];
@@ -719,6 +925,9 @@ function createNetworkObject() {
 
       lineMat.opacity = 0.16 + 0.24 * Math.min(1, glow);
       packetMat.opacity = 0.40 + 0.55 * Math.min(1, glow);
+      const haloG = (halo.mat.userData.baseHalo || TUNING.halo.opacity) * glow;
+      hubHalo.mat.opacity = haloG;
+      reliefHalo.mat.opacity = haloG * 0.7;
     },
   };
 }
@@ -1078,6 +1287,42 @@ export function createFlowLinks() {
       for (const t of textures) t.dispose();
     },
   };
+}
+
+/* ============================================================================
+ * 8c. STUDIO ENV — a throwaway scene baked once into the PMREM cube
+ * ----------------------------------------------------------------------------
+ * The premium gloss surface every prop reflects. A dark room with three lit
+ * strips — a soft cool key high/front, a dim warm kicker low/back and a thin
+ * lime top strip — baked by js/scene3d.js with PMREMGenerator and discarded.
+ * Colors are allowed above 1.0: the bake runs with tone mapping off, so the
+ * strips radiate at true HDR intensity and the material side can always dim
+ * them with `env.intensity`.
+ * ==========================================================================*/
+
+export function buildStudioScene() {
+  const E = TUNING.env;
+  const s = E.stripIntensity ?? 1;
+  const l = E.limeStrip ?? 1;
+  const group = new THREE.Group();
+  const strip = (w, h, pos, rot, rgb) => {
+    const m = new THREE.Mesh(
+      new THREE.PlaneGeometry(w, h),
+      new THREE.MeshBasicMaterial({ color: new THREE.Color(rgb[0], rgb[1], rgb[2]) })
+    );
+    m.position.set(pos[0], pos[1], pos[2]);
+    if (rot) { m.rotation.x = rot[0]; m.rotation.y = rot[1]; }
+    group.add(m);
+  };
+  /* Soft cool key strip, high and forward, angled down at the props. */
+  strip(9, 3.5, [0, 6.8, 6.0], [-0.55, 0], [1.15 * s, 1.30 * s, 1.55 * s]);
+  /* Dim warm kicker, low and back to the left. */
+  strip(6, 2.2, [-5.2, -2.4, 4.0], [0.40, 0.15], [1.90, 1.40, 0.90]);
+  /* Thin lime top strip — the signature green sheen on piano black. */
+  strip(3.4, 0.42, [3.6, 6.4, -1.2], [-0.70, -0.10], [0.90 * l, 2.40 * l, 1.05 * l]);
+  /* A whisper of warm fill from below so the undersides are not dead black. */
+  strip(12, 10, [0, -9, -0.5], [Math.PI / 2 - 0.2, 0], [0.17, 0.15, 0.13]);
+  return group;
 }
 
 /* ============================================================================

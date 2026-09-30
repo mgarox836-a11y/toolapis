@@ -38,6 +38,7 @@ import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { TUNING, PALETTE, OBJ_KEYS, STOPS, FOCAL_TARGET } from './config.js';
 import {
   buildObject, disposeObject, createBackgroundProps, createParticles, createFlowLinks,
+  buildStudioScene, setMaterialQuality, disposeSharedTextures,
 } from './objects.js';
 import { createScrollEngine, CENTER_TOLERANCE_PX } from './scroll.js';
 
@@ -175,7 +176,9 @@ function createRenderer() {
      does later in the frame. `scene.background` is deliberately never set. */
   renderer.setClearColor(0x000000, 0);
   renderer.outputColorSpace = THREE.SRGBColorSpace;
-  renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  renderer.toneMapping = TUNING.toneMapping === 'agx'
+    ? THREE.AgXToneMapping
+    : THREE.ACESFilmicToneMapping;
   renderer.toneMappingExposure = TUNING.exposure.near;
   /* setSize(w, h, false) keeps the CSS rule in charge of layout, so there is
      never a reflow jump. Sizing itself happens in syncSize(). */
@@ -235,12 +238,24 @@ function createLights() {
   scene.add(new THREE.HemisphereLight(L.mappedColor || 0x223040, 0x05080a, L.hemi));
 }
 
-/** One-time PMREM from RoomEnvironment: the premium gloss reflections. */
+/** One-time PMREM bake of the custom dark-room studio (see objects.js
+ *  buildStudioScene): the premium gloss reflections. The bake covers the mild
+ *  HDR range (NoToneMapping while baking), so the env reads as a lit room, not
+ *  as a flat fill; `TUNING.env.intensity` still scales how much of it every
+ *  material lets through. RoomEnvironment is retained as the fallback so a
+ *  shader or mesh regression in the studio build can never kill the scene. */
 function createEnvironment() {
   if (!TUNING.env.enabled) return;
   const pmrem = new THREE.PMREMGenerator(state.renderer);
-  const envScene = new RoomEnvironment();
-  state.pmremRT = pmrem.fromScene(envScene, 0.04);
+  let envScene = null;
+  try {
+    envScene = buildStudioScene();
+    state.pmremRT = pmrem.fromScene(envScene, 0.10);
+  } catch (err) {
+    warn('studio env bake failed — falling back to RoomEnvironment', err);
+    envScene = new RoomEnvironment();
+    state.pmremRT = pmrem.fromScene(envScene, 0.10);
+  }
   state.scene.environment = state.pmremRT.texture;
   pmrem.dispose();
   disposeSceneGraph(envScene);
@@ -1586,6 +1601,9 @@ function dispose() {
   state.trackedMats.length = 0;
   state.objects = {};
 
+  /* Shared procedural material maps (objects.js) are cached module-wide. */
+  disposeSharedTextures();
+
   if (state.pmremRT) {
     state.scene.environment = null;
     state.pmremRT.dispose();
@@ -1714,6 +1732,9 @@ function init() {
     createCamera();
     createLights();
     createEnvironment();
+    /* The procedural material maps are quality-tier-gated inside objects.js;
+       phase E maps this from TUNING.quality. 'high' keeps the full look. */
+    setMaterialQuality('high');
     createObjects();
     createProps();
     addFlowLinks();
