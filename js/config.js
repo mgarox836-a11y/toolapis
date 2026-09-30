@@ -83,12 +83,36 @@ export const TUNING = {
     far:  0.66,   // clarity
   },
   lights: {
-    key:  0.75,   // soft white directional
+    /* Faint COOL key (cyan): the shape is read by the rims and the warm fill,
+       never by the key itself — the room stays the near-black the design owns.
+       Painterly warmth arrives from below (kick) and from the mapped fill. */
+    keyColor: 0xa8c8dd,
+    key: 0.60,
     lime: 9.0,    // accent point light
-    kick: 4.5,    // opposite-side accent kicker
+    /* Low warm side kicker, oriented along X: the shadow side of a prop gets a
+       quiet warm lift so the blacks stay black without reading dead. */
+    kickColor: 0xe8a06a,
+    kick: 4.5,
     hemi: 0.10,   // shadow-side fill — anything higher greys out the blacks
+    /* The painterly 6200K the "dims" are mapped onto: used as the hemisphere
+       SKY colour, so the fill every dark side of a prop sits under is warm and
+       the fade bands read as a warm dissolve rather than a grey one. */
+    mappedColor: 0xd9b98a,
+    /* Scene-wide rim floor. Every material that ALREADY opts into a rim keeps
+       its authored value unless it is below this, in which case it is lifted.
+       Authored zero-rims (holes, plain plate) stay zero — the floor thickens
+       the rims, it never invents one. 0 = unchanged. */
+    rimFloor: 0.95,
   },
   env: { enabled: true, intensity: 0.20 },
+
+  /* ==== Emissive (the lime signal) ====
+   * The bright element the bloom high-pass would catch. `color` is the signal
+   * green every emissive material is drawn with — the warm lime the mission
+   * pinned at rgb(.20/.92/.30) rather than the page accent, which is a UI
+   * colour. The emissive reads as LIGHT the prop omits; the accent reads as
+   * paint. */
+  emissive: { color: 0x33EB4D },
 
   /* ==== Fog ====
    * FogExp2 densities, not linear near/far. The colour MUST equal
@@ -209,6 +233,16 @@ export const TUNING = {
     max:  2600,     // px/s that counts as "full" velocity
   },
 
+  /* ==== Rotation clamps (scene truth: the props never leave their gutter) ====
+   * The self-spin, the scroll-kick and the entrance yaw are all kept within
+   * `maxYaw` (±28°) of the section's AUTHORED facing (`state.yaw`), so a prop
+   * may be discovered from the side but can never wander off its column while
+   * the solver is busy keeping it on screen. `maxTilt` (±8°) caps the bob and
+   * the velocity kick on rotation.z, so a fast scroll can never lay a prop
+   * back over the camera. Both in RADIANS — and applied AFTER the entrance
+   * adds its own 25°, so the composed pose always lands inside the budget. */
+  rotation: { maxYaw: 0.488, maxTilt: 0.14 },
+
   /* ==== Hover ==== */
   hover: { scale: 1.10, glow: 2.4, spinMul: 2.4, damping: 6.0 },
 
@@ -277,6 +311,14 @@ export const TUNING = {
     /* Minimum GAP in screen px between two props' boxes, so they never
      * intersect. One number, one place, so it can never disagree with itself. */
     minSeparationPx: 28,
+    /* The centre-distance rule (the validator's own): two props whose boxes
+       share a horizontal BAND must keep their CENTRES at least
+       `minSeparationRatio * (sizeA + sizeB)` apart — a ratio on the sizes the
+       props actually draw, not on their shared gutters. The edge-gap rule
+       above only applies between props sharing the SAME SIDE, so a left prop
+       and a right prop may sit on adjacent rows without a 28px moat between
+       them, while same-column neighbours keep a hard gap. */
+    minSeparationRatio: 0.6,
   },
 
   /* ==== Per-prop size + edge rules ====
@@ -308,6 +350,17 @@ export const TUNING = {
     minOpacity:      0.75,
     edgePadPx:        32,
     footerFadePx:    180,
+    /* Crop support — STRUCTURE ONLY, and kept dead on purpose.
+     * `edgeCropMax` is how much of a prop's box may sit PAST the viewport
+     * edge (beyond `edgePadPx`) and still pass the validator's rect check —
+     * a prop drawn cropped off the side instead of faded or nudged. It is 0,
+     * so NO prop is ever cropped: the validator still demands the whole box
+     * inside the band, and the solver still measures `croppedPx` on every
+     * candidate so the debug overlay can always show the crop a nonzero value
+     * would have allowed. The guard is the screen's vertical centre line: a
+     * prop may only crop the edge on the SIDE its centre already sits on, so
+     * cropping can never drag a right-side prop half off the left edge. */
+    edgeCropMax:      0,
     /* `maxWorldScale` is SOFT — it keeps the authored size in check, and the
        size floor below outranks it, so a floor is always reachable. `fit` is
        the hard ceiling: it comes from the measured box. */
@@ -387,21 +440,22 @@ export const TUNING = {
     sections: {
       /* HERO. The copy column is centred and narrower than the page, so both
        * gutters are real: the plug in the left one with its cable yawed
-       * OUTWARD (props.usb.cableOutward), the constellation upper right, the
-       * HD frame right and below it. */
+       * OUTWARD (props.usb.cableOutward) sits lower and smaller, the
+       * constellation is higher upper-right, the HD frame sits right and just
+       * below it — a tight diagonal across the top-right corner. */
       hero: {
         usb: {
-          desktop: { x: 0.10, y: 0.58, size: 0.12 },
+          desktop: { x: 0.09, y: 0.63, size: 0.11 },
           tablet:  { x: 0.12, y: 0.74, size: 0.12 },
           mobile:  { x: 0.14, y: 0.80, size: 0.11, opacity: 0 },
         },
         network: {
-          desktop: { x: 0.86, y: 0.22, size: 0.11 },
+          desktop: { x: 0.87, y: 0.20, size: 0.10 },
           tablet:  { x: 0.88, y: 0.20, size: 0.11, opacity: 0 },
           mobile:  { x: 0.90, y: 0.18, size: 0.10, opacity: 0 },
         },
         hd: {
-          desktop: { x: 0.87, y: 0.54, size: 0.17 },
+          desktop: { x: 0.88, y: 0.55, size: 0.15 },
           tablet:  { x: 0.86, y: 0.32, size: 0.20 },
           mobile:  { x: 0.88, y: 0.30, size: 0.18, opacity: 0 },
         },
@@ -429,70 +483,72 @@ export const TUNING = {
         },
       },
 
-      /* FEATURES — per scroll, the row that is in view. The area to the right
-       * of the "Small hub" heading and its paragraph is empty, so the HD frame
-       * goes there. The plug takes the right gutter between the rows and has
-       * the LEFT gutter as its authored `alt` when the right one is taken. The
-       * constellation is the smallest of the three and only survives if that
-       * corner is still free — otherwise the validator fades it out, which is
-       * what an authored placement is for. */
+      /* FEATURES — per scroll, the row that is in view. "Small hub"s heading and
+       * paragraph sit at the top-left, so the HD frame steps INWARD to the
+       * space right of that copy (0.78, higher), the constellation sits just
+       * below it inside the same free column, and the plug takes the right
+       * gutter between the rows with the LEFT gutter as its authored `alt`
+       * when the right one is taken. */
       features: {
         hd: {
-          desktop: { x: 0.86, y: 0.32, size: 0.15 },
+          desktop: { x: 0.78, y: 0.24, size: 0.14 },
           tablet:  { x: 0.50, y: 0.12, size: 0.16, opacity: 0 },
           mobile:  { x: 0.50, y: 0.12, size: 0.16, opacity: 0 },
         },
         usb: {
-          desktop: { x: 0.90, y: 0.62, size: 0.11, alt: { x: 0.04, y: 0.62 } },
+          desktop: { x: 0.90, y: 0.42, size: 0.09, alt: { x: 0.04, y: 0.42 } },
           tablet:  { x: 0.50, y: 0.88, size: 0.13, opacity: 0 },
           mobile:  { x: 0.50, y: 0.88, size: 0.13, opacity: 0 },
         },
         network: {
-          desktop: { x: 0.94, y: 0.50, size: 0.09 },
+          desktop: { x: 0.63, y: 0.30, size: 0.10 },
           tablet:  { x: 0.50, y: 0.88, size: 0.12, opacity: 0 },
           mobile:  { x: 0.50, y: 0.88, size: 0.12, opacity: 0 },
         },
       },
 
-      /* FLOW — the free area to the right of the heading and paragraph, plus
-       * the vertical gap above the step row. Nothing ever goes over the three
-       * steps, their icons or their captions. */
+      /* FLOW — the free column right of the heading and paragraph, all three
+       * props in a tight vertical stack above the step row: the HD frame and
+       * the constellation share the top band side by side, the plug drops in
+       * below them. Nothing ever goes over the three steps, their icons or
+       * their captions. */
       flow: {
         hd: {
-          desktop: { x: 0.80, y: 0.24, size: 0.14 },
+          desktop: { x: 0.70, y: 0.27, size: 0.14 },
           tablet:  { x: 0.50, y: 0.14, size: 0.16, opacity: 0 },
           mobile:  { x: 0.50, y: 0.14, size: 0.16, opacity: 0 },
         },
         network: {
-          desktop: { x: 0.62, y: 0.20, size: 0.10 },
+          desktop: { x: 0.52, y: 0.27, size: 0.10 },
           tablet:  { x: 0.50, y: 0.88, size: 0.12, opacity: 0 },
           mobile:  { x: 0.50, y: 0.88, size: 0.12, opacity: 0 },
         },
         usb: {
-          desktop: { x: 0.90, y: 0.42, size: 0.10 },
+          desktop: { x: 0.88, y: 0.27, size: 0.10 },
           tablet:  { x: 0.50, y: 0.88, size: 0.13, opacity: 0 },
           mobile:  { x: 0.50, y: 0.88, size: 0.13, opacity: 0 },
         },
       },
 
       /* CLARITY — symmetric about the CTA card's vertical centre: a mirrored
-       * pair flanking the panel, nothing under the buttons. The plug is
-       * authored HIDDEN: at x0.50/y0.88 it would touch the footer band at
+       * pair flanking the panel (the constellation slightly tighter to the
+       * panel than the HD frame), nothing under the buttons. The plug is
+       * authored HIDDEN: at x0.50/y0.86 it would touch the footer band at
        * every size at or above the floor, and the floor is never broken to
        * make room for it. */
       clarity: {
         hd: {
-          desktop: { x: 0.07, y: 0.45, size: 0.13 },
+          desktop: { x: 0.15, y: 0.47, size: 0.13 },
           tablet:  { x: 0.10, y: 0.32, size: 0.15 },
           mobile:  { x: 0.10, y: 0.32, size: 0.15, opacity: 0 },
         },
         network: {
-          desktop: { x: 0.93, y: 0.45, size: 0.12 },
+          desktop: { x: 0.85, y: 0.47, size: 0.12 },
           tablet:  { x: 0.90, y: 0.32, size: 0.14 },
           mobile:  { x: 0.90, y: 0.32, size: 0.14, opacity: 0 },
         },
         usb: {
-          desktop: { x: 0.50, y: 0.88, size: 0.11, opacity: 0 },
+          desktop: { x: 0.50, y: 0.86, size: 0.09, opacity: 0 },
           tablet:  { x: 0.50, y: 0.88, size: 0.13, opacity: 0 },
           mobile:  { x: 0.50, y: 0.88, size: 0.13, opacity: 0 },
         },

@@ -714,6 +714,10 @@ export function createScrollEngine() {
       asymPx: 0,
       /* Size bookkeeping: what was authored, what the floor is, what it got. */
       authoredPx: 0, floorPx: 0, committedPx: 0,
+      /* Crop support (struct only): how far the box pokes past the band's pads
+         (0 while edgeCropMax === 0), and how far its centre sits from the
+         centre of the nearest other prop. */
+      croppedPx: 0, nearestPx: 0,
       /* Damped, then handed to js/scene3d.js. */
       opacity: 1, fade: 1,
       state: 'authored',
@@ -723,7 +727,8 @@ export function createScrollEngine() {
 
   /** The boxes already committed this frame, for prop-vs-prop separation. */
   const _placed = OBJ_KEYS.map((key) => ({
-    key, x0: 0, y0: 0, x1: 0, y1: 0, used: false,
+    key, x0: 0, y0: 0, x1: 0, y1: 0, cx: 0, cy: 0, size: 0,
+    side: 'right', used: false,
   }));
 
   /**
@@ -767,15 +772,54 @@ export function createScrollEngine() {
       r.x0 >= P.edgePadPx - 0.5 && r.x1 <= vw - P.edgePadPx + 0.5
       && r.y0 >= topLimitPx - 0.5 && r.y1 <= botLimitPx + 0.5;
 
-    /** Clear of the copy AND of every prop committed before this one? */
+    /** How far a rect pokes past the band's pads on its worst edge, and whether
+     *  a crop off that edge is legal under the screen-centre guard.
+     *
+     *  CROP SUPPORT, STRUCTURE ONLY. `props.edgeCropMax` is 0, so the branch
+     *  that uses this is dead by construction and NO prop is ever cropped — the
+     *  measure is there so `croppedPx` can be reported and a nonzero budget can
+     *  be flipped on without touching the validator. The guard: a prop may only
+     *  crop the edge on the SIDE its own centre sits on, so cropping can never
+     *  drag a right-gutter prop half off the left edge of the screen. */
+    const cropOf = (r) => {
+      const over = Math.max(
+        P.edgePadPx - r.x0,
+        r.x1 - (vw - P.edgePadPx),
+        topLimitPx - r.y0,
+        r.y1 - botLimitPx
+      );
+      const guard = !(P.edgePadPx - r.x0 > 0 && r.cx > vw * 0.5)
+        && !(r.x1 - (vw - P.edgePadPx) > 0 && r.cx < vw * 0.5);
+      return { px: Math.max(0, over), allowed: guard && over <= P.edgeCropMax };
+    };
+
+    /** Clear of the copy, of every prop that may share a side, and of every
+     *  prop whose own centre is too close to this one's across the band. */
     const rectClear = (r) => {
       if (boxHits(content, ids, r.x0, r.x1, r.y0 + scrollY, r.y1 + scrollY)) return false;
+      const rSize = Math.max(r.w || 0, r.h || 0);
+      const rSide = r.cx >= vw * 0.5 ? 'right' : 'left';
       for (let i = 0; i < _placed.length; i++) {
         const q = _placed[i];
         if (!q.used) continue;
-        if (r.x1 <= q.x0 - gap || r.x0 >= q.x1 + gap) continue;
-        if (r.y1 <= q.y0 - gap || r.y0 >= q.y1 + gap) continue;
-        return false;
+        /* Edge-gap rule — ONLY between props sharing a side (same column). A
+           left-gutter prop and a right-gutter prop sitting on adjacent rows do
+           not need a 28px moat between them: they belong to different columns. */
+        if (q.side === rSide) {
+          if (r.x1 <= q.x0 - gap || r.x0 >= q.x1 + gap) continue;
+          if (r.y1 <= q.y0 - gap || r.y0 >= q.y1 + gap) continue;
+          return false;
+        }
+        /* Centre-distance rule — when the two boxes share a horizontal BAND:
+           their centres must stay `minSeparationRatio * (sizeA + sizeB)` apart,
+           where the sizes are what they DRAW. Two big props hold more room than
+           two small ones, and the rule has no gutters to disagree with. */
+        if (r.y0 < q.y1 && r.y1 > q.y0) {
+          const dx = r.cx - q.cx;
+          const dy = r.cy - q.cy;
+          const minDist = G.minSeparationRatio * (rSize + q.size);
+          if (dx * dx + dy * dy < minDist * minDist) return false;
+        }
       }
       return true;
     };
@@ -847,10 +891,21 @@ export function createScrollEngine() {
       let state = 'authored';
       let placed = false;
 
+      /** A candidate box is accepted when it fits the band, or — only while
+       *  edgeCropMax is nonzero — when it merely pokes one edge by an allowed
+       *  crop and is still clear of everything. Either way it must clear the
+       *  copy and the props. CROPS ARE OFF (edgeCropMax 0), so this collapses
+       *  back to exactly "fits the band and is clear". */
+      const accepted = () => {
+        const c = cropOf(_rect);
+        if (c.allowed) return rectClear(_rect);
+        return rectOk(_rect) && rectClear(_rect);
+      };
+
       /* 1. the authored decision */
       sc = project(authX, authY, authSize);
       if (a.opacity > 0) {
-        placed = rectOk(_rect) && rectClear(_rect);
+        placed = accepted();
       }
 
       /* 2. the authored `alt` — how a prop moves to the other gutter without a
@@ -858,7 +913,7 @@ export function createScrollEngine() {
       if (!placed && a.alt && a.opacity > 0) {
         sc = project(clamp(a.alt.x, -0.5, 1.5), clamp(a.alt.y, -0.5, 1.5),
           clamp(a.alt.size ?? authSize, 0, 1));
-        if (rectOk(_rect) && rectClear(_rect)) { placed = true; state = 'alt'; }
+        if (accepted()) { placed = true; state = 'alt'; }
       }
 
       /* 3. the nudge: the nearest free direction, at most `nudge.maxFrac` of the
@@ -874,7 +929,7 @@ export function createScrollEngine() {
             const ny = authY + dirs[di][1] * step;
             if (nx < -0.4 || nx > 1.4 || ny < -0.4 || ny > 1.4) continue;
             sc = project(nx, ny, authSize);
-            if (rectOk(_rect) && rectClear(_rect)) {
+            if (accepted()) {
               placed = true;
               state = 'nudged';
               break outer;
@@ -902,6 +957,8 @@ export function createScrollEngine() {
       /* The drawn size: the box's dominant dimension, which is the axis the
          authored size, the floor and the cap are all expressed in. */
       p.committedPx = Math.max(p.wPx, p.hPx);
+      /* Crop measure: 0 while edgeCropMax is 0 (the box fits the band). */
+      p.croppedPx = Math.round(cropOf(_rect).px);
       p.state = placed ? state : 'hidden';
       p.collided = a.opacity > 0 && !placed;
       p.nudged = state === 'alt' || state === 'nudged';
@@ -938,7 +995,26 @@ export function createScrollEngine() {
 
       const slot = _placed[ki];
       slot.x0 = p.x0; slot.y0 = p.y0; slot.x1 = p.x1; slot.y1 = p.y1;
+      slot.cx = p.cxPx; slot.cy = p.cyPx;
+      slot.size = p.committedPx;
+      slot.side = p.side;
       slot.used = placed;
+    }
+
+    /* Nearest-prop centre distance, committed AFTER the whole batch so every
+       prop knows where every other one actually landed. */
+    for (let i = 0; i < _placed.length; i++) {
+      const a = _placed[i];
+      if (!a.used) continue;
+      const p = placement[a.key];
+      let best = Infinity;
+      for (let j = 0; j < _placed.length; j++) {
+        const b = _placed[j];
+        if (i === j || !b.used) continue;
+        const d = Math.hypot(a.cx - b.cx, a.cy - b.cy);
+        if (d < best) best = d;
+      }
+      p.nearestPx = isFinite(best) ? best : 0;
     }
 
     /* ---- ?scene3d=debug: what was asked for, and what was committed ---- */
@@ -971,6 +1047,7 @@ export function createScrollEngine() {
           clamped: p.clamped, behind: p.behind, asym: p.asymPx,
           opacity: p.opacity, fade: p.fade, scale: p.scale,
           floorPx: p.floorPx, authoredPx: p.authoredPx, committedPx: p.committedPx,
+          section: s.sectionId, croppedPx: p.croppedPx, nearestPx: p.nearestPx,
         };
       }
     }

@@ -63,6 +63,12 @@ function inject(material, fn, cacheKey) {
  * to it — distant geometry dissolves into the page instead of into bright edges.
  */
 function addRim(material, color, power, strength) {
+  /* Scene truth (the "thicker 0.95 rims"): any material that already opts into
+     a rim is never drawn thinner than `lights.rimFloor` (0.95), so the Fresnel
+     edge reads consistent and warm across every stop. Authored zero-rims
+     (holes, plain plate) stay zero — the floor lifts, it never invents. */
+  const floor = TUNING.lights.rimFloor || 0;
+  if (floor > 0 && strength < floor) strength = floor;
   const uniforms = {
     uRimColor:    { value: new THREE.Color(color) },
     uRimPower:    { value: power },
@@ -121,11 +127,13 @@ export function makeMetal(opts = {}) {
   );
 }
 
-/** Lime emissive — the only bright element, and what bloom picks up. */
+/** Lime emissive — the only bright element, and what bloom picks up. The
+ *  colour is the SIGNAL the scene emits (`TUNING.emissive.color`), warmer and
+ *  greener than the page accent, which is paint. */
 export function makeLime(opts = {}) {
   return new THREE.MeshStandardMaterial({
     color: opts.base ?? 0x1a2409,
-    emissive: new THREE.Color(opts.emissive ?? PALETTE.accent),
+    emissive: new THREE.Color(opts.emissive ?? TUNING.emissive.color),
     emissiveIntensity: opts.intensity ?? 1.6,
     metalness: opts.metalness ?? 0.2,
     roughness: opts.roughness ?? 0.3,
@@ -326,7 +334,7 @@ function createHDObject() {
     uScan:   { value: 1.0 },
     uDim:    { value: 1.0 },
     uInk:    { value: new THREE.Color(0x0a0f12) },
-    uAccent: { value: new THREE.Color(PALETTE.accent) },
+    uAccent: { value: new THREE.Color(TUNING.emissive.color) },
   };
   const dispMat = new THREE.ShaderMaterial({
     uniforms: Object.assign(THREE.UniformsUtils.clone(THREE.UniformsLib.fog), dispUniforms),
@@ -527,7 +535,7 @@ function createUSBObject() {
   }));
   const pulseUniforms = {
     uTime:         { value: 0 },
-    uPulseColor:   { value: new THREE.Color(PALETTE.accent) },
+    uPulseColor:   { value: new THREE.Color(TUNING.emissive.color) },
     uPulseSpeed:   { value: 0.28 },
     uPulseStrength: { value: 0 },
   };
@@ -642,7 +650,7 @@ function createNetworkObject() {
   const lineGeo = new THREE.BufferGeometry();
   lineGeo.setAttribute('position', new THREE.BufferAttribute(linePos, 3));
   const lineMat = new THREE.LineBasicMaterial({
-    color: PALETTE.accent, transparent: true, opacity: 0.34, depthWrite: false,
+    color: TUNING.emissive.color, transparent: true, opacity: 0.34, depthWrite: false,
   });
   lineMat.userData.baseEmissive = 0;
   lineMat.userData.baseEnv = 0;
@@ -895,7 +903,7 @@ export function createParticles(count) {
       uSize:        { value: P.size },
       uDrift:       { value: 0.35 },
       uStreak:      { value: 0 },
-      uColor:       { value: new THREE.Color(PALETTE.accent) },
+      uColor:       { value: new THREE.Color(TUNING.emissive.color) },
       uOpacity:     { value: P.opacity },
       uTwinkle:     { value: P.twinkle },
       uLayerMax:    { value: P.layers },
@@ -949,7 +957,7 @@ export function createFlowLinks() {
   FLOW_PAIRS.forEach((pair, i) => {
     const uniforms = {
       uTime:         { value: 0 },
-      uPulseColor:   { value: new THREE.Color(PALETTE.accent) },
+      uPulseColor:   { value: new THREE.Color(TUNING.emissive.color) },
       uPulseSpeed:   { value: 0.22 + i * 0.05 },
       uPulseStrength: { value: 0 },
       uPhase:        { value: i * 0.37 },
@@ -957,7 +965,7 @@ export function createFlowLinks() {
       uColumn:       { value: new THREE.Vector2(-1, 1) },
     };
     const mat = new THREE.MeshBasicMaterial({
-      color: PALETTE.accent,
+      color: TUNING.emissive.color,
       transparent: true,
       opacity: 0,
       depthWrite: false,

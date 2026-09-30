@@ -216,7 +216,7 @@ function createLights() {
   const scene = state.scene;
   const L = TUNING.lights;
 
-  const key = new THREE.DirectionalLight(PALETTE.white, L.key);
+  const key = new THREE.DirectionalLight(L.keyColor || PALETTE.white, L.key);
   key.position.set(4, 6, 5);
   scene.add(key);
 
@@ -224,11 +224,15 @@ function createLights() {
   lime.position.set(-4, 1.2, 3);
   scene.add(lime);
 
-  const kick = new THREE.PointLight(PALETTE.accentHi, L.kick, 22, 2);
+  /* The low warm kicker, oriented along X: the shadow side of a prop reads
+     warmer, never dead silver. */
+  const kick = new THREE.PointLight(L.kickColor || PALETTE.accentHi, L.kick, 22, 2);
   kick.position.set(3.5, -2.5, 1.5);
   scene.add(kick);
 
-  scene.add(new THREE.HemisphereLight(0x223040, 0x05080a, L.hemi));
+  /* Mapped painterly fill: the hemisphere sky is the 6200K warm the dims are
+     mapped onto, so every dark side a prop turns to the fill reads warm. */
+  scene.add(new THREE.HemisphereLight(L.mappedColor || 0x223040, 0x05080a, L.hemi));
 }
 
 /** One-time PMREM from RoomEnvironment: the premium gloss reflections. */
@@ -647,6 +651,7 @@ function placeObjects(s, dt, elapsed, scrollY) {
   const G = TUNING.gutters;
   const P = TUNING.props;
   const V = TUNING.velocity;
+  const R = TUNING.rotation;
   const vel = state.velocity;
   const vh = window.innerHeight;
   _linkScrollY = scrollY;
@@ -728,6 +733,9 @@ function placeObjects(s, dt, elapsed, scrollY) {
     o.group.rotation.z =
       Math.cos(elapsed * 0.19 + o.phase * 0.8) * 0.12 * (1 - 0.7 * s.converge)
       + V.tilt * vel * Math.sin(elapsed * 1.7 + o.phase);
+    /* Rotation clamp: a fast scroll's kick (or a long spin) can never lay a
+       prop over the camera — the bob/tilt stays within ±`maxTilt`. */
+    o.group.rotation.z = clamp(o.group.rotation.z, -R.maxTilt, R.maxTilt);
 
     /* --- Scale: the world scale the validator committed, times hover (and,
      * while the entrance is running, the prop's own arrival scale).
@@ -756,6 +764,10 @@ function placeObjects(s, dt, elapsed, scrollY) {
     const riseWorld = ((1 - entra.k) * ENTRANCE.riseFraction * vh) / pxPerWorld;
     o.group.position.y -= riseWorld;
     o.group.rotation.y += (1 - entra.k) * ENTRANCE.startRotY;
+    /* Yaw clamp: space spin, the velocity kick and the entrance's own 25° all
+       sit INSIDE ±`maxYaw` of the section's authored facing (state.yaw) — a
+       prop is discovered from the side, never dispatched from its column. */
+    o.group.rotation.y = clamp(o.group.rotation.y, state.yaw - R.maxYaw, state.yaw + R.maxYaw);
     const entrScale = lerp(ENTRANCE.startScale, 1, entra.p);
     o.opacityVis = entra.p;
     o.group.scale.set(cs * entrScale, cs * entrScale, cs * (1 + V.stretch * vel) * entrScale);
@@ -1024,6 +1036,8 @@ function drawDebugOverlay(places) {
         ? (p.committedPx < p.authoredPx ? ` (floor ${Math.round(p.floorPx)})` : ' (cap)')
         : '')
       + ` Δ${live ? live.err.toFixed(1) : '--'}`
+      + (state.intro.active && o ? ` ~${Math.round((o.introP ?? 0) * 100)}%` : '')
+      + ` crop${Math.round(p.croppedPx || 0)} · near${Math.round(p.nearestPx || 0)}px`
       + (p.state === 'nudged' ? ' NUDGED' : p.state === 'alt' ? ' ALT' : '');
     g.fillText(tag, Math.max(2, p.x0), Math.max(2, p.y0 - scrollY - 14));
     if (p.collided) {
@@ -1037,12 +1051,17 @@ function drawDebugOverlay(places) {
   const st = data.stats || {};
   g.lineWidth = 1;
   g.fillStyle = 'rgba(11,15,18,0.75)';
-  g.fillRect(0, data.bandPx + 4, 300, 68);
+  g.fillRect(0, data.bandPx + 4, 300, 88);
   g.fillStyle = '#e2e8f0';
   g.fillText(`#${data.sectionId}  ${Math.round(window.scrollY)}px  ${vw}x${vh}  ${data.variant}`, 8, data.bandPx + 10);
   g.fillStyle = '#94a3b8';
   g.fillText(`obstacles ${data.obstacles.length} (text ${st.text || 0} box ${st.box || 0} chip ${st.chip || 0} card ${st.card || 0} chrome ${st.chrome || 0})`, 8, data.bandPx + 26);
   g.fillText(`dropped ${st.wrapper || 0} wrappers  ${st.wide || 0} over-wide  band ${Math.round(data.bandTopPx)}-${Math.round(data.bandBottomPx)}`, 8, data.bandPx + 42);
+  const introTxt = state.intro.active
+    ? 'entrance active'
+    : (state.intro.finished ? 'entrance done' : 'entrance idle');
+  const cropRow = OBJ_KEYS.map(k => Math.round((places[k] && places[k].croppedPx) || 0)).join('/');
+  g.fillText(`crops ${cropRow}px  ${introTxt}`, 8, data.bandPx + 74);
   g.fillStyle = worstLive < CENTER_TOLERANCE_PX ? '#86efac' : '#fecaca';
   g.fillText(`worst box/marker offset ${worstLive.toFixed(2)}px at ${worstLiveAt}`
     + ` (tolerance ${CENTER_TOLERANCE_PX}px)`, 8, data.bandPx + 58);
