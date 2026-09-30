@@ -1805,7 +1805,7 @@ function bail(reason, err) {
 
 /** ?scene3d=debug exposes window.__scene3d for console inspection. */
 function exposeDebugHandle() {
-  if (!TUNING.debug) return;
+  if (!TUNING.inspect) return;
   window.__scene3d = {
     state, TUNING, STOPS, engine: state.engine,
     info: () => ({

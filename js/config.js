@@ -659,9 +659,15 @@ export const TUNING = {
     mobile:  { posScale: 0.40, scaleMul: 0.72, camPush: 2.2, exposureMul: 0.80 },
   },
 
-  /* ==== Accessibility / debug ==== */
+  /* ==== Accessibility / debug ====
+   * `debug` paints the solver overlay (obstacles, accepted candidates, the
+   * committed boxes) — invasive, so it is opt-in and never part of a capture.
+   * `inspect` only exposes the read-only `window.__scene3d` handle and the
+   * per-frame debug data behind it, which is what a screenshot harness reads
+   * to measure a pose; it draws nothing. `?scene3d=probe` is that mode. */
   showStaticOnReducedMotion: true,
   debug: new URLSearchParams(location.search).get('scene3d') === 'debug',
+  inspect: ['debug', 'probe'].includes(new URLSearchParams(location.search).get('scene3d')),
 };
 
 /* ---------------------------------------------------------------------------

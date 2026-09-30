@@ -2,5 +2,8 @@
   "dependencies": {
     "aceternity-ui": "^0.2.2",
     "framer-motion": "^13.4.0"
+  },
+  "devDependencies": {
+    "playwright-core": "^1.63.0"
   }
 }

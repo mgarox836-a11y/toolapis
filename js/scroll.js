@@ -1017,8 +1017,8 @@ export function createScrollEngine() {
       p.nearestPx = isFinite(best) ? best : 0;
     }
 
-    /* ---- ?scene3d=debug: what was asked for, and what was committed ---- */
-    if (TUNING.debug) {
+    /* ---- ?scene3d=debug/probe: what was asked for, and what was committed ---- */
+    if (TUNING.inspect) {
       const obstacles = [];
       for (let i = 0; i < ids.length; i++) {
         const rects = content[ids[i]];
