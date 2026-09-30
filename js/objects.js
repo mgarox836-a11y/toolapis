@@ -137,8 +137,16 @@ let _materialQuality = 'high';
 export function setMaterialQuality(q) {
   _materialQuality = q || 'high';
 }
+/** Frees the shared procedural maps. The cache stores the { roughness, normal }
+ *  PAIR, not a bare texture, so both halves are released here — disposing the
+ *  wrapper threw a TypeError on every medium/high dispose and aborted the rest
+ *  of scene3d's teardown (renderer, canvas and html.scene3d all left behind). */
 export function disposeSharedTextures() {
-  for (const t of _textureCache.values()) t.dispose();
+  for (const maps of _textureCache.values()) {
+    for (const t of [maps && maps.roughness, maps && maps.normal]) {
+      try { t?.dispose(); } catch (e) { /* already gone */ }
+    }
+  }
   _textureCache.clear();
 }
 
@@ -233,23 +241,47 @@ function _attachAnisotropy(mat, value, rotation) {
 }
 
 /** Additive radial-glow sprite — the "bloom without bloom" halo. Shared
- *  texture, one quad per sprite, fog:false so it reads as light, not dust. */
+ * texture, one quad per sprite, fog:false so it reads as light, not dust.
+ * Returns null instead of throwing: a halo is a decorative extra, and a
+ * missing canvas 2D context must cost the glow, never the prop. Every call
+ * site goes through `attachHalo()` and null-checks the result. */
 function _makeHalo(scale, colorStops) {
-  const stops = colorStops || TUNING.halo.colorStops || [
-    [0.0, 'rgba(51,235,77,0.55)'],
-    [0.35, 'rgba(51,235,77,0.20)'],
-    [1.0, 'rgba(51,235,77,0)'],
-  ];
-  const tex = radialCanvasTexture(128, stops);
-  const mat = new THREE.SpriteMaterial({
-    map: tex, transparent: true, opacity: TUNING.halo.opacity,
-    depthWrite: false, blending: THREE.AdditiveBlending, fog: false,
-  });
-  mat.userData.baseHalo = TUNING.halo.opacity;
-  const sprite = new THREE.Sprite(mat);
-  const s = TUNING.halo.size * scale;
-  sprite.scale.set(s, s, 1);
-  return { sprite, mat, tex };
+  try {
+    const stops = colorStops || TUNING.halo.colorStops || [
+      [0.0, 'rgba(51,235,77,0.55)'],
+      [0.35, 'rgba(51,235,77,0.20)'],
+      [1.0, 'rgba(51,235,77,0)'],
+    ];
+    const tex = radialCanvasTexture(128, stops);
+    const mat = new THREE.SpriteMaterial({
+      map: tex, transparent: true, opacity: TUNING.halo.opacity,
+      depthWrite: false, blending: THREE.AdditiveBlending, fog: false,
+    });
+    mat.userData.baseHalo = TUNING.halo.opacity;
+    const sprite = new THREE.Sprite(mat);
+    const s = TUNING.halo.size * scale;
+    sprite.scale.set(s, s, 1);
+    return { sprite, mat, tex };
+  } catch (err) {
+    console.error('[objects] halo skipped:', err);
+    return null;
+  }
+}
+
+/**
+ * Builds a halo, parents it to `parent`, positions it and registers its
+ * material/texture for the loop. The single entry point every builder uses, so
+ * "create + add + track + null-check" can never be half-done at a call site.
+ * Returns the halo, or null when the halo was skipped.
+ */
+function attachHalo(parent, materials, textures, { scale, stops, position }) {
+  const halo = _makeHalo(scale, stops);
+  if (!halo) return null;
+  halo.sprite.position.set(position[0], position[1], position[2]);
+  parent.add(halo.sprite);
+  materials.push(halo.mat);
+  textures.push(halo.tex);
+  return halo;
 }
 
 /** Dark glossy piano-black base used by every prop body. On the low quality
@@ -650,11 +682,9 @@ function createHDObject() {
      tier drops every halo except the network hub, so this is skip on 'low'. --- */
   let halo = null;
   if (_materialQuality !== 'low') {
-    halo = _makeHalo(1.75);
-    halo.sprite.position.set(0, 0.05, -0.5);
-    group.add(halo.sprite);
-    materials.push(halo.mat);
-    textures.push(halo.tex);
+    halo = attachHalo(group, materials, textures, {
+      scale: 1.75, position: [0, 0.05, -0.5],
+    });
   }
 
   /* --- Status LED: a tiny pulsing arcade light on the bottom bezel chin,
@@ -667,11 +697,9 @@ function createHDObject() {
     led.position.set(0, -0.815, 0.06);
     group.add(led);
     materials.push(ledMat);
-    ledHalo = _makeHalo(0.30);
-    ledHalo.sprite.position.set(0, -0.815, 0.03);
-    group.add(ledHalo.sprite);
-    materials.push(ledHalo.mat);
-    textures.push(ledHalo.tex);
+    ledHalo = attachHalo(group, materials, textures, {
+      scale: 0.30, position: [0, -0.815, 0.03],
+    });
   }
 
   /* --- Sweep cadence: a full pass every ~4.2s, sharp in between --- */
@@ -861,11 +889,9 @@ function createUSBObject() {
      every halo except the network hub. --- */
   let halo = null;
   if (_materialQuality !== 'low') {
-    halo = _makeHalo(1.45);
-    halo.sprite.position.set(0, -0.05, -0.65);
-    inner.add(halo.sprite);
-    materials.push(halo.mat);
-    textures.push(halo.tex);
+    halo = attachHalo(inner, materials, textures, {
+      scale: 1.45, position: [0, -0.05, -0.65],
+    });
   }
 
   return {
@@ -960,22 +986,19 @@ function createNetworkObject() {
      behind the whole constellation so the shape reads as lit from within.
      The hub halo is the ONE halo the low tier keeps; the broad relief is
      medium+. --- */
-  const hubHalo = _makeHalo(0.95);
-  hubHalo.sprite.position.set(0, 0, -0.06);
-  group.add(hubHalo.sprite);
-  materials.push(hubHalo.mat);
-  textures.push(hubHalo.tex);
+  const hubHalo = attachHalo(group, materials, textures, {
+    scale: 0.95, position: [0, 0, -0.06],
+  });
   let reliefHalo = null;
   if (_materialQuality !== 'low') {
-    reliefHalo = _makeHalo(2.6, [
-      [0.0, 'rgba(51,235,77,0.30)'],
-      [0.45, 'rgba(51,235,77,0.10)'],
-      [1.0, 'rgba(51,235,77,0)'],
-    ]);
-    reliefHalo.sprite.position.set(0, 0, -0.35);
-    group.add(reliefHalo.sprite);
-    materials.push(reliefHalo.mat);
-    textures.push(reliefHalo.tex);
+    reliefHalo = attachHalo(group, materials, textures, {
+      scale: 2.6, position: [0, 0, -0.35],
+      stops: [
+        [0.0, 'rgba(51,235,77,0.30)'],
+        [0.45, 'rgba(51,235,77,0.10)'],
+        [1.0, 'rgba(51,235,77,0)'],
+      ],
+    });
   }
 
   /* --- Hub ring: a slim lime halo-catcher ring a hair outside the centre
@@ -1100,7 +1123,7 @@ function createNetworkObject() {
       lineMat.opacity = 0.16 + 0.24 * Math.min(1, glow);
       packetMat.opacity = 0.40 + 0.55 * Math.min(1, glow);
       const haloG = baseHalo * glow;
-      hubHalo.mat.opacity = haloG;
+      if (hubHalo) hubHalo.mat.opacity = haloG;
       if (reliefHalo) reliefHalo.mat.opacity = haloG * 0.7;
     },
   };
@@ -1144,16 +1167,26 @@ export function createBackgroundProps() {
   wire.rotation.set(0.4, 0.2, 0);
   group.add(wire);
 
+  /* The twin is an OPTIONAL extra, so it is both declared in the outer scope
+     (its material is collected below, outside this block) and built inside its
+     own try/catch: a throw here must cost the twin and nothing else. */
   let wire2 = null;
+  let wire2Mat = null;
   if (_materialQuality !== 'low') {
-    const wire2Mat = new THREE.MeshBasicMaterial({
-      color: PALETTE.accent, wireframe: true, transparent: true, opacity: B.wire.opacity * 0.6,
-      depthWrite: false, fog: true,
-    });
-    wire2 = new THREE.Mesh(new THREE.IcosahedronGeometry(B.wire.radius * 0.72, 1), wire2Mat);
-    wire2.position.set(0, 0.5, B.wire.z - 1.5);
-    wire2.rotation.set(-0.5, 0.35, 0.4);
-    group.add(wire2);
+    try {
+      wire2Mat = new THREE.MeshBasicMaterial({
+        color: PALETTE.accent, wireframe: true, transparent: true, opacity: B.wire.opacity * 0.6,
+        depthWrite: false, fog: true,
+      });
+      wire2 = new THREE.Mesh(new THREE.IcosahedronGeometry(B.wire.radius * 0.72, 1), wire2Mat);
+      wire2.position.set(0, 0.5, B.wire.z - 1.5);
+      wire2.rotation.set(-0.5, 0.35, 0.4);
+      group.add(wire2);
+    } catch (err) {
+      wire2 = null;
+      wire2Mat = null;
+      console.error('[objects] twin geodesic skipped:', err);
+    }
   }
 
   /* Two tilted orbit rings, same treatment, and thinner than a hairline. */
@@ -1192,12 +1225,18 @@ export function createBackgroundProps() {
   ground.position.set(0, B.groundGlow.y, B.groundGlow.z);
   group.add(ground);
 
+  /* Built from what actually EXISTS rather than a per-tier ternary: the old
+     `low ? [a, b, c] : [a, wire2Mat, b, c]` referenced `wire2Mat` from outside
+     the block it was declared in, which is a ReferenceError on every medium and
+     high load and only a warning on low. Filtering the live materials cannot
+     reference anything that was never created. */
+  const materials = [wireMat, ringMat, glowMat];
+  if (wire2Mat) materials.push(wire2Mat);
+
   return {
     group,
     textures,
-    materials: _materialQuality === 'low'
-      ? [wireMat, ringMat, glowMat]
-      : [wireMat, wire2Mat, ringMat, glowMat],
+    materials,
     update(elapsed) {
       wire.rotation.y = elapsed * 0.018;
       wire.rotation.x = 0.4 + Math.sin(elapsed * 0.07) * 0.06;

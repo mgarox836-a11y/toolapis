@@ -146,6 +146,13 @@ function warn(...args) {
   console.warn('[scene3d]', ...args);
 }
 
+/** Reports a CAUGHT error that degrades the scene without killing it: the 2D
+ *  design stays, so the failure is invisible unless it is logged, and a
+ *  swallowed throw is the one bug that is impossible to report later. */
+function degrade(message, err) {
+  console.error('[scene3d]', message, err);
+}
+
 /** WebGL capability probe — runs before we touch the DOM. */
 function isWebGLAvailable() {
   try {
@@ -245,27 +252,60 @@ function createLights() {
   scene.add(new THREE.HemisphereLight(L.mappedColor || 0x223040, 0x05080a, L.hemi));
 }
 
-/** One-time PMREM bake of the custom dark-room studio (see objects.js
- *  buildStudioScene): the premium gloss reflections. The bake covers the mild
- *  HDR range (NoToneMapping while baking), so the env reads as a lit room, not
- *  as a flat fill; `TUNING.env.intensity` still scales how much of it every
- *  material lets through. RoomEnvironment is retained as the fallback so a
- *  shader or mesh regression in the studio build can never kill the scene. */
+/**
+ * One-time PMREM bake of the custom dark-room studio (see objects.js
+ * buildStudioScene): the premium gloss reflections. The bake covers the mild
+ * HDR range (NoToneMapping while baking), so the env reads as a lit room, not
+ * as a flat fill; `TUNING.env.intensity` still scales how much of it every
+ * material lets through.
+ *
+ * The whole thing is an OPTIONAL feature with its own try/catch: a failing
+ * studio bake falls back to RoomEnvironment, and a failing RoomEnvironment
+ * too simply leaves `scene.environment` unset. Every material already reads
+ * `env.intensity`, so an unbaked env is a flatter reflection, never a dead
+ * scene. */
 function createEnvironment() {
-  if (!TUNING.env.enabled) return;
-  const pmrem = new THREE.PMREMGenerator(state.renderer);
-  let envScene = null;
   try {
-    envScene = buildStudioScene();
-    state.pmremRT = pmrem.fromScene(envScene, 0.10);
+    if (!TUNING.env.enabled) return;
+    let pmrem = null;
+    try {
+      pmrem = new THREE.PMREMGenerator(state.renderer);
+    } catch (err) {
+      degrade('env generator unavailable — props get lights only', err);
+      return;
+    }
+    let envScene = null;
+    try {
+      envScene = buildStudioScene();
+      state.pmremRT = pmrem.fromScene(envScene, 0.10);
+    } catch (err) {
+      degrade('studio env bake failed — falling back to RoomEnvironment', err);
+      try {
+        disposeSceneGraph(envScene);
+      } catch (e) { /* never let cleanup mask the original failure */ }
+      envScene = null;
+      try {
+        envScene = new RoomEnvironment();
+        state.pmremRT = pmrem.fromScene(envScene, 0.10);
+      } catch (err2) {
+        /* Both bakes failed: the props render lit-only. Do NOT rethrow — an
+           environment is an enhancement, and taking the whole scene down for
+           it is exactly the failure mode this function used to have. */
+        degrade('env bake failed entirely — continuing without an environment', err2);
+        state.pmremRT = null;
+      }
+    }
+    if (state.pmremRT) state.scene.environment = state.pmremRT.texture;
+    try { pmrem.dispose(); } catch (e) { /* generator already gone */ }
+    if (envScene) {
+      try { disposeSceneGraph(envScene); } catch (e) { /* nothing left to free */ }
+    }
   } catch (err) {
-    warn('studio env bake failed — falling back to RoomEnvironment', err);
-    envScene = new RoomEnvironment();
-    state.pmremRT = pmrem.fromScene(envScene, 0.10);
+    /* Last-resort net: the env is an optional feature, so even a throw in its
+       own bookkeeping must leave the scene running. */
+    degrade('environment setup failed — continuing without it', err);
+    state.pmremRT = null;
   }
-  state.scene.environment = state.pmremRT.texture;
-  pmrem.dispose();
-  disposeSceneGraph(envScene);
 }
 
 /* ============================================================================
@@ -327,14 +367,32 @@ function createObjects() {
   }
 }
 
+/* The background layer (wireframe geodesic, orbit rings, ground glow and the
+   optional inner twin) is decorative depth BEHIND the copy. It is an optional
+   feature, so it is built in its own try/catch: a throw here costs the
+   backdrop and nothing else. `state.props` stays null, and every consumer
+   (the frame loop, the entrance, dispose) already guards on that. */
 function createProps() {
-  state.props = createBackgroundProps();
-  state.scene.add(state.props.group);
+  try {
+    state.props = createBackgroundProps();
+    state.scene.add(state.props.group);
+  } catch (err) {
+    degrade('background props failed to build — continuing without them', err);
+    state.props = null;
+  }
 }
 
 function addFlowLinks() {
-  state.links = createFlowLinks();
-  state.scene.add(state.links.group);
+  /* The pulse tubes between the props are an optional extra on top of the
+     props themselves, so a failure here leaves the props running. */
+  try {
+    state.links = createFlowLinks();
+    state.scene.add(state.links.group);
+  } catch (err) {
+    degrade('flow links failed to build — continuing without them', err);
+    state.links = null;
+    return;
+  }
   /* One column PER LINK, resolved from the height that link actually runs
      through. A link between two props that sit in the same free band finds no
      copy at its own height and therefore draws in full; a link that would run
@@ -396,10 +454,17 @@ function disposeParticles() {
 
 function buildParticles(count) {
   disposeParticles();
-  const p = createParticles(count);
-  state.particles = p;
-  p.material.uniforms.uPixelRatio.value = state.pixelRatio;
-  state.scene.add(p.points);
+  /* The dust field is atmosphere, never content. A failed build (or a failed
+     resize-rebuild) leaves the scene without dust rather than without props. */
+  try {
+    const p = createParticles(count);
+    state.particles = p;
+    p.material.uniforms.uPixelRatio.value = state.pixelRatio;
+    state.scene.add(p.points);
+  } catch (err) {
+    state.particles = null;
+    degrade('dust field failed to build — continuing without it', err);
+  }
 }
 
 function disposeBokeh() {
@@ -413,10 +478,18 @@ function disposeBokeh() {
 function buildBokeh() {
   disposeBokeh();
   if (state.quality === 'low') return;
-  const b = createBokeh(TUNING.bokeh.count);
-  state.bokeh = b;
-  b.material.uniforms.uPixelRatio.value = state.pixelRatio;
-  state.scene.add(b.points);
+  /* Far out-of-focus discs: a depth cue, medium+ only, and entirely optional
+     even there. Failing to build them is a missing backdrop detail, not a
+     missing scene. */
+  try {
+    const b = createBokeh(TUNING.bokeh.count);
+    state.bokeh = b;
+    b.material.uniforms.uPixelRatio.value = state.pixelRatio;
+    state.scene.add(b.points);
+  } catch (err) {
+    state.bokeh = null;
+    degrade('bokeh field failed to build — continuing without it', err);
+  }
 }
 
 /* ============================================================================
@@ -427,19 +500,40 @@ function createComposer() {
   disposeComposer();
   const { renderer, scene, camera } = state;
   const size = renderer.getSize(new THREE.Vector2());
-  const composer = new EffectComposer(renderer);
-  composer.setPixelRatio(renderer.getPixelRatio());
-  composer.addPass(new RenderPass(scene, camera));
-  const bloom = new UnrealBloomPass(
-    new THREE.Vector2(size.x, size.y),
-    TUNING.bloom.strength,
-    TUNING.bloom.radius,
-    TUNING.bloom.threshold
-  );
-  composer.addPass(bloom);
-  composer.addPass(new OutputPass());
-  state.composer = composer;
-  state.bloomPass = bloom;
+  /* Bloom is an optional post-process, desktop only. A failure must fall back
+     to the plain renderer.render() path the frame loop already uses, not end
+     the scene. */
+  /* Declared OUTSIDE the try so the catch can reach the half-built composer:
+     a `const` inside the block would be in its temporal dead zone there. */
+  let composer = null;
+  try {
+    composer = new EffectComposer(renderer);
+    composer.setPixelRatio(renderer.getPixelRatio());
+    composer.addPass(new RenderPass(scene, camera));
+    const bloom = new UnrealBloomPass(
+      new THREE.Vector2(size.x, size.y),
+      TUNING.bloom.strength,
+      TUNING.bloom.radius,
+      TUNING.bloom.threshold
+    );
+    composer.addPass(bloom);
+    composer.addPass(new OutputPass());
+    state.composer = composer;
+    state.bloomPass = bloom;
+  } catch (err) {
+    degrade('bloom composer failed to build — rendering without it', err);
+    /* state.composer is only assigned on success, so free the half-built one
+       through the local reference. */
+    try {
+      if (composer) {
+        for (const pass of composer.passes) pass.dispose?.();
+        composer.renderTarget1?.dispose();
+        composer.renderTarget2?.dispose();
+      }
+    } catch (e) { /* the render targets are already gone */ }
+    state.composer = null;
+    state.bloomPass = null;
+  }
 }
 
 function disposeComposer() {
@@ -1685,11 +1779,18 @@ function dispose() {
   log('disposed');
 }
 
-/** Undoes everything so the 2D design is exactly as it was. */
+/** Undoes everything so the 2D design is exactly as it was.
+ *  A caught error is reported with console.error (never swallowed, never
+ *  downgraded to a warning): it is the one diagnostic that explains why the
+ *  layer is gone, and it must stay in the console exactly as thrown. The
+ *  reason alone is only a console.warn. */
 function bail(reason, err) {
   stop();
-  if (err) warn(reason, err);
-  else warn(reason);
+  if (err) {
+    console.error(`[scene3d] ${reason}`, err);
+  } else {
+    warn(reason);
+  }
   if (state.canvas && state.canvas.parentNode) state.canvas.parentNode.removeChild(state.canvas);
   state.canvas = null;
   state.renderer = null;
