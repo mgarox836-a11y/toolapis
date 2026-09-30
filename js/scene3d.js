@@ -631,6 +631,7 @@ function placeObjects(s, dt, elapsed, scrollY) {
   const P = TUNING.props;
   const V = TUNING.velocity;
   const vel = state.velocity;
+  const vh = window.innerHeight;
   _linkScrollY = scrollY;
 
   /* One batch solve for all three props: find the free bands, size them, push
@@ -646,9 +647,18 @@ function placeObjects(s, dt, elapsed, scrollY) {
     o.docked = place.docked;
     _linkCy[key] = place.cy;
 
-    /* Damp toward the solved position so a changing free band glides. */
+    /* Damp toward the solved position so a changing free band glides. If the
+       prop has drifted more than `lagCapPx` from where the fresh solve wants
+       it — a fast scroll, or a free band that moved — it chases at the fast
+       rate so it cannot sit visibly off its anchor while the page keeps its
+       place. World distance is converted to screen px at the prop's depth. */
     o.target.set(place.x, place.y, place.z);
-    const lambda = TUNING.scroll.damping * 1.6;
+    const distProp = state.camera.position.z + G.baseDistance + anchor.z;
+    const pxPerWorld = vh / (2 * Math.tan((state.camera.fov * Math.PI) / 360) * distProp);
+    const lagPx = Math.hypot(o.anchor.position.x - o.target.x, o.anchor.position.y - o.target.y) * pxPerWorld;
+    const lambda = lagPx > TUNING.scroll.lagCapPx
+      ? TUNING.scroll.lagFastDamping
+      : TUNING.scroll.damping * 1.6;
     o.anchor.position.x = damp(o.anchor.position.x, o.target.x, lambda, dt);
     o.anchor.position.y = damp(o.anchor.position.y, o.target.y, lambda, dt);
     /* While a prop is flying in, updateFlyIn owns its z — damping it here
@@ -809,6 +819,9 @@ function removeDebugOverlay() {
 /** Shared scratch for the debug overlay's NDC->viewport conversion. */
 const _ndcOut = { x: 0, y: 0, w: 0, h: 0 };
 
+/** Shared scratch for the debug overlay's world->screen projection check. */
+const _proj = new THREE.Vector3();
+
 /** An NDC box (centre + px size) -> a viewport rect in the `_ndcOut` scratch.
  *  Returns the shared object; the caller reads it before the next call. */
 function ndcRect(cx, cy, wPx, hPx, vw, vh) {
@@ -887,14 +900,52 @@ function drawDebugOverlay(places) {
     g.fillText(tag, Math.max(2, r.x), Math.max(2, r.y - 13));
   }
 
-  /* 5. one line of state, top-left, out of the way of the nav */
+  /* 5. the vertical middle band: its edges and the preferred centre line */
+  const P = TUNING.props;
+  g.lineWidth = 1;
+  g.strokeStyle = 'rgba(249,115,22,0.55)';
+  g.setLineDash([6, 4]);
+  g.beginPath(); g.moveTo(0, vh * P.bandTop + 0.5); g.lineTo(vw, vh * P.bandTop + 0.5); g.stroke();
+  g.beginPath(); g.moveTo(0, vh * P.bandBottom + 0.5); g.lineTo(vw, vh * P.bandBottom + 0.5); g.stroke();
+  g.setLineDash([]);
+  g.strokeStyle = 'rgba(163,230,53,0.5)';
+  g.beginPath(); g.moveTo(0, vh * P.preferredCenter + 0.5); g.lineTo(vw, vh * P.preferredCenter + 0.5); g.stroke();
+
+  /* 6. projection SELF-CHECK: the damped world anchor is projected back to the
+        screen with the very camera it was solved with, and compared against
+        the NDC the solver intended. Green crosshair when it agrees (< 2px at
+        rest), red when a prop is still chasing its target mid-scroll — which
+        also reveals any screen-to-world drift if the worlds ever disagree. */
+  state.camera.updateMatrixWorld(true);
+  state.camera.matrixWorldInverse.copy(state.camera.matrixWorld).invert();
+  for (const key of OBJ_KEYS) {
+    const o = state.objects[key];
+    const p = places[key];
+    if (!o || !p || !o.group.visible) continue;
+    _proj.copy(o.anchor.position)
+      .applyMatrix4(state.camera.matrixWorldInverse)
+      .applyMatrix4(state.camera.projectionMatrix);
+    const sx = (p.cx * 0.5 + 0.5) * vw;
+    const sy = (1 - p.cy) * 0.5 * vh;
+    const psx = (_proj.x * 0.5 + 0.5) * vw;
+    const psy = (1 - (_proj.y * 0.5 + 0.5)) * vh;
+    const err = Math.hypot(psx - sx, psy - sy);
+    g.strokeStyle = err < 2 ? 'rgba(74,222,128,0.9)' : 'rgba(248,113,113,0.9)';
+    g.beginPath(); g.moveTo(psx - 5, psy); g.lineTo(psx + 5, psy); g.stroke();
+    g.beginPath(); g.moveTo(psx, psy - 5); g.lineTo(psx, psy + 5); g.stroke();
+    g.fillStyle = err < 2 ? '#bbf7d0' : '#fecaca';
+    g.fillText(`${key} Δ${err.toFixed(1)}px`, psx + 7, psy);
+  }
+
+  /* 7. one block of state, top-left, out of the way of the nav */
   g.lineWidth = 1;
   g.fillStyle = 'rgba(11,15,18,0.75)';
-  g.fillRect(0, data.bandPx + 4, 268, 40);
+  g.fillRect(0, data.bandPx + 4, 292, 54);
   g.fillStyle = '#e2e8f0';
   g.fillText(`#${data.sectionId}  ${Math.round(window.scrollY)}px  ${vw}x${vh}`, 8, data.bandPx + 10);
   g.fillStyle = '#94a3b8';
   g.fillText(`cands ${data.candidates.length}  obstacles ${data.obstacles.length}`, 8, data.bandPx + 26);
+  g.fillText(`band ${Math.round(vh * P.bandTop)}-${Math.round(vh * P.bandBottom)}  pref ${Math.round(vh * P.preferredCenter)}`, 8, data.bandPx + 42);
 }
 
 function logPlacement(places, sectionId) {

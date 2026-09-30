@@ -152,7 +152,15 @@ export const TUNING = {
   parallax: { strength: 0.50, damping: 4.5 },
 
   /* ==== Scroll ==== */
-  scroll: { damping: 5.0 },
+  scroll: {
+    damping: 5.0,
+    /* When a prop's damped anchor has drifted more than `lagCapPx` (screen
+       pixels) from its freshly solved target — a fast scroll, or a free band
+       moving — it chases harder so it cannot sit visibly behind the copy it
+       was placed beside. `lagFastDamping` is the recovery rate. */
+    lagCapPx:       120,
+    lagFastDamping: 16,
+  },
 
   /* ==== Scroll velocity effects (phase (c)) ==== */
   velocity: {
@@ -267,6 +275,25 @@ export const TUNING = {
     minOpacity:    0.75,
     edgePadPx:      32,
     edgeCropMax:   0.35,
+    /* The vertical MIDDLE BAND. A prop stays inside it by construction: its
+       centre is clamped between `bandTop` and `bandBottom` (viewport
+       fractions), its box is REJECTED the moment it crosses `bandBottom`, and
+       the candidate scoring pulls its centre toward `preferredCenter`. That
+       is the guarantee behind "always visible in the middle of the page" —
+       before this, a low authored anchor was free to sit a prop in the bottom
+       40% of the viewport, behind a card row or a footer border. */
+    bandTop:          0.18,  // centre never sits higher than this viewport fraction
+    bandBottom:       0.80,  // the box is rejected as soon as it crosses this
+    preferredCenter:  0.48,  // scoring pulls the centre toward this fraction
+    centerWeight:     3.0,   // how hard that pull is, relative to all the others
+    /* Smooth falloff before the band edge: a prop whose box approaches
+       `bandBottom` (the footer / last section) dissolves over this distance
+       instead of being sliced by a hard line. Fades combine with the band,
+       never hard cuts. */
+    footerFadePx:   180,
+    /* A single stop may cap one prop further via `anchors.<key>.sizeCap` (a
+       multiplier on maxScreenFraction) — used to hold the Flow HD frame at
+       ~22% of the viewport instead of the full 30% cap. */
     hd:      { fit: 3.2, maxWorldScale: 2.2 },
     /* `cableOutward` yaws the whole plug so its long axis (and the cable)
        points AWAY from the text column, and the cable geometry itself is
@@ -389,25 +416,33 @@ export const STOPS = [
   {
     id: 'flow',
     cam: [-2.0, -0.5, 10.4], look: [0, 0.45, 0], fov: 47, yaw: 0.62,
-    /* Diagonal lineup, and the section where the flow links ignite. */
+    /* The diagonal lineup stays, but it is lifted out of the step row: the
+       props ride the EMPTY strip between the heading/paragraph and the three
+       steps (30%-65% of the viewport), never the steps themselves. The HD
+       frame is size-capped here so it can no longer sprawl over "You're
+       done" — it reads as a prop, not as the tower it used to be. */
     focal: 0, lineup: 1, converge: 0,
     flow: 1,
     anchors: {
-      hd:      { side: 'right', x:  0.76, y:  0.10, z: -0.6, scale: 1.00, dim: 0.90 },
-      usb:     { side: 'left',  x: -0.76, y: -0.54, z:  0.0, scale: 1.00, dim: 1.00 },
-      network: { side: 'right', x:  0.66, y:  0.66, z: -0.8, scale: 1.00, dim: 0.92 },
+      hd:      { side: 'right', x:  0.74, y:  0.22, z: -0.6, scale: 1.00, dim: 0.90, sizeCap: 0.74 },
+      usb:     { side: 'left',  x: -0.76, y: -0.22, z:  0.0, scale: 1.00, dim: 1.00 },
+      network: { side: 'right', x:  0.70, y:  0.42, z: -0.8, scale: 1.00, dim: 0.92 },
     },
   },
   {
     id: 'clarity',
     cam: [0, 0.6, 11.4], look: [0, 0.1, 0], fov: 45, yaw: 0.00,
-    /* Calm convergence: a mirrored pair flanking the CTA card, one per side. */
+    /* Calm convergence: the mirrored pair flanking the CTA card at its own
+       vertical centre. The third is no longer parked low and centred behind
+       the card — the solver rejects anything whose box crosses the bottom of
+       the middle band, so nothing trails into the footer border below the
+       panel. */
     focal: 0, lineup: 0, converge: 1,
     flow: 0,
     anchors: {
       hd:      { side: 'left',  x: -0.80, y:  0.06, z: -1.0, scale: 0.88, dim: 0.78 },
       usb:     { side: 'right', x:  0.80, y:  0.06, z: -1.0, scale: 0.88, dim: 0.78 },
-      network: { side: 'right', x:  0.72, y: -0.56, z: -1.6, scale: 0.80, dim: 0.72 },
+      network: { side: 'right', x:  0.50, y: -0.10, z: -1.6, scale: 0.80, dim: 0.72 },
     },
   },
 ];
@@ -416,23 +451,27 @@ export const STOPS = [
  * Composition targets the weights above blend toward (NDC).
  * -------------------------------------------------------------------------*/
 
-/** Flow: three props on a RISING diagonal (low left -> high right), placed in
- *  whatever free space the stepper leaves — the side gutters where they exist,
- *  the empty band above / below the section where they do not. */
+/** Flow: three props on a RISING diagonal (low left -> high right), riding the
+ *  free strip between the heading/paragraph and the step row — never the
+ *  steps, whose real extents the solver treats as walls. These are all inside
+ *  the preferred vertical band, so the solver keeps them at their authored
+ *  heights instead of hunting for a gutter at the bottom of the viewport. */
 export const LINEUP = {
-  usb:     { x: -0.72, y: -0.54 },
-  hd:      { x:  0.74, y:  0.10 },
-  network: { x:  0.66, y:  0.66 },
+  usb:     { x: -0.72, y: -0.22 },
+  hd:      { x:  0.74, y:  0.22 },
+  network: { x:  0.70, y:  0.42 },
 };
 
 /**
  * Clarity: a calm, symmetric frame around the CTA card — a mirrored pair
- * flanking the panel on the same baseline, the third resting low and quiet.
+ * flanking the panel at its own vertical centre, the third settling into the
+ * free band the solver finds (it is deliberately not parked below the card,
+ * where the footer border used to cut it).
  */
 export const CONVERGE = {
   hd:      { x: -0.80, y:  0.06 },
   usb:     { x:  0.80, y:  0.06 },
-  network: { x:  0.00, y: -0.62 },
+  network: { x:  0.00, y: -0.10 },
 };
 
 /**

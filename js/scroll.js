@@ -379,7 +379,7 @@ export function createScrollEngine() {
   function makeOut() {
     const anchorOut = {};
     for (const key of OBJ_KEYS) {
-      anchorOut[key] = { side: 'right', x: 0, y: 0, z: 0, scale: 1, dim: 1 };
+      anchorOut[key] = { side: 'right', x: 0, y: 0, z: 0, scale: 1, dim: 1, sizeCap: 1 };
     }
     return {
       cam: new THREE.Vector3(),
@@ -432,6 +432,7 @@ export function createScrollEngine() {
       o.z = lerp(a.z, b.z, t);
       o.scale = lerp(a.scale, b.scale, t);
       o.dim = lerp(a.dim, b.dim, t);
+      o.sizeCap = lerp(a.sizeCap ?? 1, b.sizeCap ?? 1, t);
 
       const idx = OBJ_KEYS.indexOf(key);
 
@@ -686,7 +687,17 @@ export function createScrollEngine() {
        the guarantee that a prop is always visible in every section. */
     const hardFloorPx = desktop ? P.minScreenPx : P.minScreenFraction * vw;
     const floorPx = Math.max(P.minScreenFraction * vw, hardFloorPx);
-    const capPx = P.maxScreenFraction * vw;
+
+    /* THE VERTICAL MIDDLE BAND. Every box must live inside it: the centre is
+       clamped between the header reserve (or `bandTop`, whichever is lower)
+       and `bandBottom`, the box itself is REJECTED the moment its bottom edge
+       crosses `bandBottom`, and the candidate scoring pulls the centre toward
+       `preferredCenter`. Before this a low authored anchor was free to park a
+       prop in the bottom 40% of the viewport. */
+    const bandBottomPx = vh * P.bandBottom;
+    const centerMinPx = Math.max(topLimitPx, vh * P.bandTop);
+    const cyLo = 1 - (2 * bandBottomPx) / vh;
+    const cyHi = 1 - (2 * centerMinPx) / vh;
 
     /* px <-> NDC, page-space helpers */
     const pxX = (cx) => (cx * 0.5 + 0.5) * vw;
@@ -694,6 +705,18 @@ export function createScrollEngine() {
     const pageY = (cy) => (1 - cy) * 0.5 * vh + scrollY;
     const ndcY = (py) => 1 - ((py - scrollY) / vh) * 2;
     const padY = (P.edgePadPx * 2) / vh;
+    const clampCy = (cy) => clamp(cy, cyLo, cyHi);
+
+    /* Header fade x footer/band fade. The top half is the reserved sticky
+       strip (bandFade); the bottom half keeps a prop whose box approaches
+       `bandBottom` — the footer / the last section — dissolving over a ramp
+       instead of being sliced by a hard line. `props.minOpacity` floors the
+       result in js/scene3d.js, so a fade always softens, never erases. */
+    const boxFade = (o) => {
+      const f = bandFade(o, vh);
+      const yBot = pageY(o.cy) + o.hy * vh;
+      return f * clamp((bandBottomPx - yBot) / P.footerFadePx, 0, 1);
+    };
 
     const hitsCopy = (x0, x1, y0, y1) => boxHits(content, ids, x0, x1, y0, y1);
 
@@ -721,7 +744,7 @@ export function createScrollEngine() {
       const yTop = pageY(cy) - hPx * 0.5;
       const yBot = yTop + hPx;
       if (yTop < scrollY + topLimitPx - 0.5) return false;
-      if (yBot > scrollY + vh - P.edgePadPx + 0.5) return false;
+      if (yBot > scrollY + bandBottomPx + 0.5) return false;
       return !hitsCopy(x0, x1, yTop, yBot);
     };
 
@@ -729,8 +752,9 @@ export function createScrollEngine() {
     const clampBox = (o) => {
       const limY = Math.max(padY, 1 - o.hy - padY);
       o.cy = clamp(o.cy, -limY, limY);
+      o.cy = clampCy(o.cy);
       if (bandPx > 0) {
-        const top = -1 + (2 * (bandPx + P.edgePadPx)) / vh + o.hy;
+        const top = 1 - (2 * (bandPx + P.edgePadPx)) / vh - o.hy;
         if (o.cy > top) o.cy = top;
       }
       const minCx = -1 + (P.edgePadPx * 2) / vw + o.hx;
@@ -745,6 +769,9 @@ export function createScrollEngine() {
       const o = slots[key];
       const b = bounds[key];
       const cap = P[key] || {};
+      /* The per-prop size cap. A stop may tighten it further per prop via
+         `anchors.<key>.sizeCap` — a multiplier on maxScreenFraction. */
+      const capPx = (anchor.sizeCap ?? 1) * P.maxScreenFraction * vw;
 
       const dist = camera.position.z + G.baseDistance + anchor.z;
       o.dist = dist;
@@ -780,6 +807,9 @@ export function createScrollEngine() {
       const wantRight = anchor.side === 'right';
       const authX = clamp(authorX, -1, 1);
       const authY = clamp(authorY, -1, 1);
+      /* The NDC of the preferred vertical centre — the line every candidate's
+         score is pulled toward. Shared by both pass free and dock. */
+      const prefNdc = 1 - 2 * P.preferredCenter;
 
       /* x candidates: the authored x first, then the preferred side, then the
          opposite one. */
@@ -840,21 +870,26 @@ export function createScrollEngine() {
         let n = 0;
         /* Its own fit target: the caller's `f` must survive this call. */
         const probe = fitInto(_fitBand, wPx);
-        _ys[n++] = authY;
+        /* The authored height first — but only inside the middle band, so a
+           low anchor can no longer pull a prop into the bottom of the
+           viewport. */
+        _ys[n++] = clampCy(authY);
         const cnt = freeBands(x0, x1, scrollY - 4, scrollY + vh + 4);
         for (let i = 0; i < cnt && n < MAX_YS; i++) {
           const a = _bands[i][0];
           const b = _bands[i][1];
           if (b - a < probe.h + 2 * P.edgePadPx) continue;
           const cy = ndcY((a + b) * 0.5);
+          if (cy < cyLo || cy > cyHi) continue;
           if (cy < -1.4 || cy > 1.4) continue;
           _ys[n++] = cy;
         }
         /* A short ladder either side of the authored height, so a prop can
-           still hug its composition when the bands are unusable. */
+           still hug its composition when the bands are unusable — kept inside
+           the band, never slipping below it. */
         for (let k = 1; k <= G.bandLadder && n < MAX_YS; k++) {
-          _ys[n++] = clamp(authY - k * G.bandStepVh, -1, 1);
-          if (n < MAX_YS) _ys[n++] = clamp(authY + k * G.bandStepVh, -1, 1);
+          _ys[n++] = clampCy(authY - k * G.bandStepVh);
+          if (n < MAX_YS) _ys[n++] = clampCy(authY + k * G.bandStepVh);
         }
         return n;
       };
@@ -889,6 +924,7 @@ export function createScrollEngine() {
             const base =
               1.9 * Math.abs(cx - authX) +
               1.5 * Math.abs(cy - authY) +
+              P.centerWeight * Math.abs(cy - prefNdc) +
               2.2 * (flipped ? 1 : 0) +
               2.4 * (1 - sizeRatio) +
               2.0 * shortfall;
@@ -937,6 +973,7 @@ export function createScrollEngine() {
                 const base =
                   1.9 * Math.abs(cx - authX) +
                   1.5 * Math.abs(cy - authY) +
+                  P.centerWeight * Math.abs(cy - prefNdc) +
                   2.2 * (wantRight ? (mode < 0 ? 1 : 0) : (mode > 0 ? 1 : 0)) +
                   2.6 /* docking is a deliberate last resort */ +
                   2.4 * (1 - sizeRatio) +
@@ -993,10 +1030,12 @@ export function createScrollEngine() {
         o.unverified = false;
         if (o.docked) {
           /* A docked prop's CENTRE is off the padded edge, so it must not be
-             clamped back in — clampBox only runs for the free case. */
+             clamped back in — clampBox only runs for the free case. The middle
+             band still applies vertically. */
           o.cy = clamp(o.cy, -1 + o.hy + padY, 1 - o.hy - padY);
+          o.cy = clampCy(o.cy);
           if (bandPx > 0) {
-            const top = -1 + (2 * (bandPx + P.edgePadPx)) / vh + o.hy;
+            const top = 1 - (2 * (bandPx + P.edgePadPx)) / vh - o.hy;
             if (o.cy > top) o.cy = top;
           }
         } else {
@@ -1004,8 +1043,8 @@ export function createScrollEngine() {
         }
       }
 
-      /* The reserved header band fade, and the "behind a card" dim. */
-      o.fade = bandFade(o, vh);
+      /* The header fade, the bottom band fade, and the "behind a card" dim. */
+      o.fade = boxFade(o);
       const yPageNow = pageY(o.cy);
       const bandHalf = Math.max(o.hy * 0.5 * vh, 24);
       o.behind = !!softAt(ids, yPageNow - bandHalf, yPageNow + bandHalf);
@@ -1077,7 +1116,7 @@ export function createScrollEngine() {
       p.scale = o.scale;
       p.docked = o.docked;
       p.behind = o.behind;
-      p.fade = bandFade(o, vh);
+      p.fade = boxFade(o);
       p.hxNdc = o.hx;
       p.hyNdc = o.hy;
       p.side = o.side;
@@ -1147,24 +1186,28 @@ export function createScrollEngine() {
       if (!moved) break;
     }
     /* Never let a push-off shove a prop off the padded edge, or up into the
-       opaque header strip. */
+       opaque header strip, or out of the vertical middle band. */
     const padX = (P.edgePadPx * 2) / vw;
     const padY = (P.edgePadPx * 2) / vh;
     const bandPx = headerSolid ? headerPx : 0;
+    const cyLo = 1 - 2 * P.bandBottom;
+    const cyHi = 1 - (2 * Math.max(bandPx + P.edgePadPx, vh * P.bandTop)) / vh;
     for (const o of visible) {
       if (o.docked) {
         const limY = Math.max(padY, 1 - o.hy - padY);
         o.cy = clamp(o.cy, -limY, limY);
+        o.cy = clamp(o.cy, cyLo, cyHi);
         if (bandPx > 0) {
-          const top = -1 + (2 * (bandPx + P.edgePadPx)) / vh + o.hy;
+          const top = 1 - (2 * (bandPx + P.edgePadPx)) / vh - o.hy;
           if (o.cy > top) o.cy = top;
         }
         continue;
       }
       const limY = Math.max(padY, 1 - o.hy - padY);
       o.cy = clamp(o.cy, -limY, limY);
+      o.cy = clamp(o.cy, cyLo, cyHi);
       if (bandPx > 0) {
-        const top = -1 + (2 * (bandPx + P.edgePadPx)) / vh + o.hy;
+        const top = 1 - (2 * (bandPx + P.edgePadPx)) / vh - o.hy;
         if (o.cy > top) o.cy = top;
       }
       const minCx = -1 + padX + o.hx;
