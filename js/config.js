@@ -322,6 +322,30 @@ export const TUNING = {
     twinkle: 0.55,
   },
 
+  /* ==== Mouse-reactive dust (js/objects.js -> DUST_VERT) ====
+   * A world-space "pointer" the nearest dust scatters around, so the field
+   * reads as a volume the visitor is brushing through. `radius` in world
+   * units of influence, `strength` the max push, `fade` the damp rate (per
+   * second) when the pointer leaves so the dust settles instead of snapping. */
+  dust: {
+    radius: 2.4,
+    strength: 0.55,
+    fade: 4.0,
+  },
+
+  /* ==== Bokeh discs (js/objects.js -> createBokeh) ====
+   * A far layer of soft, out-of-focus discs — the room's bokeh. Additive,
+   * faint, drifting. Skipped entirely on the low tier. */
+  bokeh: {
+    count: 26,
+    size: 1.30,       // point-size base at reference depth (attenuates with z)
+    opacity: 0.07,
+    z: -9.5,
+    zSpread: 3.0,
+    drift: 0.10,
+    twinkle: 0.25,
+  },
+
   /* ==== Obstacle measurement (phase (a)) ====
    *
    * An obstacle is the REAL extent of something the visitor reads: the line
@@ -604,6 +628,19 @@ export const TUNING = {
 
   /* ==== Objects hidden on the mobile tier (no side gutters exist there) ==== */
   hideOnMobile: ['hd', 'usb', 'network'],
+
+  /* ==== Quality tier ====
+   * 'high' | 'medium' | 'low': a device-tier default (mobile -> low, tablet ->
+   * medium, otherwise high), overridable with `?quality=high|medium|low`, chosen
+   * once at init. It drives material simplification inside objects.js (low
+   * swaps MeshPhysicalMaterial for MeshStandardMaterial — no clearcoat, no
+   * procedural maps, no anisotropy — keeps env + rim — and keeps only the
+   * network hub halo) plus the budget toggles: bokeh discs and the inner
+   * counter-rotating background are medium+, so the low tier stays lean. */
+  quality: {
+    forceTier: (new URLSearchParams(location.search).get('quality') || '').toLowerCase(),
+    autoTier: null,
+  },
 
   /* ==== Adaptive quality: one-way step-down, never oscillates ==== */
   adaptive: {

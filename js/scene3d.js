@@ -37,7 +37,7 @@ import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 
 import { TUNING, PALETTE, OBJ_KEYS, STOPS, FOCAL_TARGET } from './config.js';
 import {
-  buildObject, disposeObject, createBackgroundProps, createParticles, createFlowLinks,
+  buildObject, disposeObject, createBackgroundProps, createParticles, createBokeh, createFlowLinks,
   buildStudioScene, setMaterialQuality, disposeSharedTextures,
 } from './objects.js';
 import { createScrollEngine, CENTER_TOLERANCE_PX } from './scroll.js';
@@ -56,7 +56,10 @@ const state = {
   canvas: null,
   props: null,          // background props (wireframe, rings, ground glow)
   links: null,          // flow links between the props
-  particles: null,      // { points, material, count }
+  particles: null,      // { points, material, count } — the reactive dust field
+  bokeh: null,          // { points, material, count } — far bokeh discs (medium+)
+  quality: 'high',      // 'high' | 'medium' | 'low', chosen once at init
+  dustActive: 0,        // damped 0..1 pointer reaction (settles on leave)
   objects: {},          // key -> runtime record
   trackedMats: [],      // every object material whose glow is animated
   engine: null,         // scroll.js
@@ -81,6 +84,7 @@ const state = {
   /* pointer */
   pointer: new THREE.Vector2(0, 0),
   pointerSmooth: new THREE.Vector2(0, 0),
+  pointerActive: false,
   hoverEl: null,
 
   /* adaptive quality */
@@ -119,6 +123,9 @@ const _linkBand = [0, 0];
 let _linkScrollY = 0;
 const _linkCols = [null, null, null];
 const _colScratch = [-1, 1];
+/* World-space point under the pointer (unprojected once per frame onto a ray
+   at the props' depth) — the dust scatters around it. Scratch, never kept. */
+const _dustPtr = new THREE.Vector3();
 
 /* ============================================================================
  * 2. HELPERS
@@ -395,6 +402,23 @@ function buildParticles(count) {
   state.scene.add(p.points);
 }
 
+function disposeBokeh() {
+  if (!state.bokeh) return;
+  state.scene.remove(state.bokeh.points);
+  state.bokeh.points.geometry.dispose();
+  state.bokeh.material.dispose();
+  state.bokeh = null;
+}
+
+function buildBokeh() {
+  disposeBokeh();
+  if (state.quality === 'low') return;
+  const b = createBokeh(TUNING.bokeh.count);
+  state.bokeh = b;
+  b.material.uniforms.uPixelRatio.value = state.pixelRatio;
+  state.scene.add(b.points);
+}
+
 /* ============================================================================
  * 6. COMPOSER — desktop tier only
  * ==========================================================================*/
@@ -513,6 +537,17 @@ function pickTier(width) {
   return 'desktop';
 }
 
+/** The quality tier: `?quality=` wins, otherwise the device tier's default
+ *  (mobile -> low, tablet -> medium, desktop -> high). Phase E builds the
+ *  full hardware heuristic on top of this. */
+function pickQuality(deviceTier) {
+  const forced = TUNING.quality.forceTier;
+  if (forced === 'high' || forced === 'medium' || forced === 'low') return forced;
+  const auto = deviceTier === 'mobile' ? 'low' : deviceTier === 'tablet' ? 'medium' : 'high';
+  TUNING.quality.autoTier = auto;
+  return auto;
+}
+
 function pixelRatioFor(tier) {
   if (state.qualityStep >= 1) return 1;
   const cap = tier === 'mobile' ? TUNING.mobileMaxPixelRatio : TUNING.maxPixelRatio;
@@ -526,12 +561,18 @@ function applyTier(tier) {
   state.pixelRatio = pixelRatioFor(tier);
   state.renderer.setPixelRatio(state.pixelRatio);
 
+  /* The quality tier follows the device tier too: crossing to mobile drops the
+     bokeh layer even though the props themselves are hidden there. */
+  state.quality = pickQuality(tier);
+  setMaterialQuality(state.quality);
+
   /* Bloom is desktop-only, and the adaptive watchdog may also have removed it. */
   const wantBloom = TUNING.bloom.enabled && tier === 'desktop' && state.qualityStep < 2;
   if (wantBloom && !state.composer) createComposer();
   if (!wantBloom && state.composer) disposeComposer();
 
   buildParticles(Math.round(particleCountFor(tier) * (state.qualityStep >= 3 ? 0.4 : 1)));
+  buildBokeh();
 
   for (const key of OBJ_KEYS) {
     const o = state.objects[key];
@@ -559,6 +600,7 @@ function syncSize() {
     state.composer.setSize(w, h);
   }
   if (state.particles) state.particles.material.uniforms.uPixelRatio.value = state.pixelRatio;
+  if (state.bokeh) state.bokeh.material.uniforms.uPixelRatio.value = state.pixelRatio;
 }
 
 let resizeRaf = 0;
@@ -623,6 +665,14 @@ function watchPerf(dt) {
 function renderFrame() {
   if (state.composer) state.composer.render();
   else state.renderer.render(state.scene, state.camera);
+}
+
+/** World point under the pointer, at the props' depth — what the dust scatters
+ *  around. Scratched from the camera ray, never stored. */
+function updateDustPointer(mat) {
+  _dustPtr.set(state.pointerSmooth.x, state.pointerSmooth.y, 0.5).unproject(state.camera);
+  _dustPtr.sub(state.camera.position).normalize().multiplyScalar(7.0).add(state.camera.position);
+  mat.uniforms.uPointer.value.copy(_dustPtr);
 }
 
 /** Pushes the sampled stop values onto the camera / fog / exposure. */
@@ -1195,6 +1245,7 @@ function renderOnce() {
     state.links.update(0, 0, _linkCtx, _linkPositions, state.camera);
   }
   if (state.particles) state.particles.material.uniforms.uTime.value = 0;
+  if (state.bokeh) state.bokeh.material.uniforms.uTime.value = 0;
   renderFrame();
   if (TUNING.debug) drawDebugOverlay(places);
 }
@@ -1223,6 +1274,9 @@ function animate(now) {
 
     state.pointerSmooth.x = damp(state.pointerSmooth.x, state.pointer.x, TUNING.parallax.damping, dt);
     state.pointerSmooth.y = damp(state.pointerSmooth.y, state.pointer.y, TUNING.parallax.damping, dt);
+    /* the dust field settles (and wakes) at its own rate, independent of the
+       parallax that drives the camera */
+    state.dustActive = damp(state.dustActive, state.pointerActive ? 1 : 0, TUNING.dust.fade, dt);
   }
 
   /* --- Scroll velocity -> spin / tilt / stretch / particle streaks --- */
@@ -1245,7 +1299,12 @@ function animate(now) {
     const mat = state.particles.material;
     mat.uniforms.uTime.value = state.elapsed;
     mat.uniforms.uStreak.value = state.velocity * TUNING.velocity.streak;
+    if (mat.uniforms.uPointer) {
+      updateDustPointer(mat);
+      mat.uniforms.uPointerStr.value = state.dustActive * TUNING.dust.strength;
+    }
   }
+  if (state.bokeh) state.bokeh.material.uniforms.uTime.value = state.elapsed;
 
   renderFrame();
   watchPerf(dt);
@@ -1435,6 +1494,7 @@ function onPointerMove(e) {
   if (e.pointerType && e.pointerType !== 'mouse') return;
   const vw = window.innerWidth;
   const vh = window.innerHeight;
+  state.pointerActive = true;
   state.pointer.set(
     (e.clientX / vw) * 2 - 1,
     -((e.clientY / vh) * 2 - 1)
@@ -1452,6 +1512,7 @@ function onPointerMove(e) {
 function onPointerLeave() {
   state.rayKey = null;
   state.rayBlocked = false;
+  state.pointerActive = false;
   state.pointer.set(0, 0);
 }
 
@@ -1579,6 +1640,7 @@ function dispose() {
   removeListeners();
   disposeComposer();
   disposeParticles();
+  disposeBokeh();
 
   if (state.props) {
     state.scene.remove(state.props.group);
@@ -1647,6 +1709,8 @@ function exposeDebugHandle() {
     state, TUNING, STOPS, engine: state.engine,
     info: () => ({
       tier: state.tier,
+      quality: state.quality,
+      bokeh: !!state.bokeh,
       qualityStep: state.qualityStep,
       bloom: !!state.composer,
       pixelRatio: state.pixelRatio,
@@ -1732,9 +1796,10 @@ function init() {
     createCamera();
     createLights();
     createEnvironment();
-    /* The procedural material maps are quality-tier-gated inside objects.js;
-       phase E maps this from TUNING.quality. 'high' keeps the full look. */
-    setMaterialQuality('high');
+    /* Quality is chosen BEFORE the builders run so objects.js can simplify
+       materials, halos and background (low tier) while the props are built. */
+    state.quality = pickQuality(pickTier(window.innerWidth));
+    setMaterialQuality(state.quality);
     createObjects();
     createProps();
     addFlowLinks();

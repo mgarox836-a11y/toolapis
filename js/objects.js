@@ -252,17 +252,29 @@ function _makeHalo(scale, colorStops) {
   return { sprite, mat, tex };
 }
 
-/** Dark glossy piano-black base used by every prop body. */
+/** Dark glossy piano-black base used by every prop body. On the low quality
+ *  tier this drops to MeshStandardMaterial — no clearcoat, no procedural maps,
+ *  no anisotropy — while keeping the env reflection and the Fresnel rim, which
+ *  are the look. `transparent`/`opacity`/`depthWrite`/`env` let the glass and
+ *  display treatments share this constructor. */
 export function makeGlossy(opts = {}) {
   const D = (opts.materialKey && TUNING.materials[opts.materialKey]) || {};
-  const mat = new THREE.MeshPhysicalMaterial({
+  const base = {
     color: opts.color ?? PALETTE.card,
     metalness: opts.metalness ?? D.metalness ?? 0.30,
     roughness: opts.roughness ?? D.roughness ?? 0.18,
-    clearcoat: opts.clearcoat ?? D.clearcoat ?? 1,
-    clearcoatRoughness: opts.clearcoatRoughness ?? D.clearcoatRoughness ?? 0.08,
-    envMapIntensity: TUNING.env.intensity,
-  });
+    transparent: opts.transparent ?? false,
+    opacity: opts.opacity ?? 1,
+    depthWrite: opts.depthWrite ?? true,
+    envMapIntensity: TUNING.env.intensity * (opts.env ?? 1),
+  };
+  const mat = _materialQuality === 'low'
+    ? new THREE.MeshStandardMaterial(base)
+    : new THREE.MeshPhysicalMaterial({
+        ...base,
+        clearcoat: opts.clearcoat ?? D.clearcoat ?? 1,
+        clearcoatRoughness: opts.clearcoatRoughness ?? D.clearcoatRoughness ?? 0.08,
+      });
   _attachMaps(mat, opts.maps === 'brush' ? 'brush' : 'micro');
   _attachAnisotropy(mat, opts.anisotropy ?? D.anisotropy, opts.anisotropyRotation ?? D.anisotropyRotation);
   return addRim(
@@ -275,17 +287,25 @@ export function makeGlossy(opts = {}) {
   );
 }
 
-/** Brushed metal — the USB shell. */
+/** Brushed metal — the USB shell. Same low-tier fallback as makeGlossy. */
 export function makeMetal(opts = {}) {
   const D = (opts.materialKey && TUNING.materials[opts.materialKey]) || {};
-  const mat = new THREE.MeshPhysicalMaterial({
+  const base = {
     color: opts.color ?? PALETTE.metal,
     metalness: opts.metalness ?? D.metalness ?? 0.95,
     roughness: opts.roughness ?? D.roughness ?? 0.32,
-    clearcoat: opts.clearcoat ?? D.clearcoat ?? 0.6,
-    clearcoatRoughness: opts.clearcoatRoughness ?? 0.18,
-    envMapIntensity: TUNING.env.intensity * 1.35,
-  });
+    transparent: opts.transparent ?? false,
+    opacity: opts.opacity ?? 1,
+    depthWrite: opts.depthWrite ?? true,
+    envMapIntensity: TUNING.env.intensity * (opts.env ?? 1) * 1.35,
+  };
+  const mat = _materialQuality === 'low'
+    ? new THREE.MeshStandardMaterial(base)
+    : new THREE.MeshPhysicalMaterial({
+        ...base,
+        clearcoat: opts.clearcoat ?? D.clearcoat ?? 0.6,
+        clearcoatRoughness: opts.clearcoatRoughness ?? 0.18,
+      });
   _attachMaps(mat, opts.maps === 'micro' ? 'micro' : 'brush');
   _attachAnisotropy(mat, opts.anisotropy ?? D.anisotropy, opts.anisotropyRotation ?? D.anisotropyRotation);
   return addRim(
@@ -496,6 +516,21 @@ function createHDObject() {
   group.add(new THREE.Mesh(plateGeo, plateMat));
   materials.push(plateMat);
 
+  /* --- Bezel step: a slim inner ring between the screen and the outer frame,
+     so the display sits behind a stepped, machined bezel rather than one flat
+     face. The annulus hole matches the screen exactly, so the step only reads
+     on the margin. --- */
+  const stepShape = drawRoundedRect(new THREE.Shape(), 2.10, 1.50, 0.14);
+  stepShape.holes.push(drawRoundedRect(new THREE.Path(), 1.86, 1.26, 0.12));
+  const stepGeo = new THREE.ExtrudeGeometry(stepShape, {
+    depth: 0.030, bevelEnabled: false, curveSegments: 12,
+  });
+  const stepMat = track(makeGlossy({ color: 0x070b0e, metalness: 0.2, roughness: 0.5, rim: 0.14 }));
+  const step = new THREE.Mesh(stepGeo, stepMat);
+  step.position.z = 0.012;
+  group.add(step);
+  materials.push(stepMat);
+
   /* --- The live display --- */
   const dispUniforms = {
     uTime:   { value: 0 },
@@ -517,6 +552,19 @@ function createHDObject() {
   display.position.z = 0.02;
   group.add(display);
   materials.push(dispMat);
+
+  /* --- Glass sheet over the display: a nearly transparent high-clearcoat quad
+     whose only job is the reflection + a faint Fresnel catch, so the screen
+     reads as lit glass, not a painted plane. --- */
+  const glassMat = track(makeGlossy({
+    color: 0xffffff, metalness: 0, roughness: 0.06, clearcoat: 1,
+    clearcoatRoughness: 0.05, transparent: true, opacity: 0.10, env: 2.4,
+    rim: 0.30, rimPower: 3.4,
+  }));
+  const glass = new THREE.Mesh(new THREE.PlaneGeometry(1.86, 1.26), glassMat);
+  glass.position.z = 0.048;
+  group.add(glass);
+  materials.push(glassMat);
 
   /* --- Four lime corner brackets, one instanced draw call --- */
   const brGeo = new THREE.ExtrudeGeometry(bracketShape(0.34, 0.055), {
@@ -540,17 +588,21 @@ function createHDObject() {
   group.add(brackets);
   materials.push(brMat);
 
-  /* --- Extruded "HD" floating in front of the screen --- */
+  /* --- "HD" floating in front of the screen: a deep chamfered face with a
+     lime outline-cap on top, so each glyph reads as a lit, chamfered wedge
+     (the cap is a hair LARGER than the base, which is what turns it into a
+     tracing emissive line around the letter instead of a sticker on it). --- */
   const LW = 0.62, LH = 0.86, LS = 0.17;
   const letterMat = track(makeGlossy({
     materialKey: 'hd', color: 0x11180d, rim: 1.0, rimPower: 2.6,
   }));
   const letters = [];
+  const CHAR = { bevel: 0.030, depth: 0.10 };
   const hGeo = new THREE.ExtrudeGeometry(letterH(LW, LH, LS), {
-    depth: 0.10, bevelEnabled: true, bevelThickness: 0.022, bevelSize: 0.022, bevelSegments: 3, curveSegments: 12,
+    depth: CHAR.depth, bevelEnabled: true, bevelThickness: CHAR.bevel, bevelSize: CHAR.bevel, bevelSegments: 3, curveSegments: 12,
   });
   const dGeo = new THREE.ExtrudeGeometry(letterD(LW * 1.12, LH, LS), {
-    depth: 0.10, bevelEnabled: true, bevelThickness: 0.022, bevelSize: 0.022, bevelSegments: 3, curveSegments: 16,
+    depth: CHAR.depth, bevelEnabled: true, bevelThickness: CHAR.bevel, bevelSize: CHAR.bevel, bevelSegments: 3, curveSegments: 16,
   });
   const hLetter = new THREE.Mesh(hGeo, letterMat);
   const dLetter = new THREE.Mesh(dGeo, letterMat);
@@ -561,6 +613,27 @@ function createHDObject() {
   letters.push(hLetter, dLetter);
   materials.push(letterMat);
   hit.push(hLetter, dLetter);
+
+  /* --- Lime outline caps, one per glyph, sitting flush with the letter FRONT
+     and extending 8% past its silhouette. --- */
+  const capMat = track(makeLime({ intensity: 1.7 }));
+  const CAPS = 1.08, CD = 0.015;
+  const capHGeo = new THREE.ExtrudeGeometry(letterH(LW * CAPS, LH * CAPS, LS * CAPS), {
+    depth: CD, bevelEnabled: false, curveSegments: 10,
+  });
+  const capDGeo = new THREE.ExtrudeGeometry(letterD(LW * 1.12 * CAPS, LH * CAPS, LS * CAPS), {
+    depth: CD, bevelEnabled: false, curveSegments: 14,
+  });
+  /* Base letters: front face at 0.16 + depth 0.10 + bevel 0.030 = 0.29. The cap
+     sits flush with that front (0.29 - cap depth 0.015), so the lime band is a
+     machined inlay on the glyph edge, never a face hidden behind the letter. */
+  const capZ = 0.275;
+  const capH = new THREE.Mesh(capHGeo, capMat);
+  capH.position.set(-letterSpan / 2, 0, capZ);
+  const capD = new THREE.Mesh(capDGeo, capMat);
+  capD.position.set(letterSpan / 2, 0, capZ);
+  group.add(capH, capD);
+  materials.push(capMat);
 
   /* --- Lime hairline around the display edge --- */
   const edgeShape = drawRoundedRect(new THREE.Shape(), 1.94, 1.34, 0.16);
@@ -573,12 +646,33 @@ function createHDObject() {
   materials.push(edgeMat);
 
   /* --- Halo: a soft additive lime glow sitting BEHIND the frame, so the
-     letters and the screen read as light sources without any bloom pass. --- */
-  const halo = _makeHalo(1.75);
-  halo.sprite.position.set(0, 0.05, -0.5);
-  group.add(halo.sprite);
-  materials.push(halo.mat);
-  textures.push(halo.tex);
+     letters and the screen read as light sources without any bloom pass. Low
+     tier drops every halo except the network hub, so this is skip on 'low'. --- */
+  let halo = null;
+  if (_materialQuality !== 'low') {
+    halo = _makeHalo(1.75);
+    halo.sprite.position.set(0, 0.05, -0.5);
+    group.add(halo.sprite);
+    materials.push(halo.mat);
+    textures.push(halo.tex);
+  }
+
+  /* --- Status LED: a tiny pulsing arcade light on the bottom bezel chin,
+     with its own micro halo (a power light is a point source; a grey dot would
+     read as a flaw). --- */
+  let ledHalo = null;
+  if (_materialQuality !== 'low') {
+    const ledMat = track(makeLime({ intensity: 2.4 }));
+    const led = new THREE.Mesh(new THREE.BoxGeometry(0.026, 0.026, 0.02), ledMat);
+    led.position.set(0, -0.815, 0.06);
+    group.add(led);
+    materials.push(ledMat);
+    ledHalo = _makeHalo(0.30);
+    ledHalo.sprite.position.set(0, -0.815, 0.03);
+    group.add(ledHalo.sprite);
+    materials.push(ledHalo.mat);
+    textures.push(ledHalo.tex);
+  }
 
   /* --- Sweep cadence: a full pass every ~4.2s, sharp in between --- */
   const SWEEP_PERIOD = 4.2;
@@ -599,7 +693,11 @@ function createHDObject() {
       for (const l of letters) {
         l.position.y = Math.sin(elapsed * 0.9) * 0.012;
       }
-      halo.mat.opacity = (halo.mat.userData.baseHalo || TUNING.halo.opacity) * (ctx ? ctx.glow : 1);
+      if (halo) halo.mat.opacity = (halo.mat.userData.baseHalo || TUNING.halo.opacity) * (ctx ? ctx.glow : 1);
+      if (ledHalo) {
+        const blink = 0.72 + 0.28 * Math.sin(elapsed * 2.3);
+        ledHalo.mat.opacity = (ledHalo.mat.userData.baseHalo || TUNING.halo.opacity) * blink * (ctx ? ctx.glow : 1);
+      }
     },
   };
 }
@@ -697,6 +795,18 @@ function createUSBObject() {
   reliefGeo.translate(0, 0, -0.60);
   inner.add(new THREE.Mesh(reliefGeo, bodyMat));
 
+  /* --- Ribbed housing: five slim finger-grip ribs moulded into the top of the
+     body. Same family as the body but a touch lighter, so they read as raised
+     moulding rather than paint. --- */
+  const ribMat = track(makeGlossy({ color: 0x161c20, metalness: 0.08, roughness: 0.5, rim: 0.35 }));
+  const ribGeo = new THREE.BoxGeometry(0.44, 0.028, 0.05);
+  for (let i = 0; i < 5; i++) {
+    const rib = new THREE.Mesh(ribGeo, ribMat);
+    rib.position.set(0, 0.214, -0.12 - i * 0.07);
+    inner.add(rib);
+  }
+  materials.push(ribMat);
+
   /* --- Cable: TubeGeometry along a CatmullRomCurve3 that undulates ---
    * Deliberately SHORT (it used to run 2.2 units behind the plug, which in the
    * hero reached straight across the headline). The visible length is now
@@ -711,7 +821,7 @@ function createUSBObject() {
   ], false, 'catmullrom', 0.5);
   const cableGeo = new THREE.TubeGeometry(curve, 64, 0.072, 12, false);
   const cableMat = track(makeGlossy({
-    color: 0x0a0e12, metalness: 0.1, roughness: 0.45, clearcoat: 0.7, rim: 0.55,
+    color: 0x0a0e12, metalness: 0.1, roughness: 0.36, clearcoat: 1, rim: 0.55,
   }));
   const pulseUniforms = {
     uTime:         { value: 0 },
@@ -747,12 +857,16 @@ function createUSBObject() {
   materials.push(ringMat);
 
   /* --- Halo: soft lime glow behind the plug + cable joint, riding the same
-     rotation as the plug so it reads as light the plug omits. --- */
-  const halo = _makeHalo(1.45);
-  halo.sprite.position.set(0, -0.05, -0.65);
-  inner.add(halo.sprite);
-  materials.push(halo.mat);
-  textures.push(halo.tex);
+     rotation as the plug so it reads as light the plug omits. Low tier drops
+     every halo except the network hub. --- */
+  let halo = null;
+  if (_materialQuality !== 'low') {
+    halo = _makeHalo(1.45);
+    halo.sprite.position.set(0, -0.05, -0.65);
+    inner.add(halo.sprite);
+    materials.push(halo.mat);
+    textures.push(halo.tex);
+  }
 
   return {
     key: 'usb',
@@ -770,7 +884,7 @@ function createUSBObject() {
       pulseUniforms.uTime.value = elapsed;
       /* pulses brighten with the glow the loop assigns to this object */
       pulseUniforms.uPulseStrength.value = (ctx ? ctx.glow : 0.6) * 0.9;
-      halo.mat.opacity = (halo.mat.userData.baseHalo || TUNING.halo.opacity) * (ctx ? ctx.glow : 1);
+      if (halo) halo.mat.opacity = (halo.mat.userData.baseHalo || TUNING.halo.opacity) * (ctx ? ctx.glow : 1);
       /* Outward yaw, with a slow breathing tilt so it is never rigid. The
        * solver owns the base angle; the wobble is this object's own. */
       const yaw = this.outwardYaw;
@@ -817,9 +931,14 @@ function createNetworkObject() {
     });
   }
 
-  /* --- Nodes: one InstancedMesh, per-instance scale pulse on the CPU --- */
+  /* --- Nodes: one InstancedMesh, per-instance scale pulse on the CPU. The
+     material is TRANSPARENT GLASS (high clearcoat, low opacity, strong env),
+     so the constellation reads as blown-glass baubles; the rim keeps the lime
+     edge. Low tier degrades to the solid MeshStandard fallback. --- */
   const nodeMat = track(makeGlossy({
-    materialKey: 'network', color: 0x0f1519, rim: 0.95, rimPower: 2.6,
+    materialKey: 'network', color: 0x0d1718, metalness: 0.3, roughness: 0.10,
+    clearcoat: 1, clearcoatRoughness: 0.05, transparent: true, opacity: 0.40,
+    depthWrite: false, env: 3.0, rim: 0.85, rimPower: 2.6,
   }));
   const nodeGeo = new THREE.IcosahedronGeometry(1, 2);
   const nodeMesh = new THREE.InstancedMesh(nodeGeo, nodeMat, nodes.length);
@@ -827,22 +946,58 @@ function createNetworkObject() {
   materials.push(nodeMat);
   hit.push(nodeMesh);
 
+  /* --- Emissive cores: a smaller lime icosahedron inside every glass node,
+     the "light at the heart" the glass magnifies. Opaque, so they sort behind
+     the transparent shells and never fight them. --- */
+  const coreMat = track(makeLime({ intensity: 2.2 }));
+  const coreMesh = new THREE.InstancedMesh(
+    new THREE.IcosahedronGeometry(0.5, 0), coreMat, nodes.length
+  );
+  group.add(coreMesh);
+  materials.push(coreMat);
+
   /* --- Halos: a tight lime glow behind the hub, and a broad faint relief
-     behind the whole constellation so the shape reads as lit from within. --- */
+     behind the whole constellation so the shape reads as lit from within.
+     The hub halo is the ONE halo the low tier keeps; the broad relief is
+     medium+. --- */
   const hubHalo = _makeHalo(0.95);
   hubHalo.sprite.position.set(0, 0, -0.06);
   group.add(hubHalo.sprite);
   materials.push(hubHalo.mat);
   textures.push(hubHalo.tex);
-  const reliefHalo = _makeHalo(2.6, [
-    [0.0, 'rgba(51,235,77,0.30)'],
-    [0.45, 'rgba(51,235,77,0.10)'],
-    [1.0, 'rgba(51,235,77,0)'],
-  ]);
-  reliefHalo.sprite.position.set(0, 0, -0.35);
-  group.add(reliefHalo.sprite);
-  materials.push(reliefHalo.mat);
-  textures.push(reliefHalo.tex);
+  let reliefHalo = null;
+  if (_materialQuality !== 'low') {
+    reliefHalo = _makeHalo(2.6, [
+      [0.0, 'rgba(51,235,77,0.30)'],
+      [0.45, 'rgba(51,235,77,0.10)'],
+      [1.0, 'rgba(51,235,77,0)'],
+    ]);
+    reliefHalo.sprite.position.set(0, 0, -0.35);
+    group.add(reliefHalo.sprite);
+    materials.push(reliefHalo.mat);
+    textures.push(reliefHalo.tex);
+  }
+
+  /* --- Hub ring: a slim lime halo-catcher ring a hair outside the centre
+     node, so the hub reads as the constellation's focus. --- */
+  const hubRingMat = track(makeLime({ intensity: 1.3, metalness: 0.6, roughness: 0.25 }));
+  const hubRing = new THREE.Mesh(new THREE.TorusGeometry(0.42, 0.010, 8, 48), hubRingMat);
+  group.add(hubRing);
+  materials.push(hubRingMat);
+
+  /* --- Orbit rings: two thin, tilted rings circling the whole constellation,
+     like the lathe grooves a glassblower leaves. Faint, medium+ only. --- */
+  let orbitA = null;
+  let orbitB = null;
+  if (_materialQuality !== 'low') {
+    const orbitMat = track(makeLime({ intensity: 0.9, metalness: 0.5, roughness: 0.3 }));
+    orbitA = new THREE.Mesh(new THREE.TorusGeometry(1.16, 0.006, 6, 96), orbitMat);
+    orbitA.rotation.set(1.25, 0, 0.4);
+    orbitB = new THREE.Mesh(new THREE.TorusGeometry(1.36, 0.005, 6, 96), orbitMat);
+    orbitB.rotation.set(0.9, 0, -0.6);
+    group.add(orbitA, orbitB);
+    materials.push(orbitMat);
+  }
 
   /* --- Links: LineSegments, centre hub + three cross edges --- */
   const linkPairs = [];
@@ -895,6 +1050,7 @@ function createNetworkObject() {
     hit,
     update(elapsed, dt, ctx) {
       const glow = ctx ? ctx.glow : 0.7;
+      const baseHalo = TUNING.halo.opacity;
 
       /* nodes: gentle breathing, centre node leads */
       for (let i = 0; i < nodes.length; i++) {
@@ -904,8 +1060,26 @@ function createNetworkObject() {
           : 1.0 + 0.16 * Math.sin(elapsed * 1.6 + n.phase);
         _m.compose(n.p, _q.identity(), _s.setScalar(n.r * pulse));
         nodeMesh.setMatrixAt(i, _m);
+        /* cores beat a little faster, out of phase with their shells */
+        const cp = 1.0 + (n.centre ? 0.16 : 0.24) * Math.sin(elapsed * (n.centre ? 1.9 : 2.5) + n.phase * 1.7);
+        _m.compose(n.p, _q.identity(), _s.setScalar((n.centre ? 0.30 : n.r) * 0.52 * cp));
+        coreMesh.setMatrixAt(i, _m);
       }
       nodeMesh.instanceMatrix.needsUpdate = true;
+      coreMesh.instanceMatrix.needsUpdate = true;
+
+/* rings: the hub ring precesses like a saturn ring, the orbit pair turn on
+     their own tilts — two glassblowing grooves, never in lockstep. */
+      hubRing.rotation.x = Math.sin(elapsed * 0.22) * 0.12;
+      hubRing.rotation.z = 0.10;
+      if (orbitA) {
+        orbitA.rotation.z = 0.4 + elapsed * 0.05;
+        orbitA.rotation.x = 1.25 + Math.sin(elapsed * 0.11) * 0.10;
+      }
+      if (orbitB) {
+        orbitB.rotation.z = -0.6 - elapsed * 0.036;
+        orbitB.rotation.y = elapsed * 0.02;
+      }
 
       /* packets: crawl hub -> node, fading in and out at the ends */
       for (let i = 0; i < packetCount; i++) {
@@ -925,9 +1099,9 @@ function createNetworkObject() {
 
       lineMat.opacity = 0.16 + 0.24 * Math.min(1, glow);
       packetMat.opacity = 0.40 + 0.55 * Math.min(1, glow);
-      const haloG = (halo.mat.userData.baseHalo || TUNING.halo.opacity) * glow;
+      const haloG = baseHalo * glow;
       hubHalo.mat.opacity = haloG;
-      reliefHalo.mat.opacity = haloG * 0.7;
+      if (reliefHalo) reliefHalo.mat.opacity = haloG * 0.7;
     },
   };
 }
@@ -954,18 +1128,33 @@ export function createBackgroundProps() {
   const textures = [];
   const B = TUNING.background;
 
-  /* Faint wireframe icosahedron, far behind everything.
-   * Every value here is deliberately at the floor of visibility: this layer
-   * sits BEHIND the whole page, so anything more than a whisper reads as a
-   * pattern behind the headline rather than as depth. */
+  /* Faint wireframe geodesic, far behind everything. Detail 2 turns the six
+   pentagons of the old icosahedron into the web of a real geodesic sphere;
+   a smaller, counter-rotating twin (medium+ only) keeps it from reading as a
+   single hollow ball.
+   Every value here is deliberately at the floor of visibility: this layer
+   sits BEHIND the whole page, so anything more than a whisper reads as a
+   pattern behind the headline rather than as depth. */
   const wireMat = new THREE.MeshBasicMaterial({
     color: PALETTE.accent, wireframe: true, transparent: true, opacity: B.wire.opacity,
     depthWrite: false, fog: true,
   });
-  const wire = new THREE.Mesh(new THREE.IcosahedronGeometry(B.wire.radius, 1), wireMat);
+  const wire = new THREE.Mesh(new THREE.IcosahedronGeometry(B.wire.radius, 2), wireMat);
   wire.position.set(0, 0.5, B.wire.z);
   wire.rotation.set(0.4, 0.2, 0);
   group.add(wire);
+
+  let wire2 = null;
+  if (_materialQuality !== 'low') {
+    const wire2Mat = new THREE.MeshBasicMaterial({
+      color: PALETTE.accent, wireframe: true, transparent: true, opacity: B.wire.opacity * 0.6,
+      depthWrite: false, fog: true,
+    });
+    wire2 = new THREE.Mesh(new THREE.IcosahedronGeometry(B.wire.radius * 0.72, 1), wire2Mat);
+    wire2.position.set(0, 0.5, B.wire.z - 1.5);
+    wire2.rotation.set(-0.5, 0.35, 0.4);
+    group.add(wire2);
+  }
 
   /* Two tilted orbit rings, same treatment, and thinner than a hairline. */
   const ringMat = new THREE.MeshBasicMaterial({
@@ -1006,10 +1195,16 @@ export function createBackgroundProps() {
   return {
     group,
     textures,
-    materials: [wireMat, ringMat, glowMat],
+    materials: _materialQuality === 'low'
+      ? [wireMat, ringMat, glowMat]
+      : [wireMat, wire2Mat, ringMat, glowMat],
     update(elapsed) {
       wire.rotation.y = elapsed * 0.018;
       wire.rotation.x = 0.4 + Math.sin(elapsed * 0.07) * 0.06;
+      if (wire2) {
+        wire2.rotation.y = -elapsed * 0.014;
+        wire2.rotation.z = 0.4 + Math.cos(elapsed * 0.05) * 0.08;
+      }
       ringA.rotation.z = 0.2 + elapsed * 0.012;
       ringB.rotation.z = -0.3 - elapsed * 0.009;
     },
@@ -1034,6 +1229,9 @@ const DUST_VERT = /* glsl */`
   uniform float uDrift;
   uniform float uStreak;
   uniform float uLayerMax;
+  uniform vec3  uPointer;
+  uniform float uPointerR;
+  uniform float uPointerStr;
   varying float vFade;
   varying float vTwinkle;
 
@@ -1044,6 +1242,14 @@ const DUST_VERT = /* glsl */`
     p.y += sin( uTime * 0.28 + aPhase ) * 0.55 * uDrift * layerScale;
     p.x += cos( uTime * 0.19 + aPhase * 1.7 ) * 0.45 * uDrift * layerScale;
     p.z += sin( uTime * 0.11 + aPhase * 0.9 ) * 0.30 * uDrift * layerScale;
+
+    /* the mouse: dust nearest the pointer is brushed aside, exponentially
+       flattening at the edges of the influence radius */
+    {
+      vec3 d = p - uPointer;
+      float f = uPointerStr * exp( -dot( d, d ) / ( uPointerR * uPointerR ) );
+      p += normalize( d + vec3( 1e-4 ) ) * f * 0.6;
+    }
 
     /* scroll velocity smears the field along view-space Y */
     p.y -= uStreak * ( 0.4 + aLayer * 0.9 );
@@ -1116,9 +1322,107 @@ export function createParticles(count) {
       uOpacity:     { value: P.opacity },
       uTwinkle:     { value: P.twinkle },
       uLayerMax:    { value: P.layers },
+      uPointer:     { value: new THREE.Vector3(0, 0, 0) },
+      uPointerR:    { value: TUNING.dust.radius },
+      uPointerStr:  { value: 0 },
     },
     vertexShader: DUST_VERT,
     fragmentShader: DUST_FRAG,
+    transparent: true,
+    depthWrite: false,
+    blending: THREE.AdditiveBlending,
+  });
+
+  const points = new THREE.Points(geo, mat);
+  points.frustumCulled = false;
+  return { points, material: mat, count };
+}
+
+/* ============================================================================
+ * 8a. BOKEH DISC FIELD — far, out-of-focus lights
+ * ----------------------------------------------------------------------------
+ * The one thing the dust field must never be: discs of light the size you
+ * would see through a fast lens, not points. Each is a soft additive circle
+ * (procedural in the fragment shader, no texture), drifting at a glacial pace
+ * so the far plane reads as a room behind the glass, and only built on the
+ * medium+ tiers. `frustumCulled` is off: their box is a fake point, and a
+ * false cull would blink whole regions in and out.
+ * ==========================================================================*/
+
+const BOKEH_VERT = /* glsl */`
+  attribute float aSize;
+  attribute float aPhase;
+  uniform float uTime;
+  uniform float uPixelRatio;
+  uniform float uSize;
+  uniform float uDrift;
+  varying float vFade;
+  varying float vTwinkle;
+
+  void main() {
+    vec3 p = position;
+    float k = 0.5 + 0.5 * sin( uTime * 0.10 + aPhase );
+    p.x += cos( uTime * 0.05 + aPhase ) * 0.6 * uDrift * k;
+    p.y += sin( uTime * 0.04 + aPhase * 1.3 ) * 0.5 * uDrift * k;
+
+    vec4 mv = modelViewMatrix * vec4( p, 1.0 );
+    gl_Position = projectionMatrix * mv;
+
+    float depth = -mv.z;
+    gl_PointSize = uSize * aSize * uPixelRatio * ( 300.0 / max( depth, 0.001 ) );
+    vFade = clamp( 1.0 - depth / 60.0, 0.0, 1.0 );
+    vTwinkle = 0.55 + 0.45 * sin( uTime * ( 0.18 + aPhase * 0.7 ) + aPhase * 5.0 );
+  }
+`;
+
+const BOKEH_FRAG = /* glsl */`
+  uniform vec3 uColor;
+  uniform float uOpacity;
+  uniform float uTwinkle;
+  varying float vFade;
+  varying float vTwinkle;
+
+  void main() {
+    vec2 uv = gl_PointCoord - 0.5;
+    /* soft disc, no hard edge: bokeh is a blur, so a step here would glow */
+    float a = smoothstep( 0.5, 0.05, length( uv ) );
+    float tw = 1.0 - uTwinkle + uTwinkle * vTwinkle;
+    gl_FragColor = vec4( uColor, a * uOpacity * vFade * tw );
+  }
+`;
+
+export function createBokeh(count) {
+  const B = TUNING.bokeh;
+  const rand = seeded(0xb0b0);
+  const positions = new Float32Array(count * 3);
+  const sizes = new Float32Array(count);
+  const phases = new Float32Array(count);
+
+  for (let i = 0; i < count; i++) {
+    positions[i * 3 + 0] = (rand() - 0.5) * 26;
+    positions[i * 3 + 1] = (rand() - 0.5) * 16;
+    positions[i * 3 + 2] = B.z + (rand() - 0.5) * B.zSpread;
+    sizes[i] = 0.4 + rand() * 1.1;
+    phases[i] = rand() * Math.PI * 2;
+  }
+
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+  geo.setAttribute('aSize', new THREE.BufferAttribute(sizes, 1));
+  geo.setAttribute('aPhase', new THREE.BufferAttribute(phases, 1));
+
+  const mat = new THREE.ShaderMaterial({
+    uniforms: {
+      uTime:       { value: 0 },
+      uPixelRatio: { value: 1 },
+      uSize:       { value: B.size },
+      uDrift:      { value: B.drift },
+      uColor:      { value: new THREE.Color(TUNING.emissive.color) },
+      uOpacity:    { value: B.opacity },
+      uTwinkle:    { value: B.twinkle },
+    },
+    vertexShader: BOKEH_VERT,
+    fragmentShader: BOKEH_FRAG,
     transparent: true,
     depthWrite: false,
     blending: THREE.AdditiveBlending,
