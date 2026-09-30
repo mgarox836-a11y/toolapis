@@ -186,7 +186,8 @@ html.intro-active[data-intro-stage="3"] #intro-overlay .intro-inner {
 }
 
 /* ---- 3.6-4.7s : hero content reveal (driven by intro.js) ---- */
-html.intro-done [data-intro-reveal] { opacity: 1 !important; transform: none !important; }
+/* The enhanced intro-done / reveal-all force-state lives in the 3.6s+ block
+   further down; this spot must never hide anything after the curtain is down. */
 
 @keyframes intro-dot-pulse {
   0%, 100% { opacity: .25; transform: scale(.7); }
@@ -215,24 +216,74 @@ html.intro-done [data-intro-reveal] { opacity: 1 !important; transform: none !im
    `html.intro-reveal` in the same beat, so the headline, sub-copy and
    buttons assemble underneath the rising panel instead of after it.
 
+   THE SAME LOOK AS THE SCROLL REVEAL. The hero is the one place the
+   scroll reveal must NOT run — the intro controller owns this sequence
+   from badge to nav pill — so it carries the identical blur -> sharp +
+   fade + rise itself, out of the same `--reveal-*` tokens in
+   css/reveal.css. One look, two drivers, no chance of the two systems
+   disagreeing about what "arrived" means.
+
+   `#navbar` is the one exception: a sticky bar is chrome, and a blurred
+   backdrop-filtered header mid-reveal is a rendering artefact, not an
+   entrance. It keeps the plain fade-and-drop it always had.
+
    The hold below exists only while the intro owns the screen; it is
    scoped to html.intro-active, so with the class absent (or the module
    dead) the page shows its normal content immediately.
    ==================================================================== */
 html.intro-active [data-intro-reveal] {
   opacity: 0 !important;
-  transform: translateY(18px) !important;
-  transition: opacity .55s ease, transform .55s cubic-bezier(.2, .9, .3, 1.05) !important;
+  transform: translate3d(0, var(--reveal-distance, 28px), 0) !important;
+  filter: blur(var(--reveal-blur, 12px)) !important;
+  transition:
+    opacity .55s ease,
+    transform .55s var(--reveal-ease, cubic-bezier(.22, 1, .36, 1)),
+    filter .55s var(--reveal-ease, cubic-bezier(.22, 1, .36, 1)) !important;
 }
 html.intro-active.intro-reveal [data-intro-reveal] {
   opacity: 1 !important;
-  transform: none !important;
+  transform: translate3d(0, 0, 0) !important;
+  filter: blur(0) !important;
 }
-html.intro-active.intro-reveal [data-intro-reveal="1"] { transition-delay: 40ms  !important; }
-html.intro-active.intro-reveal [data-intro-reveal="2"] { transition-delay: 150ms !important; }
-html.intro-active.intro-reveal [data-intro-reveal="3"] { transition-delay: 260ms !important; }
-html.intro-active.intro-reveal [data-intro-reveal="4"] { transition-delay: 370ms !important; }
-html.intro-active.intro-reveal [data-intro-reveal="5"] { transition-delay: 480ms !important; }
+/* Chrome: never blurred, in either state. A `backdrop-filter` header under a
+   blur() filter forces the compositor to re-sample its own backdrop every
+   frame for a bar that is already the right shape — the nav keeps the plain
+   fade-and-drop it always had. */
+html.intro-active [data-intro-reveal="5"],
+html.intro-active.intro-reveal [data-intro-reveal="5"] {
+  filter: none !important;
+}
+html.intro-active [data-intro-reveal="1"] { transition-delay: 0ms    !important; }
+html.intro-active [data-intro-reveal="2"] { transition-delay: 120ms  !important; }
+html.intro-active [data-intro-reveal="3"] { transition-delay: 240ms  !important; }
+html.intro-active [data-intro-reveal="4"] { transition-delay: 360ms  !important; }
+html.intro-active [data-intro-reveal="5"] { transition-delay: 480ms  !important; }
+
+/* The failsafe's other half: whatever state the page is in when the
+   curtain is torn down, no hero block is left at opacity 0 or under a
+   blur. Matches `html.intro-done` below, and is what makes the 5.5s
+   inline timer in <head> sufficient on its own. */
+html.intro-done [data-intro-reveal],
+html.reveal-all [data-intro-reveal] {
+  opacity: 1 !important;
+  transform: none !important;
+  filter: none !important;
+  transition: none !important;
+}
+
+/* Reduced motion and the site's own "off" switch: arrive, do not travel. */
+@media (prefers-reduced-motion: reduce) {
+  html.intro-active [data-intro-reveal] {
+    filter: none !important;
+    transform: none !important;
+    transition: opacity .2s ease !important;
+  }
+}
+html.reduced-motion [data-intro-reveal] {
+  filter: none !important;
+  transform: none !important;
+  transition: none !important;
+}
 
 /* ====================================================================
    ICON SAFETY NET

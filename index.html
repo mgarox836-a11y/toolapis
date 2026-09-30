@@ -95,6 +95,28 @@
       /* The hard failsafe, still the one independent of every module. */
       window.setTimeout(cleanup, 5500);
 
+      /* The scroll-reveal failsafe, same clock, same argument. Two halves own
+         the reveal below the fold: script.js (`.reveal`, it sets `html.js` on
+         its first line) and js/reveal.js (everything else, it sets
+         `data-reveal-live`). At 5.5s the curtain is long gone and every block
+         in the first two screens should have arrived. If BOTH halves are
+         alive this is a no-op — the scroll reveal keeps doing its job, and
+         force-revealing here would turn the whole thing into a no-op on every
+         single load. If either is missing, the other can never finish the job
+         on its own, so everything is snapped visible and nothing is left
+         stranded at opacity 0 under a blur.
+         Kept deliberately dumb: no thresholds, no counters, no state. */
+      window.setTimeout(function () {
+        try {
+          var d = document.documentElement;
+          var scriptAlive = !!(d && d.classList.contains('js'));
+          var revealAlive = !!(d && d.hasAttribute('data-reveal-live'));
+          if (scriptAlive && revealAlive) return;
+          d.classList.add('reveal-all');
+          if (d) d.setAttribute('data-reveal-failsafe', '1');
+        } catch (e) {}
+      }, 5500);
+
       var BOOT = performance.now();
 
       document.documentElement.classList.add('intro-active');
@@ -210,6 +232,12 @@
   <!-- Intro overlay. Additive and optional: hidden by default unless the
        inline failsafe below puts "intro-active" on <html>. -->
   <link rel="stylesheet" href="css/intro.css">
+  <!-- Scroll reveal. MUST come after style.css (which it overrides) and after
+       css/intro.css (so the hero's identical effect, driven by the intro
+       controller, wins there). Every hide-initial rule is behind
+       `html.reveal-ready`, which only js/reveal.js adds, so no JS means no
+       hidden content. See css/reveal.css. -->
+  <link rel="stylesheet" href="css/reveal.css">
 
   <!-- Google Fonts CDN -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -670,6 +698,7 @@
     2D design above is unaffected. See js/scene3d.js -> TUNING.
   -->
   <script type="module" src="js/intro.js"></script>
+  <script type="module" src="js/reveal.js"></script>
   <script type="module" src="js/scene3d.js"></script>
 </body>
 </html>

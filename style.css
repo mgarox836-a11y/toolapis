@@ -201,26 +201,22 @@
     section[id] { scroll-margin-top: 90px; }
 
     /* No-JS resilience: if script.js never runs, nothing stays hidden */
-    html:not(.js) [data-reveal], html:not(.js) .reveal { opacity: 1; transform: none; transition: none; }
+    html:not(.js) [data-reveal], html:not(.js) .reveal,
+    html:not(.js) .rv { opacity: 1; transform: none; filter: none; transition: none; }
 
     /* ---- Scroll reveal ----
-       API:
-       - .reveal        -> elemen mulai tersembunyi (opacity 0, geser 30px ke bawah)
-       - .reveal.active -> muncul penuh (opacity 1, posisi awal) saat masuk viewport
+       The VISUAL EFFECT (blur -> sharp + fade + rise) lives in css/reveal.css,
+       loaded after this sheet, and its hidden state is gated on
+       `html.reveal-ready` — a class ONLY js/reveal.js adds. So with JS off, or
+       with that module never evaluating, none of the hide-initial rules below
+       ever apply and every block is fully visible from the first paint.
+
+       The API is unchanged and still owned here:
+       - .reveal / [data-reveal] -> hidden until script.js adds .is-visible/.active
        - data-delay="0" -> jeda (ms) sebelum animasi elemen itu, utk efek staggered
-       - .reveal-group  -> wadah; anak bergaya .reveal otomatis cascade (0, 130, 260, ... ms)
-       - data-delay-step="150" -> opsional di wadah: ukuran jeda antar anak
+       - .reveal-group  -> wadah; anak bergaya .reveal otomatis cascade
+       - data-delay-step="110" -> opsional di wadah: ukuran jeda antar anak
     */
-    [data-reveal], .reveal {
-      opacity: 0;
-      transform: translateY(30px);
-      transition: opacity .6s ease-out, transform .6s ease-out;
-    }
-    [data-reveal].is-visible, [data-reveal].active,
-    .reveal.is-visible, .reveal.active {
-      opacity: 1;
-      transform: translateY(0);
-    }
 
     /* ---- Navbar solid state ---- */
     #navbar { transition: background-color .3s ease, box-shadow .3s ease; }
@@ -422,7 +418,8 @@
     /* Reduced motion: collapse everything to static.
        Class-based (set by script.js). Animations run always unless the
        user disables them explicitly via localStorage "toolapis-motion" = "off". */
-    html.reduced-motion [data-reveal], html.reduced-motion .reveal { opacity: 1; transform: none; transition: none; }
+    html.reduced-motion [data-reveal], html.reduced-motion .reveal,
+    html.reduced-motion .rv { opacity: 1; transform: none; filter: none; transition: none; }
     html.reduced-motion .ring-float, html.reduced-motion .ring-float-slow, html.reduced-motion .drift { animation: none; }
     html.reduced-motion .sheen::after { animation: none; }
     html.reduced-motion .spot-card::before { display: none; }

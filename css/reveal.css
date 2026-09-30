@@ -1,0 +1,184 @@
+/* ====================================================================
+   TOOLAPIS — scroll reveal: blur to sharp + fade in + rise upward
+   ====================================================================
+   Loaded AFTER style.css and AFTER css/intro.css. Purely additive.
+
+   WHAT IT OWNS
+   --------------------------------------------------------------------
+   The TRIGGERS are not here. script.js already owns `.reveal` /
+   `[data-reveal]` (it adds `.is-visible` + `.active` from its own
+   IntersectionObserver, and cascades `.reveal-group` children through
+   `data-delay`), and js/reveal.js owns everything script.js does not
+   reach. This file is the LOOK: one effect, applied to both.
+
+       hidden    opacity 0, translate3d(0, 28px, 0), blur(12px)
+       visible   opacity 1, translate3d(0, 0, 0),    blur(0)
+       timing    .9s, cubic-bezier(.22, 1, .36, 1), on opacity,
+                 transform AND filter; per-element delay from
+                 `--reveal-delay`
+
+   WHY A TRANSFORM AND NOT A MARGIN
+   --------------------------------------------------------------------
+   The 3D solver reads its obstacles off the final layout (a prop must
+   never sit on a line of copy that has not been read yet), so the
+   hidden state is a TRANSFORM: it moves the pixels and not the box.
+   js/scroll.js additionally neutralises it for the duration of a
+   measurement (see `html.rv-measuring` below), so a still-hidden
+   block is measured where it will LAND, not where it is drawn.
+
+   PROGRESSIVE ENHANCEMENT
+   --------------------------------------------------------------------
+   Every hide-initial rule is behind `html.reveal-ready`, and that class
+   is added by js/reveal.js and by nothing else. No JS, or a module that
+   never evaluates, leaves the page fully visible. `html.reveal-all` is
+   the 5.5s failsafe's one-way kill switch.
+   ==================================================================== */
+
+:root {
+  --reveal-distance: 28px;              /* how far below the block starts   */
+  --reveal-blur: 12px;                  /* never more than 12: big radii are */
+                                        /* the single most expensive thing  */
+                                        /* on an Intel iGPU                */
+  --reveal-duration: .9s;
+  --reveal-stagger: 100ms;              /* per index inside a group         */
+  --reveal-max-delay: 420ms;            /* ceiling: a long cascade cannot    */
+                                        /* push its tail past the entrance  */
+  --reveal-ease: cubic-bezier(.22, 1, .36, 1);
+}
+
+/* --------------------------------------------------------------------
+   MEASUREMENT NEUTRALIZER
+   js/scroll.js adds `rv-measuring` for the length of one measure pass, so
+   a block that is still 28px below its final position is measured at its
+   final position. The class is never left behind.
+
+   `main h2` and `footer` are in the list because the Motion system parks
+   them at an inline `translateY()` before handing them to a WAAPI
+   timeline; that inline transform is not a reveal transform, but it moves
+   the box all the same.
+   -------------------------------------------------------------------- */
+html.rv-measuring :is(.reveal, [data-reveal], .rv, main h2, footer) {
+  transform: none !important;
+}
+
+/* --------------------------------------------------------------------
+   THE EFFECT
+
+   `:not(...)` is the chrome list, and it is deliberately explicit: the
+   sticky header, the nav pill, the scroll-progress bar, the back-to-top
+   button, the spotlight, the grain, the toast, the page-transition
+   plate, the mobile menu, the skip link, the canvas and the debug
+   overlay are never a reveal target. `[data-intro-reveal]` is the hero
+   set, which the intro controller owns (see css/intro.css) — a second
+   effect on the same element is exactly how a hero ends up stranded at
+   opacity 0 with a blur still on it.
+   -------------------------------------------------------------------- */
+html.reveal-ready :is(.reveal, [data-reveal], .rv):not([data-intro-reveal]):not(#navbar):not(#nav-sentinel):not(#scroll-progress):not(#back-to-top):not(#spotlight):not(.grain):not(#page-transition):not(#toast):not(#intro-overlay):not(#scene3d-canvas):not(#scene3d-debug):not(.mobile-menu):not(.skip-link) {
+  opacity: 0;
+  transform: translate3d(0, var(--reveal-distance), 0);
+  filter: blur(var(--reveal-blur));
+  transition:
+    opacity var(--reveal-duration) var(--reveal-ease),
+    transform var(--reveal-duration) var(--reveal-ease),
+    filter var(--reveal-duration) var(--reveal-ease);
+  transition-delay: var(--reveal-delay, 0ms);
+}
+
+/* NO SECOND BLUR. A `.rv` is by construction INSIDE a container the existing
+   system already reveals, and that container is carrying the 12px. Adding one
+   here would composite to ~24px at every edge and re-rasterise the whole card
+   twice per frame for no visible gain. So `.rv` animates opacity and travel
+   only: the softness is inherited from its parent, and the stagger is what the
+   eye actually reads. */
+html.reveal-ready :is(.reveal, [data-reveal], .rv):not([data-intro-reveal]):not(#navbar):not(#nav-sentinel):not(#scroll-progress):not(#back-to-top):not(#spotlight):not(.grain):not(#page-transition):not(#toast):not(#intro-overlay):not(#scene3d-canvas):not(#scene3d-debug):not(.mobile-menu):not(.skip-link).rv {
+  filter: none;
+}
+
+/* ...except the CTA card, where the budget deal is the other way around:
+   the wide panel skips its own blur (see below), so its contents carry it. */
+html.reveal-ready #clarity > .reveal .rv {
+  filter: blur(var(--reveal-blur));
+}
+
+html.reveal-ready :is(.reveal, [data-reveal], .rv):not([data-intro-reveal]):not(#navbar):not(#nav-sentinel):not(#scroll-progress):not(#back-to-top):not(#spotlight):not(.grain):not(#page-transition):not(#toast):not(#intro-overlay):not(#scene3d-canvas):not(#scene3d-debug):not(.mobile-menu):not(.skip-link):is(.is-visible, .active) {
+  opacity: 1;
+  transform: translate3d(0, 0, 0);
+  filter: blur(0);
+}
+
+/* --------------------------------------------------------------------
+   GPU LAYERS, HELD ONLY WHILE SOMETHING MOVES
+
+   A blur is the most expensive thing on this page and a promoted layer
+   per block is what turns a soft entrance into a stutter. js/reveal.js
+   puts `rv-anim` on for the length of the transition and takes it off on
+   `transitionend`; script.js's own targets never get one, so nothing is
+   promoted before the visitor has scrolled there.
+   -------------------------------------------------------------------- */
+html.reveal-ready .rv-anim {
+  will-change: opacity, transform, filter;
+}
+
+/* --------------------------------------------------------------------
+   BLUR BUDGET
+
+   The Clarity CTA panel is a full-width wrapper. A blur that wide is a
+   full-screen texture allocation on a low-end laptop, so the panel itself
+   fades and rises WITHOUT one and its contents carry it instead: the
+   paragraph and the three buttons below are tagged `.rv` and blur on
+   their own budget, while the headed title keeps Motion's plain rise.
+   Card panels and text blocks are a few hundred px across and blur fine.
+   -------------------------------------------------------------------- */
+html.reveal-ready #clarity > .reveal {
+  filter: none;
+}
+
+/* --------------------------------------------------------------------
+   MOBILE: a small viewport is already the constrained device, and a
+   12px blur on a 375px-wide card is a quarter of the screen re-blurred
+   every frame.
+   -------------------------------------------------------------------- */
+@media (max-width: 699px) {
+  :root {
+    --reveal-distance: 16px;
+    --reveal-blur: 6px;
+    --reveal-max-delay: 300ms;
+  }
+}
+
+/* --------------------------------------------------------------------
+   REDUCED MOTION: opacity only. No blur, no travel, 0.2s.
+
+   The media query covers the OS setting; `html.reduced-motion` is the
+   site's own "off" switch (script.js), which has to win outright.
+   -------------------------------------------------------------------- */
+@media (prefers-reduced-motion: reduce) {
+  html.reveal-ready :is(.reveal, [data-reveal], .rv) {
+    filter: none !important;
+    transform: none !important;
+    transition: opacity .2s ease !important;
+    transition-delay: 0ms !important;
+  }
+  html.reveal-ready .rv-anim { will-change: auto; }
+}
+html.reduced-motion :is(.reveal, [data-reveal], .rv) {
+  filter: none !important;
+  transform: none !important;
+  transition: none !important;
+}
+
+/* --------------------------------------------------------------------
+   FAILSAFE KILL SWITCH
+
+   The 5.5s inline timer in <head> adds `reveal-all` when it cannot see
+   both halves of the system alive (script.js's `html.js` flag AND
+   js/reveal.js's `data-reveal-live`). In the normal case this never
+   matches and the scroll reveal is untouched; if it ever does, every
+   block is snapped visible and nothing is left mid-blur.
+   -------------------------------------------------------------------- */
+html.reveal-all :is(.reveal, [data-reveal], .rv) {
+  opacity: 1 !important;
+  transform: none !important;
+  filter: none !important;
+  transition: none !important;
+}

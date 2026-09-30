@@ -236,7 +236,7 @@ export function createScrollEngine() {
    * they stay valid across scrolling). Called on resize and once webfonts have
    * settled, never per frame.
    */
-  function measureContent() {
+  function measureContentNow() {
     const scrollY = window.scrollY;
     const vw = window.innerWidth || 1;
     /* Every obstacle is grown on all four sides before the validator ever sees
@@ -348,6 +348,33 @@ export function createScrollEngine() {
     if (nav) headerSolid = nav.classList.contains('nav-solid');
 
     measured = true;
+  }
+
+  /**
+   * The same pass, with the scroll reveal's entrance transforms switched off
+   * for its duration (css/reveal.css -> `html.rv-measuring`).
+   *
+   * WHY. Every entrance in the reveal system is a TRANSFORM, precisely so it
+   * does not move the box: the hidden state is drawn 28px low and 12px soft,
+   * and the final state is the normal flow position. `getBoundingClientRect`
+   * reports the transformed box, so a block that has not arrived yet would be
+   * measured 28px below where it will actually land, and a prop could be
+   * validated against a rectangle of copy that has already moved on.
+   *
+   * Reading layout with the class on forces the style recalc that applies it,
+   * so the first rect read below is already the neutralized one. The class is
+   * removed in a `finally`, and a second forced recalc restores the real
+   * entrance state, so nothing is ever left with its animation suppressed.
+   */
+  function measureContent() {
+    const d = document.documentElement;
+    d.classList.add('rv-measuring');
+    try {
+      measureContentNow();
+    } finally {
+      d.classList.remove('rv-measuring');
+      try { void d.offsetWidth; } catch (e) { /* the next frame cleans up anyway */ }
+    }
   }
 
   function remeasure() {
