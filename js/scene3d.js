@@ -78,14 +78,34 @@ const state = {
   watchdogId: 0,
   /* The WebGL context is gone; the loop is parked until it comes back. */
   contextLost: false,
+  contextLostCount: 0,
   /* per-subsystem failure accounting, keyed by name -> { fails, disabled } */
   subsystems: {},
   /* the frame-level catch net fires at most once, for the same reason */
   loopErrorReported: false,
+  /* health monitor */
+  lastFrameCount: 0,
+  lastFrameCheck: 0,
+  lastFrameAtCheck: 0,
+  healthId: 0,
+  staleTicks: 0,
+  initRetried: false,
+  initAttempts: 0,
+  healthRestarts: 0,
+  healthHeals: 0,
+  disposed: false,
   inView: true,
   reduced: false,
   elapsed: 0,
   intro: { active: false, t: 0, finished: false, short: false },  /* prop entrance */
+  /* The entrance's overall progress, 0..1, slowest prop first. Published on
+   * state (rather than derived per reader) so the debug overlay, the health
+   * monitor and the screenshot liveness probe all measure the same thing, and
+   * so it is 1 whenever the entrance is not running — including before it ever
+   * starts, on reduced motion, and after a forced finish. */
+  introProgress: 1,
+  /* Smoothed frames per second, for the overlay and the liveness probe. */
+  fps: 0,
   scrollUnlocked: false,          /* the page left the hero; follow the scroll */
   dolly: 0,                         /* intro camera dolly, added to cam.z */
   lastTime: 0,
@@ -1280,24 +1300,72 @@ function drawDebugOverlay(places) {
     if (live && live.err > worstLive) { worstLive = live.err; worstLiveAt = key; }
   }
 
-  /* 6. one block of state, top-left, out of the way of the nav */
+  /* 6. the health panel, top-left, out of the way of the nav.
+   *
+   * Every line here answers a question that has to be answerable from a
+   * screenshot alone, because that is what a screenshot review is: is it
+   * running, how fast, is the entrance finished, is the context alive, and for
+   * every prop — is it lit, and if not, WHY NOT. A panel that only printed
+   * "authored" would make an invisible prop and a visible one look alike. */
   const st = data.stats || {};
+  const lines = [];
+  lines.push({
+    text: `#${data.sectionId}  ${Math.round(window.scrollY)}px  ${vw}x${vh}  ${data.variant}`
+        + `  dpr${(window.devicePixelRatio || 1).toFixed(2)}`,
+    color: '#e2e8f0',
+  });
+  /* Loop health: running, fps, and how stale the newest frame is. Red when the
+   * loop is nominally running but its frames have gone stale, which is the
+   * difference between "slow" and "dead". */
+  const frameAge = state.lastFrameAt ? (performance.now() - state.lastFrameAt) : Infinity;
+  const stale = state.running && frameAge > Math.max(TUNING.loop.staleMs, state.framePeriodMs * TUNING.loop.stallPeriodMultiple);
+  lines.push({
+    text: `${state.running ? 'RUNNING' : 'stopped'}  ${state.fps.toFixed(0)}fps`
+        + `  frame ${isFiniteNum(frameAge) ? Math.round(frameAge) : '--'}ms old`
+        + `  #${state.lastFrameCount}`,
+    color: stale ? '#fecaca' : (state.running ? '#86efac' : '#fbbf24'),
+  });
+  lines.push({
+    text: `tier ${state.tier}  q${state.qualityStep}`
+        + `  ctx ${state.contextLost ? 'LOST' : 'ok'}x${state.contextLostCount}`
+        + `  intro ${state.introProgress.toFixed(2)}`
+        + `  heal r${state.healthRestarts}/h${state.healthHeals}`,
+    color: state.contextLost ? '#fecaca' : '#94a3b8',
+  });
+  lines.push({
+    text: `obstacles ${data.obstacles.length} (text ${st.text || 0} box ${st.box || 0} chip ${st.chip || 0} card ${st.card || 0} chrome ${st.chrome || 0})`,
+    color: '#94a3b8',
+  });
+  lines.push({
+    text: `band ${Math.round(data.bandTopPx)}-${Math.round(data.bandBottomPx)}`
+        + `  worst offset ${worstLive.toFixed(2)}px at ${worstLiveAt}`,
+    color: worstLive < CENTER_TOLERANCE_PX ? '#86efac' : '#fecaca',
+  });
+  /* One line per prop: opacity, the visibility reason, and whether the prop is
+   * actually being drawn at all. This is the line that makes an empty scene
+   * diagnosable from a screenshot instead of a guess. */
+  for (const key of OBJ_KEYS) {
+    const o = state.objects[key];
+    const p = places[key];
+    if (!o || !p) continue;
+    const op = Number.isFinite(o.opacity) ? o.opacity : 0;
+    const lit = o.group.visible && op > TUNING.health.visibilityEpsilon;
+    lines.push({
+      text: `${key} ${op.toFixed(2)} ${o.group.visible ? 'vis' : 'HIDDEN'}`
+          + ` ${(p.reason || p.state || '-')} ${Math.round(p.committedPx)}px`,
+      color: lit ? '#86efac' : '#fbbf24',
+    });
+  }
+
+  const boxH = 12 + lines.length * 13;
+  const boxW = 460;
   g.lineWidth = 1;
-  g.fillStyle = 'rgba(11,15,18,0.75)';
-  g.fillRect(0, data.bandPx + 4, 300, 88);
-  g.fillStyle = '#e2e8f0';
-  g.fillText(`#${data.sectionId}  ${Math.round(window.scrollY)}px  ${vw}x${vh}  ${data.variant}`, 8, data.bandPx + 10);
-  g.fillStyle = '#94a3b8';
-  g.fillText(`obstacles ${data.obstacles.length} (text ${st.text || 0} box ${st.box || 0} chip ${st.chip || 0} card ${st.card || 0} chrome ${st.chrome || 0})`, 8, data.bandPx + 26);
-  g.fillText(`dropped ${st.wrapper || 0} wrappers  ${st.wide || 0} over-wide  band ${Math.round(data.bandTopPx)}-${Math.round(data.bandBottomPx)}`, 8, data.bandPx + 42);
-  const introTxt = state.intro.active
-    ? 'entrance active'
-    : (state.intro.finished ? 'entrance done' : 'entrance idle');
-  const cropRow = OBJ_KEYS.map(k => Math.round((places[k] && places[k].croppedPx) || 0)).join('/');
-  g.fillText(`crops ${cropRow}px  ${introTxt}`, 8, data.bandPx + 74);
-  g.fillStyle = worstLive < CENTER_TOLERANCE_PX ? '#86efac' : '#fecaca';
-  g.fillText(`worst box/marker offset ${worstLive.toFixed(2)}px at ${worstLiveAt}`
-    + ` (tolerance ${CENTER_TOLERANCE_PX}px)`, 8, data.bandPx + 58);
+  g.fillStyle = 'rgba(11,15,18,0.82)';
+  g.fillRect(0, data.bandPx + 4, boxW, boxH);
+  for (let i = 0; i < lines.length; i++) {
+    g.fillStyle = lines[i].color;
+    g.fillText(lines[i].text, 8, data.bandPx + 12 + i * 13);
+  }
 }
 
 /** One console line per section: what was asked for, and what was committed. */
@@ -1449,8 +1517,19 @@ function animate(now) {
     if (isFiniteNum(rawDt) && rawDt > 0) {
       state.framePeriodMs = state.framePeriodMs * 0.9 + Math.min(rawDt, 2) * 1000 * 0.1;
     }
+    /* A monotonic frame counter. Everything that asks "is the scene alive?"
+       (the health monitor, the debug overlay, the screenshot liveness probe)
+       reads this one number instead of each keeping its own timer. */
+    state.lastFrameCount += 1;
 
     runSubsystem('entrance', () => updateEntrance(now));
+
+    /* Smoothed fps for the overlay and the liveness probe. Taken from the real
+       `rawDt` (before the clamp) rather than `1/dt`, so a clamped or paused
+       frame cannot report a wildly optimistic instantaneous rate. */
+    if (isFiniteNum(rawDt) && rawDt > 0) {
+      state.fps = state.fps * 0.9 + (1 / Math.min(rawDt, 1)) * 0.1;
+    }
 
     /* Before the intro is done the page is locked to the hero, so the scene must
        be too. Reading `window.scrollY` here would let a restored scroll position
@@ -1611,6 +1690,10 @@ function startFlyIn(detail) {
       m.opacity = 0;
     }
   }
+  /* Reduced motion never plays the arrival, so there is nothing to wait for:
+     mark it complete immediately, or `introProgress` would report 0 forever
+     and the health monitor would read a prop pinned at 0 as a casualty. */
+  if (state.reduced) finishEntrance('reduced-motion');
 }
 
 /** The per-prop easeOutBack over its own span, plus the overshoot. */
@@ -1632,6 +1715,7 @@ function updateEntrance(now) {
     || document.documentElement.classList.contains('reveal-all');
 
   let latest = 0;
+  let earliest = 1;
   let remaining = 0;
   for (const key of E.order) {
     const o = state.objects[key];
@@ -1648,7 +1732,13 @@ function updateEntrance(now) {
     o.introDone = forced || raw >= 1;
     if (raw < 1) remaining++;
     latest = Math.max(latest, p);
+    earliest = Math.min(earliest, p);
   }
+  /* The headline number the overlay, the liveness probe and the health monitor
+     all read: the entrance's overall progress. It is the SLOWEST prop, not the
+     fastest — `1` has to mean every prop arrived, or a monitor watching this
+     would call a half-finished entrance finished and miss a stranded prop. */
+  state.introProgress = forced ? 1 : clamp(earliest, 0, 1);
 
   /* The particles ride the props: gone at the first frame, fully there by the
      time the last prop settles. */
@@ -1670,24 +1760,42 @@ function updateEntrance(now) {
   const eased = 1 - Math.pow(1 - ct, 3);
   state.dolly = (1 - eased) * 2.2;
 
-  if (forced || remaining === 0) {
-    state.intro.active = false;
-    state.intro.finished = true;
-    for (const key of E.order) {
-      const o = state.objects[key];
-      if (!o) continue;
-      o.introDone = true;
-      o.introP = 1;
-      o.introK = 1;
-    }
-    if (state.particles) state.particles.material.opacity = 1;
-    if (state.props) {
-      for (const m of state.props.materials || []) {
-        if (m.userData.introBase !== undefined) m.opacity = m.userData.introBase;
-      }
-    }
-    unlockScrollFollow();
+  if (forced || remaining === 0) finishEntrance(forced ? 'backstop' : 'completed');
+}
+
+/**
+ * Snap the entrance to its end state, idempotently. `reason` says WHY — the
+ * normal end of the timeline, the scene's own backstop timer, or the health
+ * monitor noticing the props are still empty — and is what makes a prop that
+ * never appeared distinguishable from one that animated in.
+ *
+ * Every path that can strand the entrance at a partial progress funnels
+ * through here, so "introProgress always reaches 1" is a single invariant
+ * rather than five copies of the same cleanup.
+ */
+function finishEntrance(reason) {
+  if (state.intro.finished && !state.intro.active) return;
+  state.intro.active = false;
+  state.intro.finished = true;
+  state.introProgress = 1;
+  for (const key of ENTRANCE.order) {
+    const o = state.objects[key];
+    if (!o) continue;
+    o.introDone = true;
+    o.introP = 1;
+    o.introK = 1;
   }
+  if (state.particles) state.particles.material.opacity = 1;
+  if (state.props) {
+    for (const m of state.props.materials || []) {
+      if (m.userData.introBase !== undefined) m.opacity = m.userData.introBase;
+    }
+  }
+  /* The dolly is a function of the entrance's own clock; at the end it must be
+   * 0, or the camera stays pushed in forever after a forced finish. */
+  state.dolly = 0;
+  unlockScrollFollow();
+  if (reason && reason !== 'completed') log(`entrance finished: ${reason}`);
 }
 
 /** Idempotent. `lastTime` is re-based on every start so the first frame after a
@@ -1700,6 +1808,11 @@ function start() {
   state.lastFrameAt = now;
   state.rafId = requestAnimationFrame(animate);
   ensureWatchdog();
+  /* The health monitor outlives `stop()`: a paused loop (hidden tab, out of
+   * view, lost context) is exactly the state it is supposed to be able to
+   * notice and restart, so it is started with the scene rather than stopped
+   * with it. Its own checks all respect the deliberate-pause flags. */
+  startHealthMonitor();
 }
 
 function stop() {
@@ -1768,6 +1881,156 @@ function onWatchdogTick() {
 }
 
 /* ============================================================================
+ * 10e. HEALTH MONITOR — the scene checks itself, once a second
+ * ----------------------------------------------------------------------------
+ * The watchdog above answers one question: "did the loop stop?". It cannot
+ * answer "the loop is running but nothing is on screen", which is the failure
+ * that actually reaches a visitor: every frame ticks, the console is clean,
+ * and the hero is empty because a solve left all three props faded, or the
+ * entrance is pinned at 0, or a restore left every material black.
+ *
+ * Three checks, on a 1s interval, each of which can heal itself:
+ *
+ *   1. frames did not advance  -> the loop died; restart it (the watchdog's
+ *      job, but measured by the frame COUNTER rather than a clock, so a slow
+ *      frame and a dead loop can never be confused)
+ *   2. every prop is invisible while the section asks for at least one
+ *      -> reset the opacities and anchors to the current solve and log it
+ *   3. init never completed   -> retried once, 1.5s later, before the 2D page
+ *      is the final fallback
+ *
+ * Every action it takes is logged, because a silent self-repair is
+ * indistinguishable from a scene that simply works.
+ * ==========================================================================*/
+
+function startHealthMonitor() {
+  if (state.healthId || state.disposed) return;
+  state.lastFrameCheck = state.lastFrameCount;
+  state.lastFrameAtCheck = performance.now();
+  state.healthId = window.setInterval(onHealthTick, TUNING.health.intervalMs);
+}
+
+function stopHealthMonitor() {
+  if (!state.healthId) return;
+  window.clearInterval(state.healthId);
+  state.healthId = 0;
+}
+
+/** Would this section show at least one prop if nothing were wrong? */
+function sectionExpectsProps() {
+  const a = state.engine && state.engine.out && state.engine.out.anchors;
+  if (!a) return false;
+  for (const key of OBJ_KEYS) {
+    if (a[key] && a[key].opacity > 0) return true;
+  }
+  return false;
+}
+
+/** The healed pose for a prop: the current solve, its own last known opacity
+ *  floor, and its anchor back on the solved position. Used by the health
+ *  monitor; deliberately the same values placeObjects would have written. */
+function healProp(o, key) {
+  const place = state.lastPlaces && state.lastPlaces[key];
+  if (!place) return false;
+  if (Number.isFinite(place.x) && Number.isFinite(place.y) && Number.isFinite(place.z)) {
+    o.anchor.position.set(place.x, place.y, place.z);
+    o.target.set(place.x, place.y, place.z);
+  }
+  o.opacity = place.opacity > 0 ? place.opacity : 1;
+  o.opacityVis = 1;
+  if (!Number.isFinite(o.spinY)) o.spinY = 0;
+  if (o.group && o.group.visible === false) o.group.visible = true;
+  return true;
+}
+
+function onHealthTick() {
+  if (state.disposed) return;
+  const now = performance.now();
+
+  /* --- 1. did the frames advance? ------------------------------------- */
+  /* Compared on the COUNTER, not the clock: a 700ms software-GL frame is slow,
+     not dead, and a clock test would fight it (that is the bug the watchdog's
+     adaptive bar already had). Zero frames in a whole second, with the loop
+     nominally running, is the only thing that counts as dead here. */
+  const advanced = state.lastFrameCount > state.lastFrameCheck;
+  state.lastFrameCheck = state.lastFrameCount;
+  state.lastFrameAtCheck = now;
+
+  if (!advanced && state.running && !state.contextLost && !document.hidden) {
+    /* Two consecutive empty intervals, not one. A single interval with no
+       frame is a SLOW loop, not a dead one — this box renders at ~2fps under
+       swiftshader, so one interval is legitimately frameless, and restarting on
+       that would kill a working loop. Two in a row means the counter really
+       stopped moving. */
+    state.staleTicks += 1;
+    if (state.staleTicks >= TUNING.health.staleTicks) {
+      const age = now - state.lastFrameAt;
+      warn(`health: no frame for ${state.staleTicks * TUNING.health.intervalMs}ms (last frame ${Math.round(age)}ms ago) — restarting the loop`);
+      state.healthRestarts += 1;
+      state.staleTicks = 0;
+      restartLoop();
+    }
+  } else {
+    state.staleTicks = 0;
+  }
+
+  /* --- 2. everything invisible while the section wants props on screen --- */
+  /* NOT while the entrance is running. At the first frame of the arrival every
+     prop is deliberately at opacityVis 0 — they fly in from nothing — so this
+     check would fire against a perfectly working entrance and "heal" it into a
+     hard cut. Check 3 below is the authority on the entrance; this one is about
+     a scene that has finished arriving and still has nothing on screen. */
+  if (sectionExpectsProps() && state.lastPlaces && !state.reduced && !state.intro.active) {
+    let anyVisible = false;
+    for (const key of OBJ_KEYS) {
+      const o = state.objects[key];
+      /* A prop is "showing" if it is both asked for and actually lit. The
+         entrance counts as invisible here on purpose: a prop pinned at
+         introP 0 is exactly the failure this check exists to catch. */
+      const wants = state.lastPlaces[key] && state.lastPlaces[key].opacity > 0;
+      const lit = o && o.group.visible && o.opacity > 0.01 && (o.opacityVis === undefined || o.opacityVis > 0.01);
+      if (wants && lit) anyVisible = true;
+    }
+    if (!anyVisible) {
+      /* Only heal what the section actually asks for; a prop authored hidden
+         is not a casualty and must not be dragged back into view. */
+      const healed = [];
+      for (const key of OBJ_KEYS) {
+        const o = state.objects[key];
+        if (!o) continue;
+        if (!state.lastPlaces[key] || state.lastPlaces[key].opacity <= 0) continue;
+        if (healProp(o, key)) healed.push(`${key}(${state.lastPlaces[key].state})`);
+      }
+      if (healed.length) {
+        warn(`health: no visible prop in "${state.engine.out.sectionId}" — reset opacity + anchors for ${healed.join(', ')}`);
+        state.healthHeals += 1;
+      }
+    }
+  }
+
+  /* --- 3. the entrance must never be the thing that leaves it empty ---- */
+  if (state.intro.active) {
+    const age = now - state.intro.t;
+    if (age > TUNING.entrance.failAtMs) {
+      warn(`health: entrance still running after ${Math.round(age)}ms — forcing it to 1`);
+      finishEntrance('health');
+    }
+  }
+}
+
+/** Restart the loop from a known-good clock, without touching the subsystem
+ *  failure state: a dead loop is not a faulty subsystem. */
+function restartLoop() {
+  const now = performance.now();
+  state.lastTime = now;
+  state.lastFrameAt = now;
+  if (state.rafId) cancelAnimationFrame(state.rafId);
+  state.rafId = 0;
+  state.running = false;
+  start();
+}
+
+/* ============================================================================
  * 11. EVENTS
  * ==========================================================================*/
 
@@ -1833,8 +2096,9 @@ function onContextLost(e) {
   /* The cancelable default is "never restore". */
   if (e && typeof e.preventDefault === 'function') e.preventDefault();
   state.contextLost = true;
+  state.contextLostCount += 1;
   stop();
-  console.warn('[scene3d] WebGL context lost — waiting for restore');
+  console.warn(`[scene3d] WebGL context lost (#${state.contextLostCount}) — waiting for restore`);
 }
 
 function onContextRestored() {
@@ -2018,7 +2282,12 @@ function disposeSceneGraph(root) {
 }
 
 function dispose() {
+  /* Set BEFORE any teardown: the health monitor and a pending init retry both
+     test this, and a teardown path that throws must still leave the scene
+     marked dead rather than half-alive. */
+  state.disposed = true;
   stop();
+  stopHealthMonitor();
   removeListeners();
   disposeComposer();
   disposeParticles();
@@ -2097,7 +2366,62 @@ function exposeDebugHandle() {
       qualityStep: state.qualityStep,
       bloom: !!state.composer,
       pixelRatio: state.pixelRatio,
+      dpr: window.devicePixelRatio || 1,
       running: state.running,
+      /* --- liveness / health, read by tools/shot.mjs --- */
+      frames: state.lastFrameCount,
+      fps: Number(state.fps.toFixed(2)),
+      /* ms since the last frame that actually ran. Infinity when none ever has. */
+      lastFrameAgeMs: state.lastFrameAt
+        ? Number((performance.now() - state.lastFrameAt).toFixed(1))
+        : null,
+      framePeriodMs: Number(state.framePeriodMs.toFixed(2)),
+      introProgress: Number(state.introProgress.toFixed(3)),
+      introActive: state.intro.active,
+      introFinished: state.intro.finished,
+      sectionIndex: STOPS.findIndex((x) => x.id === state.engine.out.sectionId),
+      contextLost: state.contextLost,
+      contextLostCount: state.contextLostCount,
+      healthRestarts: state.healthRestarts,
+      healthHeals: state.healthHeals,
+      initAttempts: state.initAttempts,
+      /* Direct read of the real GL context, independent of the event flags —
+         a context can be lost without the event having fired yet. */
+      glContextLost: state.renderer
+        ? (() => {
+          try {
+            const gl = state.renderer.getContext();
+            return gl.isContextLost();
+          } catch (e) {
+            return null;
+          }
+        })()
+        : null,
+      /* One entry per prop: opacity, whether it is drawn, and the reason. */
+      propStates: OBJ_KEYS.map((k) => {
+        const o = state.objects[k];
+        const p = state.engine.debugData.chosen[k];
+        if (!o) return { key: k, present: false };
+        const pos = o.group.position;
+        const rot = o.group.rotation;
+        return {
+          key: k,
+          present: true,
+          opacity: Number((Number.isFinite(o.opacity) ? o.opacity : 0).toFixed(4)),
+          visible: !!o.group.visible,
+          reason: (p && p.reason) || o.state || '-',
+          state: o.state || '-',
+          introP: Number((o.introP === undefined ? 1 : o.introP).toFixed(4)),
+          px: Number((Number.isFinite(pos.x) ? pos.x : 0).toFixed(5)),
+          py: Number((Number.isFinite(pos.y) ? pos.y : 0).toFixed(5)),
+          pz: Number((Number.isFinite(pos.z) ? pos.z : 0).toFixed(5)),
+          rx: Number((Number.isFinite(rot.x) ? rot.x : 0).toFixed(5)),
+          ry: Number((Number.isFinite(rot.y) ? rot.y : 0).toFixed(5)),
+          rz: Number((Number.isFinite(rot.z) ? rot.z : 0).toFixed(5)),
+          anchorX: Number((Number.isFinite(o.anchor.position.x) ? o.anchor.position.x : 0).toFixed(5)),
+          anchorY: Number((Number.isFinite(o.anchor.position.y) ? o.anchor.position.y : 0).toFixed(5)),
+        };
+      }),
       section: state.engine.out.sectionId,
       variant: state.engine.out.variant,
       converge: state.engine.out.converge.toFixed(2),
@@ -2249,14 +2573,53 @@ function init() {
     setTimeout(unlockScrollFollow, 6500);
     if (state.reduced) unlockScrollFollow();
 
-    log('ready ·', state.tier, state.composer ? '+bloom' : 'no-bloom');
+log('ready ·', state.tier, state.composer ? '+bloom' : 'no-bloom');
     try { window.dispatchEvent(new CustomEvent('toolapis:3d-ready')); } catch (e) {}
   } catch (err) {
     /* Clean up the half-built scene, then hand the page back to the visitor
-       through the one shared cleanup path. */
+     * through the one shared cleanup path. */
     bail('3D layer failed to start — 2D design kept as-is.', err);
     forceReveal();
+    /* ...but not before ONE retry. Most init failures are transient: a shader
+       that failed to compile because the driver was mid-reset, a context
+       created and immediately lost, a measure() run before the fonts landed.
+       The 2D page is the right FINAL answer, not the first one — and because
+       bail() has already unhidden it, the retry costs nothing if it fails. */
+    scheduleInitRetry(err);
   }
+}
+
+/**
+ * Retries init once, `health.initRetryMs` later, then gives up for good.
+ *
+ * The retry is a full `init()` from a clean state: bail() already disposed the
+ * half-built scene and removed every listener, so the only thing that has to be
+ * undone is the bookkeeping init() assumes it owns. A second failure is final
+ * and is reported as such — an unbounded retry loop would spin a browser tab
+ * that has already told us it cannot do this.
+ */
+function scheduleInitRetry(err) {
+  if (state.initRetried || state.disposed) return;
+  if (state.initAttempts >= TUNING.health.initRetryLimit) {
+    console.warn('[scene3d] init failed again — keeping the 2D page for good.', err);
+    return;
+  }
+  state.initRetried = true;
+  state.initAttempts += 1;
+  console.warn(`[scene3d] init failed — retrying once in ${TUNING.health.initRetryMs}ms`, err);
+  window.setTimeout(() => {
+    if (state.disposed) return;
+    /* bail() left state.disposed false but did tear the scene down; init()
+       rebuilds from scratch, so only the flags that suppress a rebuild have to
+       be cleared. Everything else (tier, quality, counters) is re-derived. */
+    try {
+      init();
+    } catch (e2) {
+      console.warn('[scene3d] init retry failed — keeping the 2D page for good.', e2);
+      bail('3D layer failed to start after one retry — 2D design kept as-is.', e2);
+      forceReveal();
+    }
+  }, TUNING.health.initRetryMs);
 }
 
 if (document.readyState === 'loading') {

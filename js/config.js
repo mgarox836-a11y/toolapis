@@ -534,7 +534,7 @@ export const TUNING = {
         network: {
           desktop: { x: 0.86, y: 0.15, size: 0.12 },
           tablet:  { x: 0.88, y: 0.15, size: 0.13, opacity: 0 },
-          mobile:  { x: 0.90, y: 0.15, size: 0.13, opacity: 0 },
+          mobile:  { x: 0.72, y: 0.022, size: 0.075, minPx: 44 },
         },
       },
 
@@ -542,8 +542,14 @@ export const TUNING = {
        * monitor rides the free strip above the row and the supporters fade
        * out through the section (their story is told). */
       overview: {
+        /* The three tool cards are a full-width ROW (y0.10-0.48), so there is
+         * no free strip at the top: an anchor up there lands on the third card
+         * and the validator — correctly — fades it. The one full-width free
+         * band is BETWEEN the cards and the "Small hub" heading (y0.50-0.73),
+         * so the monitor rides that, right of the heading's own column, with
+         * the constellation in the left half of the same band. */
         hd: {
-          desktop: { x: 0.86, y: 0.12, size: 0.14 },
+          desktop: { x: 0.72, y: 0.69, size: 0.12 },
           tablet:  { x: 0.50, y: 0.09, size: 0.14, opacity: 0 },
           mobile:  { x: 0.50, y: 0.09, size: 0.14, opacity: 0 },
         },
@@ -553,9 +559,9 @@ export const TUNING = {
           mobile:  { x: 0.10, y: 0.92, size: 0.12, opacity: 0 },
         },
         network: {
-          desktop: { x: 0.88, y: 0.16, size: 0.08, opacity: 0 },
+          desktop: { x: 0.24, y: 0.615, size: 0.08 },
           tablet:  { x: 0.90, y: 0.92, size: 0.11, opacity: 0 },
-          mobile:  { x: 0.90, y: 0.92, size: 0.11, opacity: 0 },
+          mobile:  { x: 0.80, y: 0.475, size: 0.075, minPx: 44 },
         },
       },
 
@@ -577,7 +583,7 @@ export const TUNING = {
         network: {
           desktop: { x: 0.50, y: 0.50, size: 0.08, opacity: 0 },
           tablet:  { x: 0.50, y: 0.88, size: 0.12, opacity: 0 },
-          mobile:  { x: 0.50, y: 0.88, size: 0.12, opacity: 0 },
+          mobile:  { x: 0.80, y: 0.362, size: 0.075, minPx: 44 },
         },
       },
 
@@ -585,20 +591,35 @@ export const TUNING = {
        * USB slides in from the right edge to dock into its side port at
        * x0.915; the cable trails off-screen right, away from the copy. */
       flow: {
+        /* Same problem as overview, opposite shape: the three numbered steps
+         * are a full-width ROW (y0.45-0.54), and the intro copy above them
+         * ends at x0.54. So the free band is the gap BETWEEN the paragraph
+         * (ends y0.29) and the steps (start y0.45) — about 120px tall, which
+         * is why these two are much smaller than the 0.20 used in features:
+         * at 0.20 the monitor is 223px tall and lands on the steps. */
         hd: {
-          desktop: { x: 0.80, y: 0.22, size: 0.20 },
+          desktop: { x: 0.795, y: 0.100, size: 0.068, minPx: 88, opacity: 0 },
           tablet:  { x: 0.50, y: 0.14, size: 0.16, opacity: 0 },
           mobile:  { x: 0.50, y: 0.14, size: 0.16, opacity: 0 },
         },
         usb: {
-          desktop: { x: 0.915, y: 0.22, size: 0.11 },
+          /* Docks into the monitor's side port, so it sits just left of it,
+           * cable trailing off toward the copy's right edge. */
+          desktop: { x: 0.945, y: 0.062, size: 0.048, minPx: 58, opacity: 0 },
           tablet:  { x: 0.50, y: 0.88, size: 0.13, opacity: 0 },
           mobile:  { x: 0.50, y: 0.88, size: 0.13, opacity: 0 },
         },
+        /* The flow region's copy fills it: the intro paragraph ends at y0.29
+         * and the three numbered steps are a full-width row at y0.45-0.54, so
+         * the only free band is the ~76px gap between them (after the 24px
+         * obstacle pad). A 164px monitor cannot fit there at any anchor, and
+         * this section is about the small act of launching, not the hardware —
+         * so the presence here is the constellation, which is small by nature
+         * and reads as the hub the steps all route through. */
         network: {
-          desktop: { x: 0.50, y: 0.50, size: 0.08, opacity: 0 },
+          desktop: { x: 0.645, y: 0.29, size: 0.05, opacity: 1, minPx: 34 },
           tablet:  { x: 0.50, y: 0.88, size: 0.12, opacity: 0 },
-          mobile:  { x: 0.50, y: 0.88, size: 0.12, opacity: 0 },
+          mobile:  { x: 0.80, y: 0.892, size: 0.075, minPx: 44 },
         },
       },
 
@@ -621,14 +642,18 @@ export const TUNING = {
         network: {
           desktop: { x: 0.865, y: 0.45, size: 0.075, opacity: 0 },
           tablet:  { x: 0.90, y: 0.32, size: 0.14 },
-          mobile:  { x: 0.90, y: 0.32, size: 0.14, opacity: 0 },
+          mobile:  { x: 0.80, y: 0.678, size: 0.075, minPx: 44 },
         },
       },
     },
   },
 
   /* ==== Objects hidden on the mobile tier (no side gutters exist there) ==== */
-  hideOnMobile: ['hd', 'usb', 'network'],
+  /* On phones the two physical props are dropped: a 164px monitor on a 390px
+   * screen is not decoration, it is an obstruction. The constellation is
+   * small by nature (~30px), costs almost nothing, and gives every section
+   * some presence — so mobile keeps it and hides only hd and usb. */
+  hideOnMobile: ['hd', 'usb'],
 
   /* ==== Quality tier ====
    * 'high' | 'medium' | 'low': a device-tier default (mobile -> low, tablet ->
@@ -690,6 +715,32 @@ export const TUNING = {
        "a bit off", it is the result of a divide by zero or an unproject of a
        point behind the camera — reset the prop rather than draw it. */
     maxAbs: 1e6,
+  },
+
+  /* ==== Health monitor (Part 4) ====
+   * The loop watchdog answers "did the loop stop?". This answers the failure
+   * that actually reaches a visitor: a loop that is RUNNING but has nothing on
+   * screen (all props faded by a bad solve, or an entrance pinned at 0).
+   *
+   * `intervalMs`   how often to check (the spec's 1s)
+   * `noFramesMs`   frames that must advance inside one interval; 0 is a dead
+   *                loop. Compared on the frame COUNTER, never the wall clock,
+   *                so a slow software-GL frame is not mistaken for a hang.
+   * `visibilityEpsilon` below this a prop's opacity counts as invisible
+   * `initRetryMs`  before a failed init is retried once before falling back
+   *                to the 2D page
+   * `initRetryLimit` how many init attempts (1 retry after the first = 2) */
+  health: {
+    intervalMs: 1000,
+    /* Consecutive frameless intervals before the loop is presumed dead. Two,
+       not one: under swiftshader this box renders at ~2fps, so a single 1s
+       interval is legitimately frameless and restarting on it would kill a
+       working loop. */
+    staleTicks: 2,
+    noFramesMs: 0,
+    visibilityEpsilon: 0.01,
+    initRetryMs: 1500,
+    initRetryLimit: 1,
   },
 
   /* ==== Accessibility / debug ====
@@ -845,6 +896,9 @@ export function authoredAnchor(sectionId, key, variant) {
     y: a.y ?? 0.5,
     size: a.size ?? 0.12,
     opacity: a.opacity ?? 1,
+    /* Optional px floor override for regions with no room for the global
+     * legibility floor. Left undefined unless the anchor sets it. */
+    ...(a.minPx != null ? { minPx: a.minPx } : {}),
   };
 }
 

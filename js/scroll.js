@@ -486,6 +486,15 @@ export function createScrollEngine() {
       o.size = lerp(pa.size, pb.size, t);
       o.opacity = lerp(pa.opacity, pb.opacity, t);
       o.side = o.x >= 0.5 ? 'right' : 'left';
+
+      /* The legibility floor override is NOT interpolated: it is a px floor,
+       * and lerping two px floors produces a value neither section asked for.
+       * Take the stricter (larger) one while both stops are on screen, so the
+       * prop never shrinks below a floor either end of the blend. */
+      const fa = pa.minPx, fb = pb.minPx;
+      o.minPx = fa != null && fb != null ? Math.max(fa, fb)
+        : (t < 0.5 ? (fa != null ? fa : fb) : (fb != null ? fb : fa));
+      if (o.minPx == null) delete o.minPx;
     }
     return out;
   }
@@ -665,6 +674,10 @@ export function createScrollEngine() {
       /* Damped, then handed to js/scene3d.js. */
       opacity: 1, fade: 1,
       state: 'authored',
+      /* WHY the committed opacity is what it is — 'visible-authored',
+       * 'collides-text', 'outside-band', 'band-fade-top', 'band-fade-bottom'
+       * or 'authored-hidden'. Set every solve, so it is never stale. */
+      reason: 'visible-authored',
       collided: false, nudged: false, clamped: false, behind: false,
     };
   }
@@ -719,11 +732,17 @@ export function createScrollEngine() {
       const dist = camera.position.z + G.baseDistance + a.z;
       viewHalf(camera, dist, _half);
 
-      /* ---- size: the authored size, lifted to the floor, capped ---- */
-      const floorPx = Math.max(
-        P.minScreenFraction * vw,
-        key === 'usb' ? P.minScreenPxUsb : P.minScreenPx
-      );
+      /* ---- size: the authored size, lifted to the floor, capped ----
+       * `minPx` lets a region with genuinely no room opt out of the global
+       * legibility floor. It exists because the floor is a floor in px: the
+       * flow region's tallest free band is ~112px, so a 164px monitor can
+       * only ever collide with the copy there, and "no prop in this section"
+       * is the only alternative. Opting in is explicit and per-prop. */
+      const floorPx = a.minPx != null ? Math.max(1, a.minPx)
+        : Math.max(
+          P.minScreenFraction * vw,
+          key === 'usb' ? P.minScreenPxUsb : P.minScreenPx
+        );
       const capPx = Math.max(clamp(a.sizeCap ?? 1, 0, 1) * P.maxScreenFraction * vw, floorPx);
       const hardCap = Math.max(1e-4, b.fitMax ?? Infinity);
       const softCap = Math.min(cap.maxWorldScale ?? Infinity, hardCap);
@@ -757,14 +776,33 @@ export function createScrollEngine() {
        * stretch of scroll — damped, at FULL size. A translucent card under the
        * box is a soft dim, not a collision: the prop reads as depth behind the
        * glass. Nothing is ever nudged, searched or cropped. */
+      /* ---- THE LIGHT VALIDATOR ----
+       * The placement is AUTHORED; the validator only fades, it never moves or
+       * shrinks. `reason` records WHY the committed opacity is what it is, and
+       * is always one of the strings below — so "the prop vanished" and "the
+       * prop is authored hidden in this section" are never the same report, and
+       * the debug overlay can say which happened. */
       const placed0 = a.opacity > 0;
       let state = placed0 ? 'authored' : 'hidden';
+      let reason = placed0 ? 'visible-authored' : 'authored-hidden';
       if (placed0) {
         const inBand = _rect.x0 >= P.edgePadPx - 0.5 && _rect.x1 <= vw - P.edgePadPx + 0.5
           && _rect.y0 >= topLimitPx - 0.5 && _rect.y1 <= botLimitPx + 0.5;
         const hitText = boxHits(content, ids, _rect.x0, _rect.x1, _rect.y0 + scrollY, _rect.y1 + scrollY);
-        if (!inBand || hitText) { state = 'hidden'; }
+        if (hitText) { state = 'hidden'; reason = 'collides-text'; }
+        else if (!inBand) { state = 'hidden'; reason = 'outside-band'; }
       }
+      /* A band-edge fade is a PARTIAL hide and says so separately: a prop
+         dissolving under the reserved header strip is doing exactly what it
+         should, and reporting it as a collision would send a reader hunting
+         for a text overlap that does not exist. */
+      const headFadeNow = bandPx > 0
+        ? clamp((_rect.y0 - (bandPx + P.edgePadPx)) / G.headerFadePx, 0, 1) : 1;
+      const footFadeNow = clamp((botLimitPx - _rect.y1) / P.footerFadePx, 0, 1);
+      if (state !== 'hidden' && headFadeNow * footFadeNow < 1) {
+        reason = headFadeNow < footFadeNow ? 'band-fade-top' : 'band-fade-bottom';
+      }
+      p.reason = reason;
 
       /* ---- commit ---- */
       p.x0 = _rect.x0; p.y0 = _rect.y0; p.x1 = _rect.x1; p.y1 = _rect.y1;
@@ -831,7 +869,8 @@ export function createScrollEngine() {
         debugData.chosen[key] = {
           x: p.cxPx, y: p.cyPx, w: p.wPx, h: p.hPx,
           x0: p.x0, y0: p.y0, x1: p.x1, y1: p.y1,
-          state: p.state, collided: p.collided, nudged: p.nudged,
+          state: p.state, reason: p.reason,
+          collided: p.collided, nudged: p.nudged,
           clamped: p.clamped, behind: p.behind, asym: p.asymPx,
           opacity: p.opacity, fade: p.fade, scale: p.scale,
           floorPx: p.floorPx, authoredPx: p.authoredPx, committedPx: p.committedPx,
