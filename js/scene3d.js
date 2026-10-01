@@ -41,6 +41,7 @@ import {
   buildStudioScene, setMaterialQuality, disposeSharedTextures,
 } from './objects.js';
 import { createScrollEngine, CENTER_TOLERANCE_PX } from './scroll.js';
+import { motionAllowed, onMotionChange } from './motion.js';
 
 /* ============================================================================
  * 1. RUNTIME STATE
@@ -2169,8 +2170,13 @@ function setupInViewObserver() {
   }, { threshold: 0 }).observe(main);
 }
 
-function onMediaQueryChange(e) {
-  if (e.matches) {
+/* Switch the whole 3D layer between animating and calm-static.
+   Driven by js/motion.js (the visitor's own choice), not by the OS. Identical
+   work either way: reduce snaps props to their arrival pose and parks the loop;
+   restore resumes. The OS media query used to be the only trigger, so a visitor
+   could only ever go in one direction and only on a fresh load. */
+function onMotionPolicyChange(allowed) {
+  if (!allowed) {
     state.reduced = true;
     /* A mid-entrance switch to reduced motion must not leave a prop frozen
        halfway up the screen: snap the arrival to its final pose. */
@@ -2197,7 +2203,7 @@ function onMediaQueryChange(e) {
   }
 }
 
-let motionQuery = null;
+let releaseMotion = null;
 
 function addListeners() {
   window.addEventListener('resize', onResize, { passive: true });
@@ -2228,12 +2234,10 @@ function addListeners() {
     state.canvas.addEventListener('webglcontextrestored', onContextRestored, false);
   }
 
-  if (window.matchMedia) {
-    motionQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
-    if (motionQuery.addEventListener) {
-      motionQuery.addEventListener('change', onMediaQueryChange);
-    }
-  }
+  /* Subscribe to the site policy instead of the OS. Re-read once first: a
+     toggle click between module boot and here would otherwise be missed. */
+  state.reduced = !motionAllowed();
+  releaseMotion = onMotionChange(onMotionPolicyChange);
   /* Webfonts reflow the copy, so the measured text rectangles are stale
      until the faces land. */
   if (document.fonts && document.fonts.ready) {
@@ -2262,8 +2266,9 @@ function removeListeners() {
     state.canvas.removeEventListener('webglcontextlost', onContextLost);
     state.canvas.removeEventListener('webglcontextrestored', onContextRestored);
   }
-  if (motionQuery && motionQuery.removeEventListener) {
-    motionQuery.removeEventListener('change', onMediaQueryChange);
+  if (releaseMotion) {
+    releaseMotion();
+    releaseMotion = null;
   }
 }
 
@@ -2379,6 +2384,11 @@ function exposeDebugHandle() {
       introProgress: Number(state.introProgress.toFixed(3)),
       introActive: state.intro.active,
       introFinished: state.intro.finished,
+      /* Whether this layer is in calm-static mode, and the site-wide policy it
+         came from. Read live from js/motion.js rather than mirrored, so the
+         harness can never be told "reduced" by a stale copy. */
+      reduced: state.reduced,
+      motionAllowed: motionAllowed(),
       sectionIndex: STOPS.findIndex((x) => x.id === state.engine.out.sectionId),
       contextLost: state.contextLost,
       contextLostCount: state.contextLostCount,
@@ -2493,9 +2503,7 @@ function init() {
       return;
     }
 
-    state.reduced = window.matchMedia
-      ? window.matchMedia('(prefers-reduced-motion: reduce)').matches
-      : false;
+    state.reduced = !motionAllowed();
 
     state.engine = createScrollEngine();
 

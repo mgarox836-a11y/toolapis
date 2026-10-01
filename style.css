@@ -416,23 +416,27 @@
     }
 
     /* Reduced motion: collapse everything to static.
-       Class-based (set by script.js). Animations run always unless the
-       user disables them explicitly via localStorage "toolapis-motion" = "off". */
-    html.reduced-motion [data-reveal], html.reduced-motion .reveal,
-    html.reduced-motion .rv { opacity: 1; transform: none; filter: none; transition: none; }
-    html.reduced-motion .ring-float, html.reduced-motion .ring-float-slow, html.reduced-motion .drift { animation: none; }
-    html.reduced-motion .sheen::after { animation: none; }
-    html.reduced-motion .spot-card::before { display: none; }
-    html.reduced-motion #navbar { transition: none; }
-    html.reduced-motion .hero-scroll { display: none; }
-    html.reduced-motion .hero-scroll-line, html.reduced-motion .text-shimmer, html.reduced-motion .eyebrow i,
-    html.reduced-motion .flow-dash, html.reduced-motion .nav-link.active::after, html.reduced-motion #navbar > div,
-    html.reduced-motion .pt-dot { animation: none; }
-    html.reduced-motion #scroll-progress { height: 2px; }
-    html.reduced-motion #glow-field { transform: none !important; }
-    html.reduced-motion #page-transition { transition: none; }
-    html.reduced-motion .title-line::after, html.reduced-motion .footer-nav a::after { transform: scaleX(1); transition: none; }
-    html.reduced-motion .reveal > div:first-child, html.reduced-motion .reveal > div:first-child :is(i, svg) { transition: none; }
+       Keyed on the class, never on the OS media query: motion is ON by default
+       whatever `prefers-reduced-motion` says, and this block only runs when the
+       visitor opted out (footer toggle, ?motion=off, or
+       TUNING.motion.respectReducedMotion = true + OS reduce).
+       js/motion.js owns `motion-reduced`; `reduced-motion` is the legacy name
+       script.js toggles and is kept in the selectors so both agree. */
+    html.motion-reduced [data-reveal], html.motion-reduced .reveal,
+    html.motion-reduced .rv { opacity: 1; transform: none; filter: none; transition: none; }
+    html.motion-reduced .ring-float, html.motion-reduced .ring-float-slow, html.motion-reduced .drift { animation: none; }
+    html.motion-reduced .sheen::after { animation: none; }
+    html.motion-reduced .spot-card::before { display: none; }
+    html.motion-reduced #navbar { transition: none; }
+    html.motion-reduced .hero-scroll { display: none; }
+    html.motion-reduced .hero-scroll-line, html.motion-reduced .text-shimmer, html.motion-reduced .eyebrow i,
+    html.motion-reduced .flow-dash, html.motion-reduced .nav-link.active::after, html.motion-reduced #navbar > div,
+    html.motion-reduced .pt-dot { animation: none; }
+    html.motion-reduced #scroll-progress { height: 2px; }
+    html.motion-reduced #glow-field { transform: none !important; }
+    html.motion-reduced #page-transition { transition: none; }
+    html.motion-reduced .title-line::after, html.motion-reduced .footer-nav a::after { transform: scaleX(1); transition: none; }
+    html.motion-reduced .reveal > div:first-child, html.motion-reduced .reveal > div:first-child :is(i, svg) { transition: none; }
 
     /* ---- Scroll progress bar ---- */
     #scroll-progress {
@@ -644,8 +648,41 @@
         #0b0f12 100%);
     }
 
-    /* Reduced motion: no cross-fade, just snap in. */
-    html.reduced-motion #scene3d-canvas { transition: none; }
-    @media (prefers-reduced-motion: reduce) {
-      #scene3d-canvas { transition: none; }
-    }
+    /* Reduced motion: no cross-fade, just snap in. Class-keyed — see the
+       motion policy note at the top of this file. The former
+       `@media (prefers-reduced-motion: reduce)` twin is gone: an OS preference
+       must not be able to stop this site animating. */
+    html.motion-reduced #scene3d-canvas { transition: none; }
+
+
+/* ============================================================================
+   MOTION POLICY (the only place the site's motion on/off is expressed)
+   ----------------------------------------------------------------------------
+   `html.motion-on` / `html.motion-reduced` are set by js/motion.js and by the
+   inline <head> bootstrap, from the visitor's own choice. They are NOT set from
+   `prefers-reduced-motion` under the default policy
+   (TUNING.motion.respectReducedMotion = false).
+
+   Scroll behaviour follows the same switch: smooth while motion is on, plain
+   jumps while it is off. `<html class="scroll-smooth">` (Tailwind) supplies the
+   smooth default; the two rules below only have to turn it off on request.
+   ========================================================================== */
+html.motion-on { scroll-behavior: smooth; }
+html.motion-reduced { scroll-behavior: auto; }
+
+/* Tailwind's `motion-reduce:` utilities compile to a prefers-reduced-motion
+   media query, so they would switch this site's animation off behind the
+   policy's back — the exact failure this work exists to remove.
+
+   There is deliberately NO override block here, and the reason matters: a
+   stylesheet cannot undo a media-query utility generically. The rule inside the
+   query sets a *declaration* (animation: none, duration-0, ...) that this file
+   has no idea the value of, so the only correct way to cancel it is to stop it
+   matching. js/motion.js's `stripOsMotionClasses()` does exactly that — on
+   html.motion-on it removes every `motion-reduce:` / `motion-safe:` class from
+   the document, so the Tailwind variant never emits and never applies.
+   Re-adding them is not needed: html.motion-reduced already covers the reduced
+   state with rules that name the property, not the utility.
+
+   tools/shot.mjs asserts this stays true (no motion-reduce: class in the live
+   DOM while motion is on, and no such utility present in index.html). */

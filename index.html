@@ -757,6 +757,13 @@
     if WebGL is unavailable the module removes its own canvas and the
     2D design above is unaffected. See js/scene3d.js -> TUNING.
   -->
+  <!-- Motion policy wiring. A module (not inline) so it can import
+       js/motion.js; loaded first so the class state and the Tailwind
+       class-strip are already settled before the intro, reveal and 3D
+       controllers read them. Every one of those has its own failsafe, so
+       if this file fails the page still opens. -->
+  <script type="module" src="js/motion-boot.js"></script>
+
   <script type="module" src="js/intro.js"></script>
   <script type="module" src="js/reveal.js"></script>
   <script type="module" src="js/scene3d.js"></script>

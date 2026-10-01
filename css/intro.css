@@ -194,20 +194,23 @@ html.intro-active[data-intro-stage="3"] #intro-overlay .intro-inner {
   50%      { opacity: 1;   transform: scale(1.15); }
 }
 
-@media (prefers-reduced-motion: reduce) {
-  #intro-overlay *, #intro-overlay *::after {
-    animation: none !important;
-    transition-duration: .01ms !important;
-  }
-  /* No curtain: one short fade (js/intro.js removes the node 320ms later,
-     so the whole intro is under 0.6s). */
-  html.intro-active[data-intro-stage="3"] #intro-overlay {
-    animation: none !important;
-    transform: none !important;
-    border-radius: 0 !important;
-    opacity: 0;
-    transition: opacity .3s linear, visibility .3s linear;
-  }
+/* Reduced motion — keyed on the visitor's own choice (footer toggle /
+   ?motion=off), NOT on prefers-reduced-motion. js/motion.js owns the class.
+   Was `@media (prefers-reduced-motion: reduce)`, which let an OS-level
+   preference kill the whole intro for anyone who set it. */
+html.motion-reduced #intro-overlay *,
+html.motion-reduced #intro-overlay *::after {
+  animation: none !important;
+  transition-duration: .01ms !important;
+}
+/* No curtain: one short fade (js/intro.js removes the node 320ms later,
+   so the whole intro is under 0.6s). */
+html.motion-reduced.intro-active[data-intro-stage="3"] #intro-overlay {
+  animation: none !important;
+  transform: none !important;
+  border-radius: 0 !important;
+  opacity: 0;
+  transition: opacity .3s linear, visibility .3s linear;
 }
 
 /* ====================================================================
@@ -272,17 +275,12 @@ html.reveal-all [data-intro-reveal] {
 }
 
 /* Reduced motion and the site's own "off" switch: arrive, do not travel. */
-@media (prefers-reduced-motion: reduce) {
-  html.intro-active [data-intro-reveal] {
-    filter: none !important;
-    transform: none !important;
-    transition: opacity .2s ease !important;
-  }
-}
-html.reduced-motion [data-intro-reveal] {
+html.motion-reduced html.intro-active [data-intro-reveal],
+html.motion-reduced.intro-active [data-intro-reveal] {
   filter: none !important;
   transform: none !important;
-  transition: none !important;
+  transition: opacity .2s ease !important;
+  transition-delay: 0ms !important;
 }
 
 /* ====================================================================

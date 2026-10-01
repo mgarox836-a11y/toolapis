@@ -149,19 +149,20 @@ html.reveal-ready #clarity > .reveal {
 /* --------------------------------------------------------------------
    REDUCED MOTION: opacity only. No blur, no travel, 0.2s.
 
-   The media query covers the OS setting; `html.reduced-motion` is the
-   site's own "off" switch (script.js), which has to win outright.
+   Keyed on `html.motion-reduced`, which js/motion.js sets from the visitor's
+   own choice. The `@media (prefers-reduced-motion: reduce)` block that used to
+   live here is deleted on purpose: an OS-level preference is not a reason to
+   stop this page animating, and there was no way back from it. Flip
+   TUNING.motion.respectReducedMotion to true to follow the OS again.
    -------------------------------------------------------------------- */
-@media (prefers-reduced-motion: reduce) {
-  html.reveal-ready :is(.reveal, [data-reveal], .rv) {
-    filter: none !important;
-    transform: none !important;
-    transition: opacity .2s ease !important;
-    transition-delay: 0ms !important;
-  }
-  html.reveal-ready .rv-anim { will-change: auto; }
+html.motion-reduced.reveal-ready :is(.reveal, [data-reveal], .rv) {
+  filter: none !important;
+  transform: none !important;
+  transition: opacity .2s ease !important;
+  transition-delay: 0ms !important;
 }
-html.reduced-motion :is(.reveal, [data-reveal], .rv) {
+html.motion-reduced.reveal-ready .rv-anim { will-change: auto; }
+html.motion-reduced :is(.reveal, [data-reveal], .rv) {
   filter: none !important;
   transform: none !important;
   transition: none !important;

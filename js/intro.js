@@ -30,6 +30,11 @@
  *    the intro.
  */
 
+/* The one place this file learns whether to animate. It used to ask the OS via
+   matchMedia, which meant a visitor with an old OS-level "reduce motion" got the
+   0.6s stub whether they wanted it or not. js/motion.js asks the visitor. */
+import { motionAllowed } from './motion.js';
+
 export const INTRO_DURATION = 5.0;      /* seconds, full experience   */
 export const INTRO_SHORT = 1.5;         /* hash / no-WebGL / failure  */
 export const FAILSAFE_MS = 5500;
@@ -267,10 +272,7 @@ function setupAnchorPolicy() {
 
     e.preventDefault();
     clearTopHash();
-    const reduced = window.matchMedia
-      ? window.matchMedia('(prefers-reduced-motion: reduce)').matches
-      : false;
-    if (reduced) {
+    if (!motionAllowed()) {
       scrollToTop();
     } else {
       /* Only a real scroll call here: an extra scrollTo(0,0) right after would
@@ -499,9 +501,7 @@ function run() {
   /* The failsafe may already have run while this module was loading. */
   if (html.classList.contains('intro-done')) return;
 
-  const reduced = window.matchMedia
-    ? window.matchMedia('(prefers-reduced-motion: reduce)').matches
-    : false;
+  const reduced = !motionAllowed();
 
   /* Where we open: a deliberate deep link, or the top of the page. */
   const deepTarget = deepTargetFor(currentHash());
@@ -528,7 +528,7 @@ function run() {
     setStage(2);
     plan(() => lift(), 0);
     plan(() => land(), REDUCED_LAND_MS);
-    setTimeout(() => finish('reduced-motion'), REDUCED_LAND_MS + 60);
+    setTimeout(() => finish('motion-reduced'), REDUCED_LAND_MS + 60);
     return;
   }
 

@@ -130,6 +130,7 @@ export function setMotionAllowed(allowed) {
   /* Keeps the pre-module half of the page (script.js's reveal fallback and
    * page transition) consistent within this tick, before any module runs. */
   applyHtmlClass(allowed);
+  stripOsMotionClasses(allowed);
 
   for (const cb of Array.from(listeners)) {
     try { cb(allowed); } catch (e) { /* one bad subscriber must not block the rest */ }
@@ -241,6 +242,71 @@ export function motionToggleCopy(allowed) {
   return allowed
     ? { label: 'Reduce motion', pressed: false, hint: 'Animation is on' }
     : { label: 'Enable motion', pressed: true, hint: 'Animation is off' };
+}
+
+/**
+ * Remove Tailwind's OS-keyed motion utilities from the live DOM.
+ *
+ * `motion-reduce:animate-none` and friends compile to a prefers-reduced-motion
+ * media query. A stylesheet cannot cancel those generically — the query sets a
+ * declaration whose value we cannot know — so the class is removed instead,
+ * which stops the query from ever matching. `motion-safe:` goes too: its rules
+ * only apply when the OS has NOT asked for reduced motion, which under this
+ * policy is irrelevant to whether *we* animate.
+ *
+ * Runs on every switch to motion-on and once on DOMContentLoaded. Class names
+ * are kept (not merely blanked) on `el.dataset.motionRemoved` so nothing is
+ * silently destroyed, and re-running is a no-op.
+ *
+ * @param {boolean} allowed
+ */
+export function stripOsMotionClasses(allowed) {
+  try {
+    if (!allowed) return 0;
+    const prefix = /(^|\s)(motion-(reduce|safe):[^\s]+)/g;
+    const roots = [document.documentElement, document.body];
+    /* The document is fully parsed by the time any caller with motion-on runs,
+       except the DOMContentLoaded path — hence the second sweep. */
+    if (document.querySelectorAll) {
+      try { roots.push(...document.querySelectorAll('*')); } catch (e) {}
+    }
+
+    let stripped = 0;
+    for (const el of roots) {
+      if (!el || !el.classList) continue;
+      const doomed = [];
+      for (const cls of Array.from(el.classList)) {
+        prefix.lastIndex = 0;
+        if (prefix.test(' ' + cls)) doomed.push(cls);
+      }
+      if (!doomed.length) continue;
+      try { el.classList.remove(...doomed); } catch (e) { continue; }
+      stripped += doomed.length;
+      try {
+        el.setAttribute('data-motion-stripped', doomed.join(' '));
+      } catch (e) {}
+    }
+    return stripped;
+  } catch (e) {
+    return 0;
+  }
+}
+
+/** One-shot wiring: strip after parse, and keep the pageshow path honest.
+ *  Safe to call repeatedly. */
+export function initMotionPolicy() {
+  applyHtmlClass(motionAllowed());
+  stripOsMotionClasses(motionAllowed());
+  watchOsPreference();
+
+  try {
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', () => {
+        stripOsMotionClasses(motionAllowed());
+      }, { once: true });
+    }
+  } catch (e) {}
+  return cached;
 }
 
 /** The public policy object, for callers that need the storage key. */
