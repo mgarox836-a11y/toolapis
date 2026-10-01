@@ -196,6 +196,66 @@
       window.addEventListener('beforeunload', forceTop, true);
     })();
   </script>
+  <!-- ==========================================================================
+       MOTION CLASS BOOTSTRAP — runs before any stylesheet, so there is never a
+       frame with the wrong class on <html>.
+
+       This is a deliberate duplicate of js/motion.js's `decide()`, not a
+       second policy. It has to be inline and synchronous: an ES module is
+       deferred, so importing js/motion.js here would land after the first
+       paint, and the reveal/intro styles would already have chosen a wrong
+       initial state. js/motion.js re-applies the same classes when it runs, so
+       the two can never drift in a way that matters.
+
+       `RESPECT_REDUCED_MOTION` below must stay equal to
+       TUNING.motion.respectReducedMotion in js/config.js. FALSE means the OS
+       setting is never consulted — `matchMedia` is not called at all.
+       ========================================================================== -->
+  <script>
+    (function () {
+      var RESPECT_REDUCED_MOTION = false;
+      var STORAGE_KEY = 'toolapis-reduce-motion';
+
+      var stored = null, param = null;
+      try { stored = window.localStorage.getItem(STORAGE_KEY); } catch (e) {}
+      if (stored !== 'off' && stored !== 'on') stored = null;
+      try {
+        var raw = new URL(window.location.href).searchParams.get('motion');
+        if (raw === 'off' || raw === 'on') param = raw;
+      } catch (e) {}
+
+      var allowed;
+      if (stored) {
+        allowed = stored === 'on';
+      } else if (param) {
+        allowed = param === 'on';
+      } else {
+        var osReduced = false;
+        /* Only reached when RESPECT_REDUCED_MOTION is true. */
+        if (RESPECT_REDUCED_MOTION) {
+          try {
+            osReduced = typeof window.matchMedia === 'function'
+              && window.matchMedia('(prefers-reduced-motion: reduce)').matches === true;
+          } catch (e) { osReduced = false; }
+        }
+        allowed = !osReduced;
+      }
+
+      try {
+        var d = document.documentElement;
+        if (d) {
+          d.classList.toggle('motion-on', allowed);
+          d.classList.toggle('motion-reduced', !allowed);
+          /* script.js (read-only for this work) toggles this name from
+             localStorage['toolapis-motion']; kept so its own CSS rules apply. */
+          d.classList.toggle('reduced-motion', !allowed);
+          d.setAttribute('data-motion', allowed ? 'on' : 'reduced');
+        }
+      } catch (e) {}
+
+      window.__toolapisMotion = function () { return allowed; };
+    })();
+  </script>
   <meta charset="UTF-8">
 
   <!--

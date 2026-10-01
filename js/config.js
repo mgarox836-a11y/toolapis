@@ -68,6 +68,21 @@ export const OBJ_KEYS = ['hd', 'usb', 'network'];
  * -------------------------------------------------------------------------*/
 
 export const TUNING = {
+  /* ==== Motion policy =====================================================
+   * Whether the OS "prefers-reduced-motion: reduce" setting may switch motion
+   * off. FALSE by default: a visitor gets the full animation whatever their OS
+   * says, and the only opt-out is the footer's Motion button (or ?motion=off).
+   *
+   * Set respectReducedMotion: true to follow the OS again — that single flag
+   * is the whole "revert to OS-following" switch; nothing else has to change,
+   * because js/motion.js is the only place that ever reads the media query.
+   */
+  motion: {
+    respectReducedMotion: false,
+    allowUserToggle: true,
+    storageKey: 'toolapis-reduce-motion',
+  },
+
   /* ==== Global object scale (multiplies every prop) ==== */
   objectScale: 1.0,
 
