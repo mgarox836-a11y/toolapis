@@ -436,9 +436,11 @@ export const TUNING = {
        size floor below outranks it. `fit` is the hard ceiling from the
        measured box. */
     hd:      { fit: 3.2, maxWorldScale: 2.2 },
-    /* The cable mesh is excluded from the bounds measurement, so the plug's
-       box never includes the faded tail that trails off-screen right. */
-    usb:     { fit: 2.4, maxWorldScale: 2.2 },
+    /* `cableOutward` yaws the whole plug so its long axis (and the cable) points
+       AWAY from the text column. js/scene3d.js reads this every frame, so the
+       two keys below are load-bearing: without `cableOutward` the plug's cable
+       aimed straight into the headline. */
+    usb:     { fit: 2.4, maxWorldScale: 2.2, cableOutward: true, yaw: 1.05 },
     network: { fit: 2.6, maxWorldScale: 2.2 },
   },
 

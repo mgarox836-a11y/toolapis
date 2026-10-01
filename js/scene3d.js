@@ -108,8 +108,11 @@ const state = {
   bounds: {},
 };
 
-/* scratch — the frame loop allocates nothing */
-const _objCtx = { glow: 1, dim: 1 };
+/* scratch — the frame loop allocates nothing. `screen`/`dock`/`orbit` are the
+ * signature weights js/objects.js reads (the display's pixel-to-sharp wipe, the
+ * side port's dock pulse, the constellation's Clarity orbit); without them
+ * every one of those read `undefined` and stayed pinned at 0. */
+const _objCtx = { glow: 1, dim: 1, screen: 0, dock: 0, orbit: 0 };
 /* World-space point under the pointer (unprojected once per frame onto a ray
    at the props' depth) — the dust scatters around it. Scratch, never kept. */
 const _dustPtr = new THREE.Vector3();
@@ -366,19 +369,6 @@ function createProps() {
   } catch (err) {
     degrade('background props failed to build — continuing without them', err);
     state.props = null;
-  }
-}
-
-function addFlowLinks() {
-  /* The pulse tubes between the props are an optional extra on top of the
-     props themselves, so a failure here leaves the props running. */
-  try {
-    state.links = createFlowLinks();
-    state.scene.add(state.links.group);
-  } catch (err) {
-    degrade('flow links failed to build — continuing without them', err);
-    state.links = null;
-    return;
   }
 }
 
@@ -788,7 +778,6 @@ function placeObjects(s, dt, elapsed, scrollY) {
     const place = places[key];
     o.state = place.state;
     o.collided = place.collided;
-    _linkCy[key] = place.cy;
 
     /* Damp toward the solved position so a changing free band glides. If the
        prop has drifted more than `lagCapPx` from where the fresh solve wants
@@ -927,9 +916,13 @@ function placeObjects(s, dt, elapsed, scrollY) {
 
     _objCtx.glow = clamp(glow, 0, 3);
     _objCtx.dim = dimShown;
+    /* The three signature weights, blended by js/scroll.js across the two stops
+     * in view. They are per-section, not per-prop, so they are written once per
+     * prop from the same sampled stop. */
+    _objCtx.screen = s.screen;
+    _objCtx.dock = s.dock;
+    _objCtx.orbit = s.orbit;
     o.obj.update(elapsed, dt, _objCtx);
-
-    _linkPositions[key] = o.anchor.position;
   }
 
   if (TUNING.debug) {
@@ -1666,12 +1659,6 @@ function dispose() {
     state.props.dispose();
     state.props = null;
   }
-  if (state.links) {
-    state.scene.remove(state.links.group);
-    disposeSceneGraph(state.links.group);
-    state.links.dispose();
-    state.links = null;
-  }
   for (const key of OBJ_KEYS) {
     const o = state.objects[key];
     if (!o) continue;
@@ -1743,7 +1730,9 @@ function exposeDebugHandle() {
       section: state.engine.out.sectionId,
       variant: state.engine.out.variant,
       converge: state.engine.out.converge.toFixed(2),
-      flow: state.engine.out.flow.toFixed(2),
+      screen: state.engine.out.screen.toFixed(2),
+      dock: state.engine.out.dock.toFixed(2),
+      orbit: state.engine.out.orbit.toFixed(2),
       velocity: state.velocity.toFixed(2),
       focus: state.focusKey || '-',
       ray: state.rayKey || '-',
