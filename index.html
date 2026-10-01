@@ -739,6 +739,18 @@
         <a href="#features" class="hover:text-white transition-colors">Features</a>
         <a href="#flow" class="hover:text-white transition-colors">Flow</a>
         <a href="#clarity" class="hover:text-white transition-colors">Clarity</a>
+
+        <!-- Motion opt-out. A real <button> (not a checkbox) so it is reachable by
+             Tab, operable with Enter/Space, and announced with its pressed state.
+             js/motion-toggle.js owns the label and the flip; without that module
+             this stays a visible, honest control that does nothing rather than a
+             button that lies about the state. -->
+        <button id="motion-toggle" type="button" class="motion-toggle"
+                aria-pressed="false" aria-describedby="motion-toggle-hint">
+          <i class="ph ph-waveform motion-toggle-icon" aria-hidden="true"></i>
+          <span class="motion-toggle-label">Reduce motion</span>
+          <span class="sr-only" id="motion-toggle-hint">Turns off animation for this site</span>
+        </button>
       </nav>
       <div class="flex items-center gap-5">
         <a href="https://newsocapis.vercel.app" target="_blank" rel="noopener noreferrer" class="social-btn" aria-label="Open Social Media hub">
@@ -763,6 +775,7 @@
        controllers read them. Every one of those has its own failsafe, so
        if this file fails the page still opens. -->
   <script type="module" src="js/motion-boot.js"></script>
+  <script type="module" src="js/motion-toggle.js"></script>
 
   <script type="module" src="js/intro.js"></script>
   <script type="module" src="js/reveal.js"></script>

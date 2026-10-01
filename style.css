@@ -686,3 +686,62 @@ html.motion-reduced { scroll-behavior: auto; }
 
    tools/shot.mjs asserts this stays true (no motion-reduce: class in the live
    DOM while motion is on, and no such utility present in index.html). */
+
+/* ============================================================================
+   MOTION TOGGLE (footer)
+   ----------------------------------------------------------------------------
+   Small, lime-on-black, and honest about state: the label names the ACTION
+   ("Reduce motion" while animating, "Enable motion" while static) and
+   aria-pressed carries the STATE. A label that described the state instead
+   would read backwards right after the click.
+
+   The pressed styling is keyed on [aria-pressed="true"] rather than on a
+   class, so the visual state cannot drift from the state a screen reader is
+   announcing — the one thing a hand-synced class pair always eventually gets
+   wrong.
+   ========================================================================== */
+.motion-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  /* Lime/black, matching the accent tokens used elsewhere in the footer. */
+  color: #0B0F12;
+  background: #A3E635;
+  border: 1px solid #A3E635;
+  border-radius: 9999px;
+  padding: 0.3rem 0.7rem;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  cursor: pointer;
+  line-height: 1.2;
+  /* Deliberately short and single: this is a state flip, not an animation, and
+     a slow fade would make the button feel unresponsive. */
+  transition: background-color .15s ease, color .15s ease, border-color .15s ease;
+}
+.motion-toggle:hover { background: #BEF264; border-color: #BEF264; }
+.motion-toggle:active { transform: translateY(1px); }
+.motion-toggle:focus-visible {
+  outline: 2px solid rgba(163, 230, 53, 0.9);
+  outline-offset: 3px;
+}
+/* Pressed = motion is OFF. Inverted fill so the state is legible without
+   reading the label, and readable in both light and dark surroundings. */
+.motion-toggle[aria-pressed="true"] {
+  color: #A3E635;
+  background: #0B0F12;
+  border-color: #A3E635;
+}
+.motion-toggle[aria-pressed="true"]:hover {
+  color: #0B0F12;
+  background: #BEF264;
+}
+/* The icon swaps to a pause mark when motion is off; kept as a glyph change
+   only (no rotation loop), so the button itself never becomes an animation. */
+.motion-toggle-icon { font-size: 0.9rem; }
+.motion-toggle[aria-pressed="true"] .motion-toggle-icon::before { content: "\E138"; }
+
+/* Reduced motion: the button's own colour cross-fade goes too, so flipping the
+   toggle is instant rather than a 150ms animation — which would be ironic. */
+html.motion-reduced .motion-toggle { transition: none; }
