@@ -1007,7 +1007,15 @@ function liveMark(key, place, vw, vh) {
   const x = (_liveVec.x * 0.5 + 0.5) * vw;
   const y = (1 - _liveVec.y * 0.5) * 0.5 * vh;
   if (!Number.isFinite(x) || !Number.isFinite(y)) return null;
-  return { x, y, err: place ? Math.hypot(x - place.cxPx, y - place.cyPx) : 0 };
+  if (!place) return { x, y, err: 0 };
+  /* The box centre, in px. The solver's live placement record calls it
+     `cxPx`/`cyPx`; the debug snapshot the info() readout passes calls the same
+     two numbers `x`/`y`. Read whichever the record actually carries, so the
+     self-check reports a real pixel error instead of NaN. */
+  const cx = place.cxPx !== undefined ? place.cxPx : place.x;
+  const cy = place.cyPx !== undefined ? place.cyPx : place.y;
+  if (!Number.isFinite(cx) || !Number.isFinite(cy)) return { x, y, err: 0 };
+  return { x, y, err: Math.hypot(x - cx, y - cy) };
 }
 
 function drawDebugOverlay(places) {
