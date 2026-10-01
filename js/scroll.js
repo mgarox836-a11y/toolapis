@@ -291,14 +291,14 @@ export function createScrollEngine() {
         stats.box++;
       }
 
-      /* 3. cards: a solid object, so the whole box blocks. Exempt from the
-         full-width cap — a full-bleed card is real content. */
+      /* 3. cards: translucent glass panels — a SOFT dim source, never a hard
+          collision. The prop reads as depth behind the glass. Exempt from the
+          full-width cap — a full-bleed card is real content. */
       for (const el of section.querySelectorAll(CARD_SELECTOR)) {
         if (isSkippable(el)) continue;
         const r = el.getBoundingClientRect();
         if (r.width < 4 || r.height < 4) continue;
         push(soft, id, r);
-        push(content, id, r);
         stats.card++;
       }
 
@@ -409,7 +409,7 @@ export function createScrollEngine() {
     for (const key of OBJ_KEYS) {
       anchorOut[key] = {
         x: 0.5, y: 0.5, size: 0.12, opacity: 0,
-        alt: null, side: 'right', z: 0, scale: 1, dim: 1, sizeCap: 1,
+        side: 'right', z: 0, scale: 1, dim: 1, sizeCap: 1,
       };
     }
     return {
@@ -419,7 +419,11 @@ export function createScrollEngine() {
       yaw: 0,
       exposure: 1,
       converge: 0,
-      flow: 0,
+      /* The signature story: the display's sharpness (0 = pixelated), the USB
+       * dock weight and the constellation's orbit weight — all blended. */
+      screen: 0,
+      dock: 0,
+      orbit: 0,
       index: 0,
       sectionId: STOPS[0].id,
       /* The two stops being blended. Placement must clear BOTH. */
@@ -457,7 +461,9 @@ export function createScrollEngine() {
     out.yaw = lerp(A.yaw, B.yaw, t);
     out.exposure = lerp(exposureFor(A.id), exposureFor(B.id), t);
     out.converge = lerp(A.converge || 0, B.converge || 0, t);
-    out.flow = lerp(A.flow || 0, B.flow || 0, t);
+    out.screen = lerp(A.screen ?? 0, B.screen ?? 0, t);
+    out.dock = lerp(A.dock || 0, B.dock || 0, t);
+    out.orbit = lerp(A.orbit || 0, B.orbit || 0, t);
 
     for (const key of OBJ_KEYS) {
       const a = A.anchors[key], b = B.anchors[key];
@@ -474,9 +480,6 @@ export function createScrollEngine() {
       const pb = authoredAnchor(B.id, key, out.variant);
       o.ax = pa.x; o.ay = pa.y; o.aSize = pa.size; o.aOpacity = pa.opacity;
       o.bx = pb.x; o.by = pb.y; o.bSize = pb.size; o.bOpacity = pb.opacity;
-      /* An `alt` belongs to the stop it was authored for, so it is only taken
-         from the stop that is actually on screen at the halfway point. */
-      o.alt = t < 0.5 ? (pa.alt || pb.alt || null) : (pb.alt || pa.alt || null);
 
       o.x = lerp(pa.x, pb.x, t);
       o.y = lerp(pa.y, pb.y, t);
@@ -490,77 +493,6 @@ export function createScrollEngine() {
   /* ---------------------------------------------------------------------
    * Geometry helpers over the pre-measured obstacle banks
    * ------------------------------------------------------------------ */
-
-  /**
-   * The merged x-intervals of every measured rect whose y-range overlaps the
-   * query band, as a sorted list of [x0, x1] pairs in pixels. `ids` may be a
-   * single id or a LIST.
-   */
-  function occupiedIn(bank, ids, y0, y1) {
-    const list = Array.isArray(ids) ? ids : [ids];
-    let spans = null;
-    for (const id of list) {
-      const rects = bank[id];
-      if (!rects || !rects.length) continue;
-      for (const r of rects) {
-        if (r.y1 < y0 || r.y0 > y1) continue;
-        if (!spans) spans = [];
-        spans.push([r.x0, r.x1]);
-      }
-    }
-    if (!spans || !spans.length) return null;
-    spans.sort((a, b) => a[0] - b[0]);
-    const merged = [spans[0].slice()];
-    for (let i = 1; i < spans.length; i++) {
-      const last = merged[merged.length - 1];
-      if (spans[i][0] <= last[1]) last[1] = Math.max(last[1], spans[i][1]);
-      else merged.push(spans[i].slice());
-    }
-    return merged;
-  }
-
-  /** True when a PAGE-space box touches ANY measured rect of the given ids. */
-  function boxHits(bank, ids, x0, x1, y0, y1) {
-    const list = Array.isArray(ids) ? ids : [ids];
-    for (const id of list) {
-      const rects = bank[id];
-      if (!rects || !rects.length) continue;
-      for (const r of rects) {
-        if (r.x1 <= x0 || r.x0 >= x1 || r.y1 <= y0 || r.y0 >= y1) continue;
-        return true;
-      }
-    }
-    return false;
-  }
-
-  /**
-   * The NDC x-span of the hard column occupied by copy inside a page-space
-   * band, as [x0, x1]. Returns false (and leaves `out` at ±1) when the band is
-   * completely free — which is the normal case for a flow link running between
-   * two props that both sit in a free band.
-   */
-  function textColumnAt(ids, y0, y1, out) {
-    const list = typeof ids === 'string' ? [ids] : (ids || []);
-    const vw = window.innerWidth || 1;
-    out[0] = -1;
-    out[1] = 1;
-    let lo = Infinity;
-    let hi = -Infinity;
-    for (const id of list) {
-      const rects = content[id];
-      if (!rects) continue;
-      for (let i = 0; i < rects.length; i++) {
-        const r = rects[i];
-        if (r.y1 < y0 || r.y0 > y1) continue;
-        if (r.x0 < lo) lo = r.x0;
-        if (r.x1 > hi) hi = r.x1;
-      }
-    }
-    if (!isFinite(lo) || hi - lo <= vw * 0.02) return false;
-    out[0] = clamp((lo / vw) * 2 - 1, -1, 1);
-    out[1] = clamp((hi / vw) * 2 - 1, -1, 1);
-    return true;
-  }
 
   /**
    * Every section whose page span can put copy on screen at this scrollY, with a
@@ -578,6 +510,18 @@ export function createScrollEngine() {
       ids.push(id);
     }
     return ids;
+  }
+
+  /** Checks if a screen-space box overlaps any obstacle in the given banks. */
+  function boxHits(bank, ids, x0, x1, y0, y1) {
+    for (const id of ids) {
+      const rects = bank[id];
+      if (!rects) continue;
+      for (const r of rects) {
+        if (x1 > r.x0 && x0 < r.x1 && y1 > r.y0 && y0 < r.y1) return true;
+      }
+    }
+    return false;
   }
 
   /* ---------------------------------------------------------------------
@@ -725,12 +669,6 @@ export function createScrollEngine() {
     };
   }
 
-  /** The boxes already committed this frame, for prop-vs-prop separation. */
-  const _placed = OBJ_KEYS.map((key) => ({
-    key, x0: 0, y0: 0, x1: 0, y1: 0, cx: 0, cy: 0, size: 0,
-    side: 'right', used: false,
-  }));
-
   /**
    * Validates the authored placement of every prop against the measured page
    * and commits the result.
@@ -763,66 +701,6 @@ export function createScrollEngine() {
     const bandPx = headerSolid ? headerPx : 0;
     const topLimitPx = bandPx + P.edgePadPx;
     const botLimitPx = Math.min(vh - P.edgePadPx, vh * L.band.bottom);
-    const gap = G.minSeparationPx;
-
-    for (let i = 0; i < _placed.length; i++) _placed[i].used = false;
-
-    /** Inside the band and inside the side pads? */
-    const rectOk = (r) =>
-      r.x0 >= P.edgePadPx - 0.5 && r.x1 <= vw - P.edgePadPx + 0.5
-      && r.y0 >= topLimitPx - 0.5 && r.y1 <= botLimitPx + 0.5;
-
-    /** How far a rect pokes past the band's pads on its worst edge, and whether
-     *  a crop off that edge is legal under the screen-centre guard.
-     *
-     *  CROP SUPPORT, STRUCTURE ONLY. `props.edgeCropMax` is 0, so the branch
-     *  that uses this is dead by construction and NO prop is ever cropped — the
-     *  measure is there so `croppedPx` can be reported and a nonzero budget can
-     *  be flipped on without touching the validator. The guard: a prop may only
-     *  crop the edge on the SIDE its own centre sits on, so cropping can never
-     *  drag a right-gutter prop half off the left edge of the screen. */
-    const cropOf = (r) => {
-      const over = Math.max(
-        P.edgePadPx - r.x0,
-        r.x1 - (vw - P.edgePadPx),
-        topLimitPx - r.y0,
-        r.y1 - botLimitPx
-      );
-      const guard = !(P.edgePadPx - r.x0 > 0 && r.cx > vw * 0.5)
-        && !(r.x1 - (vw - P.edgePadPx) > 0 && r.cx < vw * 0.5);
-      return { px: Math.max(0, over), allowed: guard && over <= P.edgeCropMax };
-    };
-
-    /** Clear of the copy, of every prop that may share a side, and of every
-     *  prop whose own centre is too close to this one's across the band. */
-    const rectClear = (r) => {
-      if (boxHits(content, ids, r.x0, r.x1, r.y0 + scrollY, r.y1 + scrollY)) return false;
-      const rSize = Math.max(r.w || 0, r.h || 0);
-      const rSide = r.cx >= vw * 0.5 ? 'right' : 'left';
-      for (let i = 0; i < _placed.length; i++) {
-        const q = _placed[i];
-        if (!q.used) continue;
-        /* Edge-gap rule — ONLY between props sharing a side (same column). A
-           left-gutter prop and a right-gutter prop sitting on adjacent rows do
-           not need a 28px moat between them: they belong to different columns. */
-        if (q.side === rSide) {
-          if (r.x1 <= q.x0 - gap || r.x0 >= q.x1 + gap) continue;
-          if (r.y1 <= q.y0 - gap || r.y0 >= q.y1 + gap) continue;
-          return false;
-        }
-        /* Centre-distance rule — when the two boxes share a horizontal BAND:
-           their centres must stay `minSeparationRatio * (sizeA + sizeB)` apart,
-           where the sizes are what they DRAW. Two big props hold more room than
-           two small ones, and the rule has no gutters to disagree with. */
-        if (r.y0 < q.y1 && r.y1 > q.y0) {
-          const dx = r.cx - q.cx;
-          const dy = r.cy - q.cy;
-          const minDist = G.minSeparationRatio * (rSize + q.size);
-          if (dx * dx + dy * dy < minDist * minDist) return false;
-        }
-      }
-      return true;
-    };
 
     for (let ki = 0; ki < OBJ_KEYS.length; ki++) {
       const key = OBJ_KEYS[ki];
@@ -841,104 +719,52 @@ export function createScrollEngine() {
       const dist = camera.position.z + G.baseDistance + a.z;
       viewHalf(camera, dist, _half);
 
-      /* ---- size: the authored size, lifted to the floor, capped twice ---- */
+      /* ---- size: the authored size, lifted to the floor, capped ---- */
       const floorPx = Math.max(
         P.minScreenFraction * vw,
         key === 'usb' ? P.minScreenPxUsb : P.minScreenPx
       );
       const capPx = Math.max(clamp(a.sizeCap ?? 1, 0, 1) * P.maxScreenFraction * vw, floorPx);
-      /* Two different caps, deliberately. `maxWorldScale` is soft: it keeps the
-         authored size in check, and the size FLOOR outranks it, because a floor
-         that cannot be met is not a floor. `fitMax` is hard — it comes from the
-         measured box, so nothing can scale a prop past the size that keeps it
-         framed. */
       const hardCap = Math.max(1e-4, b.fitMax ?? Infinity);
       const softCap = Math.min(cap.maxWorldScale ?? Infinity, hardCap);
       const pxPerWorld = vw / (2 * _half.w);
       const worldW = Math.max(0.02, halfW * 2);
 
-      /** Authored fractions -> the scale that draws it, and its projected box. */
-      const project = (ax, ay, aSize) => {
-        const ndcX = ax * 2 - 1;
-        const ndcY = 1 - ay * 2;
-        const wantPx = clamp(aSize * vw, floorPx, capPx);
-        const guess = clamp(wantPx / (worldW * pxPerWorld), 1e-4, softCap);
-        projectBox(camera, b, ndcX, ndcY, dist, guess, vw, vh, _rect);
-        /* The size that is actually DRAWN is the box's dominant dimension, and
-           that is what the authored size, the floor and the cap are all about.
-           Sizing off the width alone would let a prop mid-spin read as a sliver
-           well under the floor, and "growing" it to reach a width floor would
-           turn a tall prop into a full-screen monster — so the requested size
-           is measured on whichever axis the prop currently reads on, once. */
-        const drawn = Math.max(_rect.w, _rect.h);
-        let sc = guess;
-        if (drawn > 0.5) {
-          const fix = drawn < floorPx - 0.5
-            ? floorPx / drawn
-            : (drawn > capPx + 0.5 ? capPx / drawn : 1);
-          sc = clamp(guess * fix, 1e-4, hardCap);
-          if (Math.abs(sc - guess) > 1e-6) {
-            projectBox(camera, b, ndcX, ndcY, dist, sc, vw, vh, _rect);
-          }
-        }
-        return sc;
-      };
-
-      const authX = clamp(a.x, -0.5, 1.5);
-      const authY = clamp(a.y, -0.5, 1.5);
-      const authSize = clamp(a.size, 0, 1);
-      let sc = 0;
-      let state = 'authored';
-      let placed = false;
-
-      /** A candidate box is accepted when it fits the band, or — only while
-       *  edgeCropMax is nonzero — when it merely pokes one edge by an allowed
-       *  crop and is still clear of everything. Either way it must clear the
-       *  copy and the props. CROPS ARE OFF (edgeCropMax 0), so this collapses
-       *  back to exactly "fits the band and is clear". */
-      const accepted = () => {
-        const c = cropOf(_rect);
-        if (c.allowed) return rectClear(_rect);
-        return rectOk(_rect) && rectClear(_rect);
-      };
-
-      /* 1. the authored decision */
-      sc = project(authX, authY, authSize);
-      if (a.opacity > 0) {
-        placed = accepted();
-      }
-
-      /* 2. the authored `alt` — how a prop moves to the other gutter without a
-            search. Still authored, still at the same size rules. */
-      if (!placed && a.alt && a.opacity > 0) {
-        sc = project(clamp(a.alt.x, -0.5, 1.5), clamp(a.alt.y, -0.5, 1.5),
-          clamp(a.alt.size ?? authSize, 0, 1));
-        if (accepted()) { placed = true; state = 'alt'; }
-      }
-
-      /* 3. the nudge: the nearest free direction, at most `nudge.maxFrac` of the
-            viewport away from the authored spot. NEVER a smaller prop. */
-      if (!placed && a.opacity > 0) {
-        const steps = L.nudge.steps;
-        const dirs = L.nudge.dirs;
-        outer:
-        for (let si = 0; si < steps.length; si++) {
-          const step = Math.min(steps[si], L.nudge.maxFrac);
-          for (let di = 0; di < dirs.length; di++) {
-            const nx = authX + dirs[di][0] * step;
-            const ny = authY + dirs[di][1] * step;
-            if (nx < -0.4 || nx > 1.4 || ny < -0.4 || ny > 1.4) continue;
-            sc = project(nx, ny, authSize);
-            if (accepted()) {
-              placed = true;
-              state = 'nudged';
-              break outer;
-            }
-          }
+      const ndcX = clamp(a.x, -0.5, 1.5) * 2 - 1;
+      const ndcY = 1 - clamp(a.y, -0.5, 1.5) * 2;
+      const wantPx = clamp(a.size * vw, floorPx, capPx);
+      let sc = clamp(wantPx / (worldW * pxPerWorld), 1e-4, softCap);
+      projectBox(camera, b, ndcX, ndcY, dist, sc, vw, vh, _rect);
+      /* The size that is actually DRAWN is the box's dominant dimension — the
+         axis the authored size, the floor and the cap are all expressed in.
+         One fix pass: lift an under-sized prop to the floor, trim an
+         over-sized one to the cap, then re-project so the box is the mesh. */
+      const drawn = Math.max(_rect.w, _rect.h);
+      if (drawn > 0.5) {
+        const fix = drawn < floorPx - 0.5
+          ? floorPx / drawn
+          : (drawn > capPx + 0.5 ? capPx / drawn : 1);
+        if (fix !== 1) {
+          sc = clamp(sc * fix, 1e-4, hardCap);
+          projectBox(camera, b, ndcX, ndcY, dist, sc, vw, vh, _rect);
         }
       }
 
-      if (a.opacity <= 0) state = 'hidden';
+      /* ---- THE LIGHT VALIDATOR ----
+       * The placement is AUTHORED; the validator only fades, it never moves or
+       * shrinks. A box that would overlap a TEXT obstacle (headings, lines,
+       * buttons, the footer band) or that leaves the band fades out for this
+       * stretch of scroll — damped, at FULL size. A translucent card under the
+       * box is a soft dim, not a collision: the prop reads as depth behind the
+       * glass. Nothing is ever nudged, searched or cropped. */
+      const placed0 = a.opacity > 0;
+      let state = placed0 ? 'authored' : 'hidden';
+      if (placed0) {
+        const inBand = _rect.x0 >= P.edgePadPx - 0.5 && _rect.x1 <= vw - P.edgePadPx + 0.5
+          && _rect.y0 >= topLimitPx - 0.5 && _rect.y1 <= botLimitPx + 0.5;
+        const hitText = boxHits(content, ids, _rect.x0, _rect.x1, _rect.y0 + scrollY, _rect.y1 + scrollY);
+        if (!inBand || hitText) { state = 'hidden'; }
+      }
 
       /* ---- commit ---- */
       p.x0 = _rect.x0; p.y0 = _rect.y0; p.x1 = _rect.x1; p.y1 = _rect.y1;
@@ -946,29 +772,19 @@ export function createScrollEngine() {
       p.cxPx = _rect.cx; p.cyPx = _rect.cy;
       p.cx = _rect.ndcX; p.cy = _rect.ndcY;
       p.side = p.cx >= 0 ? 'right' : 'left';
-      /* The box is centred on the prop's origin by construction, so the offset
-         from the authored anchor is the projection's own error — and it is
-         zero unless something upstream moved the prop. */
-      p.authX = authX * vw; p.authY = authY * vh;
+      p.authX = clamp(a.x, -0.5, 1.5) * vw; p.authY = clamp(a.y, -0.5, 1.5) * vh;
       p.asymPx = _rect.asymPx;
       p.scale = sc;
-      p.authoredPx = authSize * vw;
+      p.authoredPx = a.size * vw;
       p.floorPx = floorPx;
-      /* The drawn size: the box's dominant dimension, which is the axis the
-         authored size, the floor and the cap are all expressed in. */
       p.committedPx = Math.max(p.wPx, p.hPx);
-      /* Crop measure: 0 while edgeCropMax is 0 (the box fits the band). */
-      p.croppedPx = Math.round(cropOf(_rect).px);
-      p.state = placed ? state : 'hidden';
-      p.collided = a.opacity > 0 && !placed;
-      p.nudged = state === 'alt' || state === 'nudged';
-      /* A size that landed anywhere other than the authored one was lifted to
-         the floor or trimmed to the cap — or pinned by the per-prop world cap,
-         which wins over both and is reported here rather than hidden. */
+      p.croppedPx = 0;
+      p.state = state;
+      p.collided = placed0 && state === 'hidden';
+      p.nudged = false;
       p.clamped = Math.abs(p.committedPx - p.authoredPx) > 0.5;
-      /* A translucent card behind the prop is the dim source, not a collision:
-         the validator is satisfied by a nudge, so this only reports. */
-      p.behind = measured
+      /* A translucent card behind the prop is the dim source, not a collision. */
+      p.behind = measured && state !== 'hidden'
         && boxHits(soft, ids, p.x0, p.x1, p.y0 + scrollY, p.y1 + scrollY);
 
       /* Fades, in px, over the two band edges. */
@@ -976,45 +792,17 @@ export function createScrollEngine() {
         ? clamp((p.y0 - (bandPx + P.edgePadPx)) / G.headerFadePx, 0, 1) : 1;
       const footFade = clamp((botLimitPx - p.y1) / P.footerFadePx, 0, 1);
       p.fade = headFade * footFade;
-      p.opacity = (placed ? a.opacity : 0) * p.fade;
+      p.opacity = (state !== 'hidden' ? a.opacity : 0) * p.fade;
 
       /* Unproject the box CENTRE, then take off the prop group's own screen
          offset: the scene damps `anchor.position` toward this, and the mesh
          centre — which is the group origin, by construction — lands on the
-         projected centre. The box and the marker are the same point.
-
-         The whole WORLD position is committed, depth included. `dist` is the
-         distance the size math assumed, so the z that unprojects to it is the
-         only z that makes the drawn prop match the box it was validated
-         against; handing back a remembered anchor z instead would draw the
-         prop nearer than the box says. */
+         projected centre. The whole WORLD position is committed, depth
+         included, so the drawn prop matches the box it was validated against. */
       _camSpace.set(p.cx * _half.w, p.cy * _half.h, -dist).applyQuaternion(camera.quaternion);
       p.x = camera.position.x + _camSpace.x - (b.offX || 0);
       p.y = camera.position.y + _camSpace.y - (b.offY || 0);
       p.z = camera.position.z + _camSpace.z;
-
-      const slot = _placed[ki];
-      slot.x0 = p.x0; slot.y0 = p.y0; slot.x1 = p.x1; slot.y1 = p.y1;
-      slot.cx = p.cxPx; slot.cy = p.cyPx;
-      slot.size = p.committedPx;
-      slot.side = p.side;
-      slot.used = placed;
-    }
-
-    /* Nearest-prop centre distance, committed AFTER the whole batch so every
-       prop knows where every other one actually landed. */
-    for (let i = 0; i < _placed.length; i++) {
-      const a = _placed[i];
-      if (!a.used) continue;
-      const p = placement[a.key];
-      let best = Infinity;
-      for (let j = 0; j < _placed.length; j++) {
-        const b = _placed[j];
-        if (i === j || !b.used) continue;
-        const d = Math.hypot(a.cx - b.cx, a.cy - b.cy);
-        if (d < best) best = d;
-      }
-      p.nearestPx = isFinite(best) ? best : 0;
     }
 
     /* ---- ?scene3d=debug/probe: what was asked for, and what was committed ---- */
@@ -1059,7 +847,6 @@ export function createScrollEngine() {
     sample,
     computeProgress,
     layout,
-    textColumnAt,
     sectionsOnScreen,
     remeasure,
     measureAnchors,

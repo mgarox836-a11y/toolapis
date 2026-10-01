@@ -1,2 +1,4 @@
-node_modules/tools/shots/
+node_modules/
+tools/shots/
 tools/*.png
+server.log

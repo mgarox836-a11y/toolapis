@@ -37,7 +37,7 @@ import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 
 import { TUNING, PALETTE, OBJ_KEYS, STOPS, FOCAL_TARGET } from './config.js';
 import {
-  buildObject, disposeObject, createBackgroundProps, createParticles, createBokeh, createFlowLinks,
+  buildObject, disposeObject, createBackgroundProps, createParticles, createBokeh,
   buildStudioScene, setMaterialQuality, disposeSharedTextures,
 } from './objects.js';
 import { createScrollEngine, CENTER_TOLERANCE_PX } from './scroll.js';
@@ -55,7 +55,6 @@ const state = {
   pmremRT: null,
   canvas: null,
   props: null,          // background props (wireframe, rings, ground glow)
-  links: null,          // flow links between the props
   particles: null,      // { points, material, count } — the reactive dust field
   bokeh: null,          // { points, material, count } — far bokeh discs (medium+)
   quality: 'high',      // 'high' | 'medium' | 'low', chosen once at init
@@ -110,19 +109,7 @@ const state = {
 };
 
 /* scratch — the frame loop allocates nothing */
-const _objCtx = { glow: 1, dim: 1, flow: 0 };
-const _linkCtx = { flow: 0, column: [-1, 1] };
-const _linkPositions = { hd: null, usb: null, network: null };
-/* NDC y of each placed prop this frame, and the page-space y a flow link
-   actually runs through. Both feed the per-link text column. */
-const _linkCy = { hd: 0, usb: 0, network: 0 };
-/* Shared scratch for linkPageBand(): the frame loop resolves one band per link
-   and each is consumed by the very next statement, so one buffer is enough and
-   the loop stays allocation-free. */
-const _linkBand = [0, 0];
-let _linkScrollY = 0;
-const _linkCols = [null, null, null];
-const _colScratch = [-1, 1];
+const _objCtx = { glow: 1, dim: 1 };
 /* World-space point under the pointer (unprojected once per frame onto a ray
    at the props' depth) — the dust scatters around it. Scratch, never kept. */
 const _dustPtr = new THREE.Vector3();
@@ -393,44 +380,6 @@ function addFlowLinks() {
     state.links = null;
     return;
   }
-  /* One column PER LINK, resolved from the height that link actually runs
-     through. A link between two props that sit in the same free band finds no
-     copy at its own height and therefore draws in full; a link that would run
-     across a paragraph is faded out exactly across that paragraph. */
-  _linkCtx.columnFor = (a, b, index) => linkColumnFor(index);
-}
-
-/** Page-space y band a link occupies, in page coordinates. Returns the shared
- *  `_linkBand` scratch, or null. Nothing keeps a reference past the call. */
-function linkPageBand(index) {
-  const pair = state.links.pairs[index];
-  if (!pair) return null;
-  const ya = _linkCy[pair[0]];
-  const yb = _linkCy[pair[1]];
-  if (typeof ya !== 'number' || typeof yb !== 'number') return null;
-  const vh = window.innerHeight;
-  const half = 0.5 * vh;
-  const a = (1 - ya) * half + _linkScrollY;
-  const b = (1 - yb) * half + _linkScrollY;
-  _linkBand[0] = a < b ? a : b;
-  _linkBand[1] = a < b ? b : a;
-  return _linkBand;
-}
-
-/**
- * The hard text column at ONE link's own height. Returns null when there is
- * nothing to avoid, which objects.js reads as "draw the link in full".
- */
-function linkColumnFor(index) {
-  const band = linkPageBand(index);
-  if (!band) return null;
-  let col = _linkCols[index];
-  if (!col) { col = [-1, 1]; _linkCols[index] = col; }
-  const vh = window.innerHeight;
-  const ids = state.engine.sectionsOnScreen(_linkScrollY, vh);
-  /* A few px of slack so a link that grazes a line of text still fades. */
-  const found = state.engine.textColumnAt(ids, band[0] - 24, band[1] + 24, col);
-  return found ? col : null;
 }
 
 /* ============================================================================
@@ -813,7 +762,6 @@ function placeObjects(s, dt, elapsed, scrollY) {
   const R = TUNING.rotation;
   const vel = state.velocity;
   const vh = window.innerHeight;
-  _linkScrollY = scrollY;
 
   /* Hand the validator the pose each prop is actually drawn in right now, so
      the box it projects is the box the mesh occupies this frame rather than a
@@ -984,22 +932,6 @@ function placeObjects(s, dt, elapsed, scrollY) {
     _linkPositions[key] = o.anchor.position;
   }
 
-  /* Feed the flow links the text column at their OWN height (see
-     linkColumnFor) so a tube fades out exactly where it would cross copy —
-     and stays at full strength where it would not. */
-  if (state.links) {
-    _linkCtx.flow = s.flow;
-    if (s.flow > 0.02) {
-      /* _linkCtx.columnFor resolves per link; `column` stays a sane default
-         for a frame where the per-link path is not available. */
-      _linkCtx.column = _colScratch;
-      state.links.update(state.elapsed, dt, _linkCtx, _linkPositions, state.camera);
-    } else {
-      _linkCtx.flow = 0;
-      state.links.update(state.elapsed, dt, _linkCtx, _linkPositions, state.camera);
-    }
-  }
-
   if (TUNING.debug) {
     drawDebugOverlay(places);
     logPlacement(places, s.sectionId);
@@ -1103,7 +1035,7 @@ function drawDebugOverlay(places) {
   g.clearRect(0, 0, vw, vh);
 
   const data = state.engine.debugData;
-  const scrollY = _linkScrollY;
+  const scrollY = window.scrollY || 0;
 
   /* 1. measured obstacles, in viewport space */
   g.lineWidth = 1;
@@ -1304,7 +1236,6 @@ function onClick(e) {
 function renderOnce() {
   if (!state.renderer) return;
   const scrollY = window.scrollY || 0;
-  _linkScrollY = scrollY;
   const s = state.engine.sample(state.progress, scrollY);
   state.yaw = s.yaw;
   applySample(s);
@@ -1330,13 +1261,6 @@ function renderOnce() {
       Math.cos(o.phase * 0.8) * 0.12
     );
     o.group.scale.setScalar(place.scale);
-    _linkPositions[key] = o.anchor.position;
-    _linkCy[key] = place.cy;
-  }
-  if (state.links) {
-    _linkCtx.flow = s.flow;
-    _linkCtx.column = [-1, 1];
-    state.links.update(0, 0, _linkCtx, _linkPositions, state.camera);
   }
   if (state.particles) state.particles.material.uniforms.uTime.value = 0;
   if (state.bokeh) state.bokeh.material.uniforms.uTime.value = 0;
@@ -1903,7 +1827,6 @@ function init() {
     setMaterialQuality(state.quality);
     createObjects();
     createProps();
-    addFlowLinks();
 
     state.tier = pickTier(window.innerWidth);
     applyTier(state.tier);

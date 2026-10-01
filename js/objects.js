@@ -447,13 +447,16 @@ function bracketShape(len, thick) {
 }
 
 /* ============================================================================
- * 4. HD ENHANCER
+ * 4. THE SIGNATURE MONITOR — slim glass display, black bezel, lime edge
  * ----------------------------------------------------------------------------
- * A bevelled extruded frame, a live "screen" running a scanline/upscaling
- * sweep, extruded HD letters floating in front of it, and four lime corner
- * brackets. The screen is a plain ShaderMaterial: the pixel-grid -> sharp
- * transition is a quantised vs. continuous uv sample of the same procedural
- * frame, so the sweep literally sharpens the image as it crosses.
+ * One object, the whole page's focal point. A slim bevelled frame (piano-black
+ * bezel), a live display driven by TWO CanvasTextures of the same procedural
+ * video-player frame — a low-res copy sampled with NearestFilter (the
+ * "pixelated" side) and a high-res copy with LinearFilter (the sharp side) —
+ * a thin lime edge line around the screen, a side port the USB plug docks
+ * into, and a status LED. The pixel-to-sharp wipe is the scroll: uSharp rides
+ * the blended stop value, so scrolling from the hero into Features literally
+ * upscales the image as the wipe crosses.
  * ==========================================================================*/
 
 const DISPLAY_VERT = /* glsl */`
@@ -470,51 +473,165 @@ const DISPLAY_VERT = /* glsl */`
 const DISPLAY_FRAG = /* glsl */`
   #include <common>
   #include <fog_pars_fragment>
+  uniform sampler2D tLow;
+  uniform sampler2D tHigh;
   uniform float uTime;
-  uniform float uSweep;
   uniform float uSharp;
-  uniform float uGrid;
-  uniform float uDim;
   uniform float uScan;
-  uniform vec3  uInk;
+  uniform float uDim;
+  uniform float uGrid;
   uniform vec3  uAccent;
   varying vec2 vDispUv;
 
-  /* A stand-in for a video frame: horizon, a subject, a blocky skyline. */
-  float frameLuma(vec2 uv) {
-    float v = 0.22 * smoothstep(0.055, 0.0, abs(uv.y - 0.30));
-    vec2 d = (uv - vec2(0.50, 0.58)) * vec2(1.0, 1.22);
-    v += 0.80 * exp(-dot(d, d) * 24.0);
-    float col = floor(uv.x * 5.0);
-    v += 0.15 * step(0.55, fract(col * 0.37)) * step(0.64, uv.y) * step(uv.y, 0.84);
-    vec2 vc = uv - 0.5;
-    v *= 1.0 - 0.85 * dot(vc, vc);
-    return clamp(v, 0.0, 1.0);
-  }
-
   void main() {
     vec2 uv = vDispUv;
-    float sweep = fract(uSweep);
 
-    /* Everything the sweep has already crossed is sharp; the rest is blocky. */
-    float sharpZone = smoothstep(sweep - 0.11, sweep, uv.x);
-    float sharp = clamp(max(uSharp, sharpZone), 0.0, 1.0);
-    vec2 q = mix(floor(uv * uGrid + 0.5) / uGrid, uv, sharp);
+    /* The wipe: everything the scroll has crossed is sharp; the line overshoots
+     * past the right edge so the transition always completes. */
+    float w = uSharp * 1.12;
+    float sharp = 1.0 - smoothstep(w - 0.10, w, uv.x);
 
-    float luma = frameLuma(q);
-    luma *= mix(0.50, 1.0, sharp);            /* low-res side reads dimmer */
+    vec2 uvQ = floor(uv * uGrid + 0.5) / uGrid;
+    vec3 lo = texture2D(tLow, uvQ).rgb;
+    vec3 hi = texture2D(tHigh, uv).rgb;
+    vec3 col = mix(lo, hi, sharp);
+    col *= mix(0.55, 1.0, sharp);            /* the low-res side reads dimmer */
 
-    vec3 col = mix(uInk, uAccent * 0.85, luma * 0.5);
-    col += uAccent * luma * 0.55;
-
-    /* fine scanlines, then the bright sweep band itself */
-    col *= mix(1.0, 0.84 + 0.16 * sin(uv.y * 240.0), uScan);
-    col += uAccent * exp(-110.0 * abs(uv.x - sweep)) * 0.9;
+    /* fine rolling scanlines — the "live" feel */
+    col *= mix(1.0, 0.90 + 0.10 * sin(uv.y * 220.0 - uTime * 2.2), uScan);
+    /* the wipe line itself: bright mid-transition, gone at both ends */
+    col += uAccent * exp(-150.0 * abs(uv.x - w))
+         * (sin(clamp(w, 0.0, 1.0) * 3.14159) * 0.55);
 
     gl_FragColor = vec4(col * (0.35 + 0.65 * uDim), 1.0);
     #include <fog_fragment>
   }
 `;
+
+/** Draws the procedural video-player frame at any resolution. The same paint
+ *  runs for the 64px "pixelated" copy and the 512px sharp copy, so the two
+ *  textures are literally the same image at two sampling densities. */
+function paintDisplayFrame(W, H) {
+  const c = document.createElement('canvas');
+  c.width = W; c.height = H;
+  const g = c.getContext('2d');
+  if (!g) return c;
+
+  /* ink base */
+  g.fillStyle = '#07090c';
+  g.fillRect(0, 0, W, H);
+
+  /* the "video": the upper 84% — a stylised dusk landscape */
+  const vh = H * 0.84;
+  const sky = g.createLinearGradient(0, 0, 0, vh);
+  sky.addColorStop(0, '#0a1116');
+  sky.addColorStop(0.52, '#0b1519');
+  sky.addColorStop(1, '#0d1b12');
+  g.fillStyle = sky;
+  g.fillRect(0, 0, W, vh);
+
+  /* a soft lime sun low over the horizon */
+  const sun = g.createRadialGradient(W * 0.70, vh * 0.60, 0, W * 0.70, vh * 0.60, vh * 0.52);
+  sun.addColorStop(0, 'rgba(163,230,53,0.50)');
+  sun.addColorStop(0.38, 'rgba(163,230,53,0.13)');
+  sun.addColorStop(1, 'rgba(163,230,53,0)');
+  g.fillStyle = sun;
+  g.fillRect(0, 0, W, vh);
+
+  /* two ridgelines, darker as they come forward */
+  const ridge = (yBase, amp, fill) => {
+    g.beginPath();
+    g.moveTo(0, vh);
+    g.lineTo(0, yBase);
+    const steps = 8;
+    for (let i = 1; i <= steps; i++) {
+      const x = (W * i) / steps;
+      const y = yBase - amp * (0.35 + 0.65 * Math.abs(Math.sin(i * 2.7 + 0.6)));
+      g.quadraticCurveTo(x - (W / steps) * 0.5, y, x, yBase - amp * 0.22 * Math.abs(Math.cos(i * 1.9)));
+    }
+    g.lineTo(W, vh);
+    g.closePath();
+    g.fillStyle = fill;
+    g.fill();
+  };
+  ridge(vh * 0.70, vh * 0.30, '#0a1210');
+  ridge(vh * 0.82, vh * 0.20, '#070c09');
+
+  /* a handful of stars */
+  for (let i = 0; i < 16; i++) {
+    const x = (((i * 97) % 100) / 100) * W;
+    const y = (((i * 53) % 42) / 100) * vh;
+    g.fillStyle = `rgba(226,232,240,${0.20 + (i % 3) * 0.18})`;
+    const s = Math.max(1, W / 340);
+    g.fillRect(x, y, s, s);
+  }
+
+  /* the HD quality badge, top-right of the video: the player UI's own mark */
+  const bw = W * 0.13, bh = bw * 0.60;
+  const bx = W - bw - W * 0.045, by = W * 0.045;
+  const r = bh * 0.22;
+  g.beginPath();
+  g.moveTo(bx + r, by);
+  g.lineTo(bx + bw - r, by);
+  g.quadraticCurveTo(bx + bw, by, bx + bw, by + r);
+  g.lineTo(bx + bw, by + bh - r);
+  g.quadraticCurveTo(bx + bw, by + bh, bx + bw - r, by + bh);
+  g.lineTo(bx + r, by + bh);
+  g.quadraticCurveTo(bx, by + bh, bx, by + bh - r);
+  g.lineTo(bx, by + r);
+  g.quadraticCurveTo(bx, by, bx + r, by);
+  g.closePath();
+  g.fillStyle = 'rgba(8,12,6,0.88)';
+  g.fill();
+  g.strokeStyle = 'rgba(163,230,53,0.95)';
+  g.lineWidth = Math.max(1, W / 300);
+  g.stroke();
+  g.fillStyle = '#A3E635';
+  g.font = `bold ${Math.round(bh * 0.58)}px "Arial Black", Arial, sans-serif`;
+  g.textAlign = 'center';
+  g.textBaseline = 'middle';
+  g.fillText('HD', bx + bw / 2, by + bh / 2 + bh * 0.04);
+
+  /* the play bar: the bottom 16% */
+  g.fillStyle = 'rgba(7,10,12,0.97)';
+  g.fillRect(0, vh, W, H - vh);
+  const trackY = vh + (H - vh) * 0.40;
+  const trackH = Math.max(1.5, H * 0.014);
+  g.fillStyle = 'rgba(255,255,255,0.13)';
+  g.fillRect(W * 0.055, trackY, W * 0.89, trackH);
+  g.fillStyle = '#A3E635';
+  g.fillRect(W * 0.055, trackY, W * 0.89 * 0.38, trackH);
+  g.beginPath();
+  g.arc(W * 0.055 + W * 0.89 * 0.38, trackY + trackH / 2, Math.max(2, H * 0.017), 0, Math.PI * 2);
+  g.fillStyle = '#BEF264';
+  g.fill();
+  /* a small play triangle at the left of the bar */
+  const tri = Math.max(3, H * 0.028);
+  g.beginPath();
+  g.moveTo(W * 0.028, trackY + trackH / 2 - tri / 2);
+  g.lineTo(W * 0.028, trackY + trackH / 2 + tri / 2);
+  g.lineTo(W * 0.028 + tri * 0.85, trackY + trackH / 2);
+  g.closePath();
+  g.fillStyle = 'rgba(226,232,240,0.85)';
+  g.fill();
+
+  return c;
+}
+
+/** The two display textures: the same frame at two densities. Rebuilt once;
+ *  freed with the prop. */
+function makeDisplayTextures() {
+  const low = new THREE.CanvasTexture(paintDisplayFrame(64, 40));
+  low.magFilter = THREE.NearestFilter;
+  low.minFilter = THREE.NearestFilter;
+  low.generateMipmaps = false;
+  low.colorSpace = THREE.SRGBColorSpace;
+  const high = new THREE.CanvasTexture(paintDisplayFrame(512, 320));
+  high.magFilter = THREE.LinearFilter;
+  high.minFilter = THREE.LinearMipmapLinearFilter;
+  high.colorSpace = THREE.SRGBColorSpace;
+  return { low, high };
+}
 
 function createHDObject() {
   const group = new THREE.Group();
@@ -522,16 +639,16 @@ function createHDObject() {
   const textures = [];
   const hit = [];
 
-  /* --- Bevelled outer frame: rounded rect with a rounded-rect hole --- */
-  const frameShape = drawRoundedRect(new THREE.Shape(), 2.46, 1.86, 0.26);
-  frameShape.holes.push(drawRoundedRect(new THREE.Path(), 2.00, 1.40, 0.16));
+  /* --- Slim bevelled bezel: rounded rect with a rounded-rect hole --- */
+  const frameShape = drawRoundedRect(new THREE.Shape(), 2.30, 1.50, 0.22);
+  frameShape.holes.push(drawRoundedRect(new THREE.Path(), 2.06, 1.26, 0.14));
   const frameGeo = new THREE.ExtrudeGeometry(frameShape, {
-    depth: 0.18,
-    bevelEnabled: true, bevelThickness: 0.045, bevelSize: 0.045, bevelSegments: 4,
-    curveSegments: 16,
+    depth: 0.16,
+    bevelEnabled: true, bevelThickness: 0.035, bevelSize: 0.035, bevelSegments: 3,
+    curveSegments: 18,
   });
   frameGeo.center();
-  const frameMat = track(makeGlossy({ materialKey: 'hd', rim: 0.70, rimPower: 2.8 }));
+  const frameMat = track(makeGlossy({ materialKey: 'hd', rim: 0.72, rimPower: 2.8 }));
   const frame = new THREE.Mesh(frameGeo, frameMat);
   group.add(frame);
   materials.push(frameMat);
@@ -539,7 +656,7 @@ function createHDObject() {
 
   /* --- Backing plate: keeps the frame from reading as hollow --- */
   const plateGeo = new THREE.ExtrudeGeometry(
-    drawRoundedRect(new THREE.Shape(), 2.00, 1.40, 0.16),
+    drawRoundedRect(new THREE.Shape(), 2.06, 1.26, 0.14),
     { depth: 0.08, bevelEnabled: true, bevelThickness: 0.02, bevelSize: 0.02, bevelSegments: 2, curveSegments: 14 }
   );
   plateGeo.center();
@@ -548,30 +665,17 @@ function createHDObject() {
   group.add(new THREE.Mesh(plateGeo, plateMat));
   materials.push(plateMat);
 
-  /* --- Bezel step: a slim inner ring between the screen and the outer frame,
-     so the display sits behind a stepped, machined bezel rather than one flat
-     face. The annulus hole matches the screen exactly, so the step only reads
-     on the margin. --- */
-  const stepShape = drawRoundedRect(new THREE.Shape(), 2.10, 1.50, 0.14);
-  stepShape.holes.push(drawRoundedRect(new THREE.Path(), 1.86, 1.26, 0.12));
-  const stepGeo = new THREE.ExtrudeGeometry(stepShape, {
-    depth: 0.030, bevelEnabled: false, curveSegments: 12,
-  });
-  const stepMat = track(makeGlossy({ color: 0x070b0e, metalness: 0.2, roughness: 0.5, rim: 0.14 }));
-  const step = new THREE.Mesh(stepGeo, stepMat);
-  step.position.z = 0.012;
-  group.add(step);
-  materials.push(stepMat);
-
-  /* --- The live display --- */
+  /* --- The live display: two CanvasTextures, the wipe is the scroll --- */
+  const dispTex = makeDisplayTextures();
+  textures.push(dispTex.low, dispTex.high);
   const dispUniforms = {
+    tLow:    { value: dispTex.low },
+    tHigh:   { value: dispTex.high },
     uTime:   { value: 0 },
-    uSweep:  { value: 0 },
-    uSharp:  { value: 0.35 },
-    uGrid:   { value: 26.0 },
+    uSharp:  { value: 0 },
     uScan:   { value: 1.0 },
     uDim:    { value: 1.0 },
-    uInk:    { value: new THREE.Color(0x0a0f12) },
+    uGrid:   { value: 40.0 },
     uAccent: { value: new THREE.Color(TUNING.emissive.color) },
   };
   const dispMat = new THREE.ShaderMaterial({
@@ -580,7 +684,7 @@ function createHDObject() {
     fragmentShader: DISPLAY_FRAG,
     fog: true,
   });
-  const display = new THREE.Mesh(new THREE.PlaneGeometry(1.86, 1.26), dispMat);
+  const display = new THREE.Mesh(new THREE.PlaneGeometry(2.06, 1.26), dispMat);
   display.position.z = 0.02;
   group.add(display);
   materials.push(dispMat);
@@ -593,134 +697,86 @@ function createHDObject() {
     clearcoatRoughness: 0.05, transparent: true, opacity: 0.10, env: 2.4,
     rim: 0.30, rimPower: 3.4,
   }));
-  const glass = new THREE.Mesh(new THREE.PlaneGeometry(1.86, 1.26), glassMat);
-  glass.position.z = 0.048;
+  const glass = new THREE.Mesh(new THREE.PlaneGeometry(2.06, 1.26), glassMat);
+  glass.position.z = 0.052;
   group.add(glass);
   materials.push(glassMat);
 
-  /* --- Four lime corner brackets, one instanced draw call --- */
-  const brGeo = new THREE.ExtrudeGeometry(bracketShape(0.34, 0.055), {
-    depth: 0.05, bevelEnabled: true, bevelThickness: 0.012, bevelSize: 0.012, bevelSegments: 2,
-  });
-  const brMat = track(makeLime({ intensity: 2.1 }));
-  const brackets = new THREE.InstancedMesh(brGeo, brMat, 4);
-  const BX = 0.93, BY = 0.63;
-  const corners = [
-    { p: [-BX, BY, 0.06], r: 0 },
-    { p: [BX, BY, 0.06], r: -Math.PI / 2 },
-    { p: [BX, -BY, 0.06], r: Math.PI },
-    { p: [-BX, -BY, 0.06], r: Math.PI / 2 },
-  ];
-  corners.forEach((c, i) => {
-    _q.setFromAxisAngle(Z_AXIS, c.r);
-    _m.compose(_v.set(c.p[0], c.p[1], c.p[2]), _q, _s.setScalar(1));
-    brackets.setMatrixAt(i, _m);
-  });
-  brackets.instanceMatrix.needsUpdate = true;
-  group.add(brackets);
-  materials.push(brMat);
-
-  /* --- "HD" floating in front of the screen: a deep chamfered face with a
-     lime outline-cap on top, so each glyph reads as a lit, chamfered wedge
-     (the cap is a hair LARGER than the base, which is what turns it into a
-     tracing emissive line around the letter instead of a sticker on it). --- */
-  const LW = 0.62, LH = 0.86, LS = 0.17;
-  const letterMat = track(makeGlossy({
-    materialKey: 'hd', color: 0x11180d, rim: 1.0, rimPower: 2.6,
-  }));
-  const letters = [];
-  const CHAR = { bevel: 0.030, depth: 0.10 };
-  const hGeo = new THREE.ExtrudeGeometry(letterH(LW, LH, LS), {
-    depth: CHAR.depth, bevelEnabled: true, bevelThickness: CHAR.bevel, bevelSize: CHAR.bevel, bevelSegments: 3, curveSegments: 12,
-  });
-  const dGeo = new THREE.ExtrudeGeometry(letterD(LW * 1.12, LH, LS), {
-    depth: CHAR.depth, bevelEnabled: true, bevelThickness: CHAR.bevel, bevelSize: CHAR.bevel, bevelSegments: 3, curveSegments: 16,
-  });
-  const hLetter = new THREE.Mesh(hGeo, letterMat);
-  const dLetter = new THREE.Mesh(dGeo, letterMat);
-  const letterSpan = LW / 2 + 0.10 + (LW * 1.12) / 2;
-  hLetter.position.set(-letterSpan / 2, 0, 0.16);
-  dLetter.position.set(letterSpan / 2, 0, 0.16);
-  group.add(hLetter, dLetter);
-  letters.push(hLetter, dLetter);
-  materials.push(letterMat);
-  hit.push(hLetter, dLetter);
-
-  /* --- Lime outline caps, one per glyph, sitting flush with the letter FRONT
-     and extending 8% past its silhouette. --- */
-  const capMat = track(makeLime({ intensity: 1.7 }));
-  const CAPS = 1.08, CD = 0.015;
-  const capHGeo = new THREE.ExtrudeGeometry(letterH(LW * CAPS, LH * CAPS, LS * CAPS), {
-    depth: CD, bevelEnabled: false, curveSegments: 10,
-  });
-  const capDGeo = new THREE.ExtrudeGeometry(letterD(LW * 1.12 * CAPS, LH * CAPS, LS * CAPS), {
-    depth: CD, bevelEnabled: false, curveSegments: 14,
-  });
-  /* Base letters: front face at 0.16 + depth 0.10 + bevel 0.030 = 0.29. The cap
-     sits flush with that front (0.29 - cap depth 0.015), so the lime band is a
-     machined inlay on the glyph edge, never a face hidden behind the letter. */
-  const capZ = 0.275;
-  const capH = new THREE.Mesh(capHGeo, capMat);
-  capH.position.set(-letterSpan / 2, 0, capZ);
-  const capD = new THREE.Mesh(capDGeo, capMat);
-  capD.position.set(letterSpan / 2, 0, capZ);
-  group.add(capH, capD);
-  materials.push(capMat);
-
-  /* --- Lime hairline around the display edge --- */
-  const edgeShape = drawRoundedRect(new THREE.Shape(), 1.94, 1.34, 0.16);
-  edgeShape.holes.push(drawRoundedRect(new THREE.Path(), 1.86, 1.26, 0.14));
-  const edgeGeo = new THREE.ExtrudeGeometry(edgeShape, { depth: 0.02, bevelEnabled: false, curveSegments: 14 });
-  const edgeMat = track(makeLime({ intensity: 1.5 }));
+  /* --- Thin lime edge line around the display: a hairline annulus between the
+     screen and the bezel, the signature accent. --- */
+  const edgeShape = drawRoundedRect(new THREE.Shape(), 2.085, 1.285, 0.13);
+  edgeShape.holes.push(drawRoundedRect(new THREE.Path(), 2.055, 1.255, 0.12));
+  const edgeGeo = new THREE.ExtrudeGeometry(edgeShape, { depth: 0.018, bevelEnabled: false, curveSegments: 16 });
+  const edgeMat = track(makeLime({ intensity: 1.6 }));
   const edge = new THREE.Mesh(edgeGeo, edgeMat);
-  edge.position.z = 0.05;
+  edge.position.z = 0.04;
   group.add(edge);
   materials.push(edgeMat);
 
+  /* --- The side port (right bezel face): the recess the USB plug docks into,
+     with a lime lip that pulses as the plug lands. --- */
+  const portSlotMat = track(makeGlossy({ color: 0x04070a, metalness: 0.1, roughness: 0.8, clearcoat: 0, rim: 0 }));
+  const portSlot = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.16, 0.06), portSlotMat);
+  portSlot.position.set(1.115, 0, 0.0);
+  group.add(portSlot);
+  materials.push(portSlotMat);
+
+  const portLipMat = track(makeLime({ intensity: 1.2, metalness: 0.6, roughness: 0.25 }));
+  const lipShape = drawRoundedRect(new THREE.Shape(), 0.10, 0.19, 0.02);
+  lipShape.holes.push(drawRoundedRect(new THREE.Path(), 0.075, 0.165, 0.015));
+  const portLipGeo = new THREE.ExtrudeGeometry(lipShape, { depth: 0.014, bevelEnabled: false, curveSegments: 8 });
+  portLipGeo.rotateY(Math.PI / 2);
+  const portLip = new THREE.Mesh(portLipGeo, portLipMat);
+  portLip.position.set(1.152, 0, 0.0);
+  group.add(portLip);
+  materials.push(portLipMat);
+
+  /* --- Status LED: a tiny pulsing light on the bottom chin, with its own
+     micro halo (a power light is a point source; a grey dot would read as a
+     flaw). --- */
+  let ledHalo = null;
+  const ledMat = track(makeLime({ intensity: 2.4 }));
+  const led = new THREE.Mesh(new THREE.BoxGeometry(0.026, 0.026, 0.02), ledMat);
+  led.position.set(0.98, -0.675, 0.06);
+  group.add(led);
+  materials.push(ledMat);
+  if (_materialQuality !== 'low') {
+    ledHalo = attachHalo(group, materials, textures, {
+      scale: 0.28, position: [0.98, -0.675, 0.03],
+    });
+  }
+
   /* --- Halo: a soft additive lime glow sitting BEHIND the frame, so the
-     letters and the screen read as light sources without any bloom pass. Low
-     tier drops every halo except the network hub, so this is skip on 'low'. --- */
+     display and the edge read as light sources without any bloom pass. Low
+     tier drops every halo except the network hub. --- */
   let halo = null;
   if (_materialQuality !== 'low') {
     halo = attachHalo(group, materials, textures, {
-      scale: 1.75, position: [0, 0.05, -0.5],
+      scale: 1.55, position: [0, 0.02, -0.45],
     });
   }
 
-  /* --- Status LED: a tiny pulsing arcade light on the bottom bezel chin,
-     with its own micro halo (a power light is a point source; a grey dot would
-     read as a flaw). --- */
-  let ledHalo = null;
-  if (_materialQuality !== 'low') {
-    const ledMat = track(makeLime({ intensity: 2.4 }));
-    const led = new THREE.Mesh(new THREE.BoxGeometry(0.026, 0.026, 0.02), ledMat);
-    led.position.set(0, -0.815, 0.06);
-    group.add(led);
-    materials.push(ledMat);
-    ledHalo = attachHalo(group, materials, textures, {
-      scale: 0.30, position: [0, -0.815, 0.03],
-    });
-  }
-
-  /* --- Sweep cadence: a full pass every ~4.2s, sharp in between --- */
-  const SWEEP_PERIOD = 4.2;
+  /* --- Optional GLB swap: assets/models/hd.glb replaces the procedural build
+     when the file exists (see loadOptionalModel). Everything above stays as
+     the graceful fallback. --- */
   return {
     key: 'hd',
     group,
     materials,
     textures,
     hit,
+    glbUrl: 'assets/models/hd.glb',
     update(elapsed, dt, ctx) {
-      const t = (elapsed % SWEEP_PERIOD) / SWEEP_PERIOD;
       dispMat.uniforms.uTime.value = elapsed;
-      dispMat.uniforms.uSweep.value = t;
-      /* settle to fully sharp just after the pass, then drop back to blocky */
-      const settled = Math.max(0, 1 - Math.max(0, t - 0.86) / 0.14);
-      dispMat.uniforms.uSharp.value = 0.25 + 0.75 * settled;
+      /* uSharp IS the scroll: the blended stop value, already damped twice. */
+      const sharp = ctx ? clamp(ctx.screen ?? 0, 0, 1) : 0;
+      dispMat.uniforms.uSharp.value = sharp;
       if (ctx) dispMat.uniforms.uDim.value = 0.45 + 0.55 * Math.min(1, ctx.dim);
-      for (const l of letters) {
-        l.position.y = Math.sin(elapsed * 0.9) * 0.012;
-      }
+      /* the side port's lime lip: pulses as the plug docks, breathes while
+         docked, quiet otherwise */
+      const dock = ctx ? clamp(ctx.dock ?? 0, 0, 1) : 0;
+      portLipMat.emissiveIntensity =
+        0.35 + 1.9 * dock + dock * (0.5 + 0.5 * Math.sin(elapsed * 2.4));
       if (halo) halo.mat.opacity = (halo.mat.userData.baseHalo || TUNING.halo.opacity) * (ctx ? ctx.glow : 1);
       if (ledHalo) {
         const blink = 0.72 + 0.28 * Math.sin(elapsed * 2.3);
@@ -1065,7 +1121,7 @@ function createNetworkObject() {
     });
   }
 
-  return {
+return {
     key: 'network',
     group,
     materials,
@@ -1074,6 +1130,13 @@ function createNetworkObject() {
     update(elapsed, dt, ctx) {
       const glow = ctx ? ctx.glow : 0.7;
       const baseHalo = TUNING.halo.opacity;
+      const orbitWeight = ctx ? (ctx.orbit || 0) : 0;
+
+      /* Orbit: when in Clarity (orbitWeight > 0), rotate nodes around center
+       * in a calm, flattened ellipse — the "halo" around the HD monitor. */
+      const orbitAngle = elapsed * (TUNING.signature.orbitSpeed || 0.12) * orbitWeight;
+      const orbitFlatten = TUNING.signature.orbitFlatten || 0.62;
+      const orbitR = TUNING.signature.orbitR || 1.18;
 
       /* nodes: gentle breathing, centre node leads */
       for (let i = 0; i < nodes.length; i++) {
@@ -1081,18 +1144,31 @@ function createNetworkObject() {
         const pulse = n.centre
           ? 1.0 + 0.09 * Math.sin(elapsed * 1.15)
           : 1.0 + 0.16 * Math.sin(elapsed * 1.6 + n.phase);
-        _m.compose(n.p, _q.identity(), _s.setScalar(n.r * pulse));
+
+        let pos = n.p;
+        if (orbitWeight > 0 && !n.centre) {
+          /* Orbit non-center nodes around the center in a tilted ellipse */
+          const theta = orbitAngle + n.phase;
+          const rx = orbitR * n.r * 4.0;
+          const ry = orbitR * n.r * 4.0 * orbitFlatten;
+          pos = new THREE.Vector3(
+            Math.cos(theta) * rx,
+            n.p.y * 0.5 + Math.sin(theta) * ry * 0.3,
+            Math.sin(theta) * rx
+          );
+        }
+        _m.compose(pos, _q.identity(), _s.setScalar(n.r * pulse));
         nodeMesh.setMatrixAt(i, _m);
         /* cores beat a little faster, out of phase with their shells */
         const cp = 1.0 + (n.centre ? 0.16 : 0.24) * Math.sin(elapsed * (n.centre ? 1.9 : 2.5) + n.phase * 1.7);
-        _m.compose(n.p, _q.identity(), _s.setScalar((n.centre ? 0.30 : n.r) * 0.52 * cp));
+        _m.compose(pos, _q.identity(), _s.setScalar((n.centre ? 0.30 : n.r) * 0.52 * cp));
         coreMesh.setMatrixAt(i, _m);
       }
       nodeMesh.instanceMatrix.needsUpdate = true;
       coreMesh.instanceMatrix.needsUpdate = true;
 
-/* rings: the hub ring precesses like a saturn ring, the orbit pair turn on
-     their own tilts — two glassblowing grooves, never in lockstep. */
+      /* rings: the hub ring precesses like a saturn ring, the orbit pair turn on
+         their own tilts — two glassblowing grooves, never in lockstep. */
       hubRing.rotation.x = Math.sin(elapsed * 0.22) * 0.12;
       hubRing.rotation.z = 0.10;
       if (orbitA) {

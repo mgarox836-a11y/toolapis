@@ -218,6 +218,29 @@ export const TUNING = {
   /* ==== Float / spin ==== */
   float: { amp: 0.16, speed: 0.42, spin: 0.11 },
 
+  /* ==== Signature choreography (the HD device's own story) ====
+   * `sway`      the monitor's idle yaw sway, in radians (clamped in the
+   *             animate loop; scaled down by Clarity's calm)
+   * `swaySpeed` two-frequency float: the second frequency rides on this
+   * `dockYaw`   the USB plug's docked rotation (tip into the monitor's port)
+   * `heroYaw`   the plug's hero rotation (tip out of the copy column)
+   * `orbitR`    the constellation's orbit radius around the monitor, as a
+   *             multiple of the monitor's own half-width
+   * `orbitSpeed`  the calm halo's angular rate
+   * `orbitFlatten` the orbit's vertical squash (a tilted ellipse, not a ring)
+   * `glowPulse` the soft glow pulse that fires when the CTA card enters view
+   */
+  signature: {
+    sway: 0.30,
+    swaySpeed: 0.21,
+    dockYaw: -Math.PI / 2,
+    heroYaw: 0.55,
+    orbitR: 1.18,
+    orbitSpeed: 0.12,
+    orbitFlatten: 0.62,
+    glowPulse: 1.6,
+  },
+
   /* ==== Prop entrance (the intro's bottom-rise fly-in) =====================
    *
    * Everything the intro arrival does, in one place. The entrance is ADDITIVE:
@@ -346,19 +369,20 @@ export const TUNING = {
     twinkle: 0.25,
   },
 
-  /* ==== Obstacle measurement (phase (a)) ====
+  /* ==== Obstacle measurement (the light validator) ====
    *
    * An obstacle is the REAL extent of something the visitor reads: the line
    * boxes of a heading or a paragraph (Range.getClientRects), the box of a
    * card, pill or icon. Never the full-width section container, which used to
    * measure as a wall from margin to margin and left no gutter at all.
    * Every rect is grown by `rectPadPx` at measure time, so "clear" already
-   * means "clear with air around it" — and that same 24px is the padding the
-   * authored-anchor validator (see `layout.nudge`) checks against.
+   * means "clear with air around it".
    *
-   * `gutters` holds the MEASUREMENT parameters; `layout` (below) holds the
-   * AUTHORED PLACEMENT they validate; `props` (below) holds the SIZE and EDGE
-   * rules a designer is most likely to touch.
+   * The validator is LIGHT on purpose: it never nudges or searches. A prop
+   * whose box would overlap a TEXT obstacle fades out for that stretch of
+   * scroll (damped, at full size); a translucent CARD under a prop is a soft
+   * dim, not a collision — the prop reads as depth behind the glass. The
+   * placement itself is AUTHORED (TUNING.layout) and verified by screenshots.
    */
   gutters: {
     rectPadPx:     24,   // every measured obstacle is grown by this on all sides
@@ -366,7 +390,7 @@ export const TUNING = {
        `position: fixed` and paints an opaque (0.8 alpha) strip over the
        canvas once it is solid, so a prop that reaches into it is cut by a
        hard straight edge. The band is measured from the real navbar height
-       (floor: this value) and the solver keeps every box below it; a prop
+       (floor: this value) and the validator keeps every box below it; a prop
        close to the band fades out over `headerFadePx` instead of ending
        abruptly, so there is never a cut. Only reserved while the navbar is
        actually solid (js/scene3d.js watches the `nav-solid` class). */
@@ -376,19 +400,8 @@ export const TUNING = {
     baseDistance:   6.0,   // how far in front of the camera the props sit; the
                            // per-section depth adds to that DISTANCE, and the
                            // solver unprojects to it (never to a remembered z)
-    /* A dim a prop takes when it has to sit behind a translucent card. */
+    /* A dim a prop takes when a translucent card sits behind it. */
     softDim:      0.62,
-    /* Minimum GAP in screen px between two props' boxes, so they never
-     * intersect. One number, one place, so it can never disagree with itself. */
-    minSeparationPx: 28,
-    /* The centre-distance rule (the validator's own): two props whose boxes
-       share a horizontal BAND must keep their CENTRES at least
-       `minSeparationRatio * (sizeA + sizeB)` apart — a ratio on the sizes the
-       props actually draw, not on their shared gutters. The edge-gap rule
-       above only applies between props sharing the SAME SIDE, so a left prop
-       and a right prop may sit on adjacent rows without a 28px moat between
-       them, while same-column neighbours keep a hard gap. */
-    minSeparationRatio: 0.6,
   },
 
   /* ==== Per-prop size + edge rules ====
@@ -408,9 +421,8 @@ export const TUNING = {
    *                      sliced by a hard line. Fades combine with the band,
    *                      never hard cuts.
    * A prop is never made smaller to make it fit: an authored rect that cannot
-   * be placed is NUDGED, and if the nudge fails the prop FADES OUT at full
-   * size (see TUNING.layout.nudge). These are the FLOORS; the world-scale caps
-   * below are the CEILINGS.
+   * be placed FADES OUT at full size. These are the FLOORS; the world-scale
+   * caps below are the CEILINGS.
    */
   props: {
     maxScreenFraction: 0.30,
@@ -420,47 +432,29 @@ export const TUNING = {
     minOpacity:      0.75,
     edgePadPx:        32,
     footerFadePx:    180,
-    /* Crop support — STRUCTURE ONLY, and kept dead on purpose.
-     * `edgeCropMax` is how much of a prop's box may sit PAST the viewport
-     * edge (beyond `edgePadPx`) and still pass the validator's rect check —
-     * a prop drawn cropped off the side instead of faded or nudged. It is 0,
-     * so NO prop is ever cropped: the validator still demands the whole box
-     * inside the band, and the solver still measures `croppedPx` on every
-     * candidate so the debug overlay can always show the crop a nonzero value
-     * would have allowed. The guard is the screen's vertical centre line: a
-     * prop may only crop the edge on the SIDE its centre already sits on, so
-     * cropping can never drag a right-side prop half off the left edge. */
-    edgeCropMax:      0,
     /* `maxWorldScale` is SOFT — it keeps the authored size in check, and the
-       size floor below outranks it, so a floor is always reachable. `fit` is
-       the hard ceiling: it comes from the measured box. */
+       size floor below outranks it. `fit` is the hard ceiling from the
+       measured box. */
     hd:      { fit: 3.2, maxWorldScale: 2.2 },
-    /* `cableOutward` yaws the whole plug so its long axis (and the cable)
-       points AWAY from the text column, and the cable geometry itself is
-       short, so in the hero it curls out of frame instead of across the
-       headline. */
-    usb:     { fit: 2.4, maxWorldScale: 2.2, cableOutward: true, yaw: 1.05 },
+    /* The cable mesh is excluded from the bounds measurement, so the plug's
+       box never includes the faded tail that trails off-screen right. */
+    usb:     { fit: 2.4, maxWorldScale: 2.2 },
     network: { fit: 2.6, maxWorldScale: 2.2 },
   },
 
-  /* ==== AUTHORED LAYOUT + VALIDATOR ====
+  /* ==== AUTHORED LAYOUT + LIGHT VALIDATOR ====
    *
    * Placement is AUTHORED, not searched. Every section says where each prop
-   * sits, in VIEWPORT FRACTIONS, and the solver's only job is to check that
-   * decision and rescue it when the page underneath disagrees:
+   * sits, in VIEWPORT FRACTIONS, and the validator's only job is to check
+   * that decision against the measured page:
    *
    *   x      0..1   centre of the prop, as a fraction of the viewport width
    *   y      0..1   centre of the prop, as a fraction of the viewport HEIGHT
    *                 (0 = the top edge, 1 = the bottom edge)
    *   size   0..1   how big the prop reads, as a fraction of the viewport
-   *                 width: the DOMINANT dimension of its projected box, so a
-   *                 tall prop and a wide one are both sized by what you see
-   *                 (and a prop mid-spin cannot slip under the size floor)
+   *                 width: the DOMINANT dimension of its projected box
    *   opacity 0..1   0 = authored HIDDEN in this section. It is still
    *                 validated, and it is damped, so it fades rather than cuts.
-   *   alt    { x, y, size }  a second authored position, tried when the first
-   *                 one collides — how a prop moves from the right gutter to
-   *                 the left one without a search
    *
    * Three breakpoint variants per entry (`layoutVariant()` picks one):
    *
@@ -470,13 +464,12 @@ export const TUNING = {
    *   mobile   <   700px                        — authored hidden: the page
    *                                               is a single full-bleed column
    *
-   * THE VALIDATOR (js/scroll.js). The prop's projected screen box is compared
-   * against the measured obstacles (already padded by gutters.rectPadPx, 24px)
-   * and against the props placed before it. On a collision it nudges along the
-   * nearest free direction, at most `nudge.maxFrac` of the viewport, trying
-   * `alt` first. If nothing inside that budget is free, the prop's opacity
-   * goes to 0 for this section: a damped fade at FULL size, never a shrink,
-   * never a hard cut.
+   * THE LIGHT VALIDATOR (js/scroll.js). The prop's projected screen box is
+   * compared against the measured obstacles (already padded by
+   * gutters.rectPadPx, 24px). On a TEXT overlap the prop's opacity goes to 0
+   * for this stretch of scroll: a damped fade at FULL size, never a shrink,
+   * never a nudge, never a hard cut. A translucent card under a prop is a
+   * soft dim, not a collision.
    *
    * `band` is the vertical band a prop's box must stay inside — from below the
    * reserved sticky-header band down to `band.bottom`, the footer band. A prop
@@ -486,12 +479,6 @@ export const TUNING = {
   layout: {
     breakpoints: { desktop: 1100, tablet: 700 },
     band: { top: 0.06, bottom: 0.93 },
-    nudge: {
-      maxFrac: 0.15,                                   // of the viewport
-      steps: [0.04, 0.08, 0.12, 0.15],                  // fractions of the viewport
-      dirs: [[0, -1], [0, 1], [-1, 0], [1, 0],
-             [-0.7, -0.7], [0.7, -0.7], [-0.7, 0.7], [0.7, 0.7]],
-    },
     /* Obstacle collection rules (js/scroll.js -> measureContent). */
     obstacle: {
       /* Anything wider than this is a WRAPPER, not content: a full-width
@@ -504,123 +491,135 @@ export const TUNING = {
     },
 
     /* ------------------------------------------------------------------
-     * The composition. The desktop values are the authored design; each one
-     * carries a comment saying WHY it is there.
+     * The composition — ONE signature object, two hero supporters.
+     *
+     * The HD device (slim glass monitor) is the constant: it presides over the
+     * page from the top-right strip (features/flow) and settles centered-right
+     * (clarity), sized in viewport fractions of the DOMINANT projected
+     * dimension. The measured page at 1366x768 puts the free space exactly
+     * there (verified by tools/shot.mjs screenshots):
+     *
+     *   features  heading/paragraph end at x0.54, the wide tile starts y0.35;
+     *             the strip between the nav CTA (y0.07) and the tile is free
+     *             right of x0.55 -> the monitor hovers at (0.80, 0.22)
+     *   flow      steps row spans y0.45..0.54 full width; the same top-right
+     *             strip is free -> the monitor stays at (0.80, 0.22) and the
+     *             USB docks into its right-side port at (0.915, 0.22)
+     *   clarity   the CTA card is one centered translucent panel; its copy
+     *             ends at x0.75 -> the monitor settles behind the card's right
+     *             at (0.865, 0.45), clear of every padded text box
+     *
+     * The supporters are hero-only: the plug in the left gutter (0.09), the
+     * constellation upper-right (0.86, 0.20). Both are damped anchors, NOT
+     * searched: the validator only fades what the copy leaves no room for.
      * ------------------------------------------------------------------ */
     sections: {
-      /* HERO. The copy column is centred and narrower than the page, so both
-       * gutters are real: the plug in the left one with its cable yawed
-       * OUTWARD (props.usb.cableOutward) sits lower and smaller, the
-       * constellation is higher upper-right, the HD frame sits right and just
-       * below it — a tight diagonal across the top-right corner. */
+      /* HERO — the copy column is centred (max-w-2xl, ends ~x0.75), so the
+       * right side is free: the monitor presides right of the headline at x0.87,
+       * the constellation floats above it at x0.86/y0.15, the plug hugs the
+       * left gutter at x0.11. All sized above the floor (0.12 vw). */
       hero: {
+        hd: {
+          desktop: { x: 0.87, y: 0.45, size: 0.20 },
+          tablet:  { x: 0.88, y: 0.30, size: 0.20 },
+          mobile:  { x: 0.90, y: 0.30, size: 0.18, opacity: 0 },
+        },
         usb: {
-          desktop: { x: 0.09, y: 0.63, size: 0.11 },
-          tablet:  { x: 0.12, y: 0.74, size: 0.12 },
-          mobile:  { x: 0.14, y: 0.80, size: 0.11, opacity: 0 },
+          desktop: { x: 0.11, y: 0.65, size: 0.13 },
+          tablet:  { x: 0.14, y: 0.76, size: 0.14 },
+          mobile:  { x: 0.16, y: 0.82, size: 0.13, opacity: 0 },
         },
         network: {
-          desktop: { x: 0.87, y: 0.20, size: 0.10 },
-          tablet:  { x: 0.88, y: 0.20, size: 0.11, opacity: 0 },
-          mobile:  { x: 0.90, y: 0.18, size: 0.10, opacity: 0 },
-        },
-        hd: {
-          desktop: { x: 0.88, y: 0.55, size: 0.15 },
-          tablet:  { x: 0.86, y: 0.32, size: 0.20 },
-          mobile:  { x: 0.88, y: 0.30, size: 0.18, opacity: 0 },
+          desktop: { x: 0.86, y: 0.15, size: 0.12 },
+          tablet:  { x: 0.88, y: 0.15, size: 0.13, opacity: 0 },
+          mobile:  { x: 0.90, y: 0.15, size: 0.13, opacity: 0 },
         },
       },
 
-      /* OVERVIEW — the three tool cards. That row spans the full content width
-       * at every breakpoint, so there is no side gutter to compose in: the
-       * props step into the free strips above and below the row instead, and
-       * the validator still fades out whatever the page leaves no room for. */
+      /* OVERVIEW — the three tool cards span the full content width, so the
+       * monitor rides the free strip above the row and the supporters fade
+       * out through the section (their story is told). */
       overview: {
         hd: {
-          desktop: { x: 0.50, y: 0.10, size: 0.13 },
+          desktop: { x: 0.86, y: 0.12, size: 0.14 },
           tablet:  { x: 0.50, y: 0.09, size: 0.14, opacity: 0 },
           mobile:  { x: 0.50, y: 0.09, size: 0.14, opacity: 0 },
         },
         usb: {
-          desktop: { x: 0.10, y: 0.90, size: 0.11 },
+          desktop: { x: 0.09, y: 0.90, size: 0.09, opacity: 0 },
           tablet:  { x: 0.10, y: 0.92, size: 0.12, opacity: 0 },
           mobile:  { x: 0.10, y: 0.92, size: 0.12, opacity: 0 },
         },
         network: {
-          desktop: { x: 0.90, y: 0.90, size: 0.10 },
+          desktop: { x: 0.88, y: 0.16, size: 0.08, opacity: 0 },
           tablet:  { x: 0.90, y: 0.92, size: 0.11, opacity: 0 },
           mobile:  { x: 0.90, y: 0.92, size: 0.11, opacity: 0 },
         },
       },
 
-      /* FEATURES — per scroll, the row that is in view. "Small hub"s heading and
-       * paragraph sit at the top-left, so the HD frame steps INWARD to the
-       * space right of that copy (0.78, higher), the constellation sits just
-       * below it inside the same free column, and the plug takes the right
-       * gutter between the rows with the LEFT gutter as its authored `alt`
-       * when the right one is taken. */
+      /* FEATURES — the monitor hovers in the free top-right strip above the
+       * wide tile (heading/paragraph end ~x0.54, tile starts y0.35), screen
+       * wiping from pixel to sharp; the plug is parked off right edge (Flow
+       * dock next), constellation hidden. */
       features: {
         hd: {
-          desktop: { x: 0.78, y: 0.24, size: 0.14 },
+          desktop: { x: 0.80, y: 0.22, size: 0.20 },
           tablet:  { x: 0.50, y: 0.12, size: 0.16, opacity: 0 },
           mobile:  { x: 0.50, y: 0.12, size: 0.16, opacity: 0 },
         },
         usb: {
-          desktop: { x: 0.90, y: 0.42, size: 0.09, alt: { x: 0.04, y: 0.42 } },
+          desktop: { x: 1.15, y: 0.22, size: 0.09, opacity: 0 },
           tablet:  { x: 0.50, y: 0.88, size: 0.13, opacity: 0 },
           mobile:  { x: 0.50, y: 0.88, size: 0.13, opacity: 0 },
         },
         network: {
-          desktop: { x: 0.63, y: 0.30, size: 0.10 },
+          desktop: { x: 0.50, y: 0.50, size: 0.08, opacity: 0 },
           tablet:  { x: 0.50, y: 0.88, size: 0.12, opacity: 0 },
           mobile:  { x: 0.50, y: 0.88, size: 0.12, opacity: 0 },
         },
       },
 
-      /* FLOW — the free column right of the heading and paragraph, all three
-       * props in a tight vertical stack above the step row: the HD frame and
-       * the constellation share the top band side by side, the plug drops in
-       * below them. Nothing ever goes over the three steps, their icons or
-       * their captions. */
+      /* FLOW — the monitor holds the same spot (it is the constant) and the
+       * USB slides in from the right edge to dock into its side port at
+       * x0.915; the cable trails off-screen right, away from the copy. */
       flow: {
         hd: {
-          desktop: { x: 0.70, y: 0.27, size: 0.14 },
+          desktop: { x: 0.80, y: 0.22, size: 0.20 },
           tablet:  { x: 0.50, y: 0.14, size: 0.16, opacity: 0 },
           mobile:  { x: 0.50, y: 0.14, size: 0.16, opacity: 0 },
         },
+        usb: {
+          desktop: { x: 0.915, y: 0.22, size: 0.11 },
+          tablet:  { x: 0.50, y: 0.88, size: 0.13, opacity: 0 },
+          mobile:  { x: 0.50, y: 0.88, size: 0.13, opacity: 0 },
+        },
         network: {
-          desktop: { x: 0.52, y: 0.27, size: 0.10 },
+          desktop: { x: 0.50, y: 0.50, size: 0.08, opacity: 0 },
           tablet:  { x: 0.50, y: 0.88, size: 0.12, opacity: 0 },
           mobile:  { x: 0.50, y: 0.88, size: 0.12, opacity: 0 },
         },
-        usb: {
-          desktop: { x: 0.88, y: 0.27, size: 0.10 },
-          tablet:  { x: 0.50, y: 0.88, size: 0.13, opacity: 0 },
-          mobile:  { x: 0.50, y: 0.88, size: 0.13, opacity: 0 },
-        },
       },
 
-      /* CLARITY — symmetric about the CTA card's vertical centre: a mirrored
-       * pair flanking the panel (the constellation slightly tighter to the
-       * panel than the HD frame), nothing under the buttons. The plug is
-       * authored HIDDEN: at x0.50/y0.86 it would touch the footer band at
-       * every size at or above the floor, and the floor is never broken to
-       * make room for it. */
+      /* CLARITY — the monitor settles centered-right behind the CTA card's
+       * right (the card is translucent glass, so it reads as a backlit glow),
+       * clear of every padded text box; the constellation undocks and orbits
+       * it as a calm halo (the stop's `orbit` weight). The plug fades away
+       * below: its story is over. */
       clarity: {
         hd: {
-          desktop: { x: 0.15, y: 0.47, size: 0.13 },
+          desktop: { x: 0.865, y: 0.45, size: 0.18 },
           tablet:  { x: 0.10, y: 0.32, size: 0.15 },
           mobile:  { x: 0.10, y: 0.32, size: 0.15, opacity: 0 },
         },
-        network: {
-          desktop: { x: 0.85, y: 0.47, size: 0.12 },
-          tablet:  { x: 0.90, y: 0.32, size: 0.14 },
-          mobile:  { x: 0.90, y: 0.32, size: 0.14, opacity: 0 },
-        },
         usb: {
-          desktop: { x: 0.50, y: 0.86, size: 0.09, opacity: 0 },
+          desktop: { x: 0.50, y: 0.90, size: 0.08, opacity: 0 },
           tablet:  { x: 0.50, y: 0.88, size: 0.13, opacity: 0 },
           mobile:  { x: 0.50, y: 0.88, size: 0.13, opacity: 0 },
+        },
+        network: {
+          desktop: { x: 0.865, y: 0.45, size: 0.075, opacity: 0 },
+          tablet:  { x: 0.90, y: 0.32, size: 0.14 },
+          mobile:  { x: 0.90, y: 0.32, size: 0.14, opacity: 0 },
         },
       },
     },
@@ -716,59 +715,72 @@ export const STOPS = [
     id: 'hero',
     cam: [0, 0.15, 8.4], look: [0, 0.05, 0], fov: 42, yaw: 0.00,
     converge: 0,
-    /* The plug sits deep in the left gutter with its cable yawed OUTWARD
-     * (props.usb.cableOutward) so it curls away from the headline; the
-     * constellation is the furthest back of the three. */
+    /* The display story: 0 = fully pixelated low-res. The wipe is the scroll. */
+    screen: 0,
+    dock: 0,
+    orbit: 0,
     anchors: {
       hd:      { z:  0.0, dim: 1.00 },
       usb:     { z: -0.4, dim: 0.95 },
-      network: { z: -1.8, dim: 0.85 },
+      network: { z: -0.8, dim: 0.90 },
     },
   },
   {
     id: 'overview',
-    cam: [0.5, -0.4, 9.2], look: [0, 0.30, 0], fov: 44, yaw: 0.28,
+    cam: [0.5, -0.3, 9.0], look: [0, 0.20, 0], fov: 43, yaw: 0.10,
     converge: 0,
+    /* The wipe is crossing the display on the way to Features. */
+    screen: 0.45,
+    dock: 0,
+    orbit: 0,
     anchors: {
-      hd:      { z:  0.2, dim: 0.90 },
-      usb:     { z: -0.6, dim: 0.88 },
-      network: { z: -2.0, dim: 0.80 },
+      hd:      { z:  0.2, dim: 0.95 },
+      usb:     { z: -0.6, dim: 0.80 },
+      network: { z: -1.2, dim: 0.80 },
     },
   },
   {
     id: 'features',
-    cam: [1.8, 1.2, 10.0], look: [0, -0.20, 0], fov: 46, yaw: -0.42,
+    cam: [1.2, 0.9, 9.6], look: [0.3, 0.0, 0], fov: 45, yaw: -0.15,
     converge: 0,
+    /* The "upscale" story lands: the display is fully sharp. */
+    screen: 1,
+    dock: 0,
+    orbit: 0,
     anchors: {
-      hd:      { z:  0.8, dim: 1.05 },
-      usb:     { z: -1.0, dim: 0.95 },
-      network: { z: -2.2, dim: 0.85 },
+      hd:      { z:  0.4, dim: 1.05 },
+      usb:     { z: -1.0, dim: 0.85 },
+      network: { z: -1.6, dim: 0.75 },
     },
   },
   {
     id: 'flow',
-    cam: [-2.0, -0.5, 10.4], look: [0, 0.45, 0], fov: 47, yaw: 0.62,
+    cam: [-1.2, 0.4, 9.8], look: [-0.2, 0.10, 0], fov: 46, yaw: 0.20,
     converge: 0,
-    flow: 1,
-    /* The HD frame is size-capped here so it reads as a prop rather than the
-     * tower it used to be, riding the gap above the step row. */
+    screen: 1,
+    /* The USB plug is docked into the monitor's side port. */
+    dock: 1,
+    orbit: 0,
     anchors: {
-      hd:      { z: -0.6, dim: 0.90, sizeCap: 0.74 },
-      usb:     { z:  0.0, dim: 1.00 },
-      network: { z: -0.8, dim: 0.92 },
+      hd:      { z:  0.4, dim: 1.05 },
+      usb:     { z:  0.3, dim: 1.10 },
+      network: { z: -1.8, dim: 0.75 },
     },
   },
   {
     id: 'clarity',
-    cam: [0, 0.6, 11.4], look: [0, 0.1, 0], fov: 45, yaw: 0.00,
-    /* Calm: the spin and the parallax drop away, and the mirrored pair flanks
-     * the CTA card at its own vertical centre. */
+    cam: [0, 0.4, 10.6], look: [0.1, 0.10, 0], fov: 45, yaw: 0.00,
+    /* Calm: the spin and the parallax drop away, the monitor settles
+     * centered-right behind the CTA card's right, and the constellation
+     * orbits it as a calm halo. */
     converge: 1,
-    flow: 0,
+    screen: 1,
+    dock: 0,
+    orbit: 1,
     anchors: {
-      hd:      { z: -1.0, dim: 0.78 },
-      usb:     { z: -1.0, dim: 0.78 },
-      network: { z: -1.6, dim: 0.72 },
+      hd:      { z:  0.0, dim: 0.90 },
+      usb:     { z: -1.0, dim: 0.70 },
+      network: { z: -0.2, dim: 0.90 },
     },
   },
 ];
@@ -787,7 +799,7 @@ export function layoutVariant(width) {
 
 /** A never-null, always COMPLETE authored anchor: the requested variant, else
  *  the desktop one, else a hidden, dead-centre fallback the validator can still
- *  move. Complete means every number is a number — a variant that only wants to
+ *  fade. Complete means every number is a number — a variant that only wants to
  *  hide a prop says `opacity: 0` and inherits the rest, and the blend in
  *  js/scroll.js can never be handed an `undefined` to lerp. */
 export function authoredAnchor(sectionId, key, variant) {
@@ -799,7 +811,6 @@ export function authoredAnchor(sectionId, key, variant) {
     y: a.y ?? 0.5,
     size: a.size ?? 0.12,
     opacity: a.opacity ?? 1,
-    alt: a.alt || null,
   };
 }
 
