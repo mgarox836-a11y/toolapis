@@ -67,6 +67,21 @@ const state = {
   pixelRatio: 1,
   running: false,
   rafId: 0,
+  /* Wall-clock of the last frame that actually ran. The watchdog compares it
+     against `TUNING.loop.staleMs` to notice a loop that stopped without being
+     told to (a dropped rAF, a context loss that never restored). */
+  lastFrameAt: 0,
+  /* Smoothed gap between consecutive frames, in ms. `dt` is clamped, so this is
+     the only place the loop's REAL cadence is visible — and the watchdog needs
+     it to tell a slow frame from a dead one. */
+  framePeriodMs: 16.7,
+  watchdogId: 0,
+  /* The WebGL context is gone; the loop is parked until it comes back. */
+  contextLost: false,
+  /* per-subsystem failure accounting, keyed by name -> { fails, disabled } */
+  subsystems: {},
+  /* the frame-level catch net fires at most once, for the same reason */
+  loopErrorReported: false,
   inView: true,
   reduced: false,
   elapsed: 0,
@@ -106,6 +121,10 @@ const state = {
 
   /* per-prop world-space half extents, measured from its bounding box */
   bounds: {},
+
+  /* the last solved placements, kept so the debug overlay can be drawn as its
+     own frame step (and isolated there) instead of from inside placeObjects */
+  lastPlaces: null,
 };
 
 /* scratch — the frame loop allocates nothing. `screen`/`dock`/`orbit` are the
@@ -141,6 +160,68 @@ function warn(...args) {
  *  swallowed throw is the one bug that is impossible to report later. */
 function degrade(message, err) {
   console.error('[scene3d]', message, err);
+}
+
+/* ============================================================================
+ * 2b. LOOP RESILIENCE
+ * ----------------------------------------------------------------------------
+ * The frame loop is the one piece of this module that must never die. A single
+ * throw anywhere in a subsystem update used to stop every subsequent frame and
+ * leave the page with a frozen 3D layer and nothing in the console but the
+ * original error. Two mechanisms prevent that:
+ *
+ *   runSubsystem()  each update runs in its own try/catch. A subsystem that
+ *                   throws is counted; the FIRST failure is logged in full,
+ *                   repeats are counted silently so a persistent fault cannot
+ *                   flood the console at 60fps, and after
+ *                   `maxSubsystemFailures` consecutive throws the subsystem is
+ *                   disabled — only that one, so the rest of the scene keeps
+ *                   running at full rate.
+ *   animate()       schedules the next requestAnimationFrame BEFORE any work,
+ *                   and does the work inside try/finally, so even an error that
+ *                   escapes every subsystem guard still leaves a live loop.
+ * ==========================================================================*/
+
+/**
+ * Runs one subsystem update, isolated. Returns true if it completed.
+ *
+ * @param {string} name  stable id, used for the log line and the counters
+ * @param {function} fn  the update
+ */
+function runSubsystem(name, fn) {
+  const S = state.subsystems[name] || (state.subsystems[name] = { fails: 0, disabled: false, reported: false });
+  if (S.disabled) return false;
+  try {
+    fn();
+    /* Any success clears the streak, so an intermittent fault never trips the
+       disable on failures that were never actually consecutive. */
+    S.fails = 0;
+    return true;
+  } catch (err) {
+    S.fails++;
+    if (!S.reported) {
+      S.reported = true;
+      console.error(`[scene3d] subsystem "${name}" threw; isolating it`, err);
+    }
+    if (S.fails >= TUNING.loop.maxSubsystemFailures) {
+      S.disabled = true;
+      console.error(
+        `[scene3d] subsystem "${name}" failed ${S.fails} times in a row — disabled. `
+        + 'The rest of the scene keeps running.'
+      );
+    }
+    return false;
+  }
+}
+
+/** True for a number that is safe to feed a transform or a shader uniform. */
+function isFiniteNum(v) {
+  return typeof v === 'number' && Number.isFinite(v);
+}
+
+/** True when every number in a THREE.Vector3 is finite. */
+function vec3Finite(v) {
+  return isFiniteNum(v.x) && isFiniteNum(v.y) && isFiniteNum(v.z);
 }
 
 /** WebGL capability probe — runs before we touch the DOM. */
@@ -769,6 +850,8 @@ function placeObjects(s, dt, elapsed, scrollY) {
      them at or above their floor, keep them apart, and unproject the box
      CENTRE — in that order, so nothing can overlap. */
   const places = state.engine.layout(s, scrollY, state.camera, state.bounds);
+  /* Kept for the debug overlay, which is its own frame step now. */
+  state.lastPlaces = places;
 
   for (const key of OBJ_KEYS) {
     const o = state.objects[key];
@@ -922,13 +1005,71 @@ function placeObjects(s, dt, elapsed, scrollY) {
     _objCtx.screen = s.screen;
     _objCtx.dock = s.dock;
     _objCtx.orbit = s.orbit;
-    o.obj.update(elapsed, dt, _objCtx);
+    /* Per-prop isolation: one prop's own animation throwing must not take the
+       other two with it, and must not stop the anchor damping above. */
+    runSubsystem(`prop:${key}`, () => o.obj.update(elapsed, dt, _objCtx));
+
+    /* Whatever this prop just wrote, it has to be drawable. A NaN here is
+       unrecoverable on its own — every later frame multiplies it — so the prop
+       is snapped back to the section's own anchor with no residual motion. */
+    sanitizeProp(o, key, s);
+  }
+}
+
+/**
+ * Per-frame health check on one prop's transform. Anything non-finite (a NaN
+ * from a zero-distance unproject, a division by a zero fov, a lost context) is
+ * reset to the authored pose and the prop's damped state is zeroed, so the next
+ * frame starts clean instead of compounding the bad value. Warns once per prop
+ * per session — a prop that is NaN every frame would otherwise say so 60 times
+ * a second.
+ */
+function sanitizeProp(o, key, s) {
+  const a = o.anchor;
+  const g = o.group;
+  const q = g.quaternion;
+  const bad =
+    !vec3Finite(a.position) || !vec3Finite(g.position) ||
+    !isFiniteNum(g.scale.x) || !isFiniteNum(g.scale.y) || !isFiniteNum(g.scale.z) ||
+    !isFiniteNum(q.x) || !isFiniteNum(q.y) || !isFiniteNum(q.z) || !isFiniteNum(q.w) ||
+    !isFiniteNum(o.opacity) || !isFiniteNum(o.spinY) ||
+    !isFiniteNum(g.rotation.x) || !isFiniteNum(g.rotation.y) || !isFiniteNum(g.rotation.z) ||
+    /* Beyond this magnitude it is not "drifted", it is an unproject that lost
+       its denominator. */
+    Math.abs(a.position.x) > TUNING.loop.maxAbs ||
+    Math.abs(a.position.y) > TUNING.loop.maxAbs ||
+    Math.abs(a.position.z) > TUNING.loop.maxAbs;
+  if (!bad) return;
+
+  if (!o.nanWarned) {
+    o.nanWarned = true;
+    console.warn(`[scene3d] ${key} went non-finite — reset to its section anchor`);
   }
 
-  if (TUNING.debug) {
-    drawDebugOverlay(places);
-    logPlacement(places, s.sectionId);
-  }
+  /* Back to the world position the solver just committed for THIS section, so
+     the prop lands exactly where the layout says it belongs — with every damped
+     term at rest, which is what "zero velocity" means here: no spin, no hover,
+     no focus, no residual lag chasing the anchor. `o.target` is that solved
+     position (written moments earlier in placeObjects); if the SOLVE went
+     non-finite too there is no position to recover, so the prop parks at the
+     world origin on its section's own depth rather than at an invented one. */
+  const anchor = s.anchors[key] || {};
+  if (vec3Finite(o.target)) a.position.copy(o.target);
+  else a.position.set(0, 0, isFiniteNum(anchor.z) ? anchor.z : 0);
+  g.position.set(0, 0, 0);
+  g.scale.setScalar(o.baseScale);
+  g.quaternion.identity();
+  g.rotation.set(0, 0, 0);
+  o.opacity = 1;
+  o.opacityVis = 1;
+  o.spinY = 0;
+  o.hover = 0;
+  o.hoverTarget = 0;
+  o.focus = 0;
+  o.introK = 1;
+  o.introP = 1;
+  if (o.obj && isFiniteNum(o.obj.outwardYaw)) o.obj.outwardYaw = 0;
+  if (o.obj && isFiniteNum(o.obj.outwardTarget)) o.obj.outwardTarget = 0;
 }
 
 /* ============================================================================
@@ -1269,64 +1410,121 @@ function renderOnce() {
   if (TUNING.debug) drawDebugOverlay(places);
 }
 
+/**
+ * One frame.
+ *
+ * The next requestAnimationFrame is booked BEFORE any work happens, so nothing
+ * below — not a throw in a subsystem, not an exception escaping every guard —
+ * can leave the scene without a live loop. The work is additionally in
+ * try/finally: the catch is a last-resort net (and the only place that can
+ * report an error no subsystem claimed), the finally just re-arms the watchdog
+ * bookkeeping. Everything that can throw lives in a `runSubsystem` call, so in
+ * practice this catch almost never fires.
+ */
 function animate(now) {
-  if (!state.running) return;
+  if (!state.running || state.contextLost) return;
   state.rafId = requestAnimationFrame(animate);
 
-  const dt = Math.min((now - state.lastTime) / 1000, 0.05); /* clamp after tab switches */
-  state.lastTime = now;
-  state.elapsed += dt;
-  updateEntrance(now);
-  /* Before the intro is done the page is locked to the hero, so the scene must
-     be too. Reading `window.scrollY` here would let a restored scroll position
-     (or a stray touch) drag the whole 3D layout mid-intro. */
-  const scrollY = state.scrollUnlocked || state.reduced
-    ? (window.scrollY || window.pageYOffset || 0)
-    : 0;
+  try {
+    /* dt: clamped at both ends. The upper bound absorbs a tab switch or a long
+       GC pause, so the dampers take one finite step instead of teleporting; the
+       lower bound means a repeated timestamp (or a clock that did not advance)
+       integrates as zero rather than going negative. */
+    const rawDt = (now - state.lastTime) / 1000;
+    const dt = clamp(isFiniteNum(rawDt) ? rawDt : 0, 0, TUNING.loop.maxDt);
+    state.lastTime = now;
+    state.lastFrameAt = now;
+    state.elapsed += dt;
 
-  let s = state.engine.out;
-  if (!state.reduced) {
-    state.progressTarget = state.engine.computeProgress(scrollY);
-    state.progress = damp(state.progress, state.progressTarget, TUNING.scroll.damping, dt);
-    s = state.engine.sample(state.progress, scrollY);
-    state.yaw = damp(state.yaw, s.yaw, TUNING.scroll.damping, dt);
+    /* The loop's own cadence, unsmoothed by the dt clamp so the watchdog can
+       tell a slow frame from a dead loop.
 
-    state.pointerSmooth.x = damp(state.pointerSmooth.x, state.pointer.x, TUNING.parallax.damping, dt);
-    state.pointerSmooth.y = damp(state.pointerSmooth.y, state.pointer.y, TUNING.parallax.damping, dt);
-    /* the dust field settles (and wakes) at its own rate, independent of the
-       parallax that drives the camera */
-    state.dustActive = damp(state.dustActive, state.pointerActive ? 1 : 0, TUNING.dust.fade, dt);
-  }
+       The sample is capped rather than discarded. A hard cutoff at 1s was wrong:
+       on software GL a frame legitimately takes 700-1000ms, so every real
+       sample got thrown away and the average stayed pinned at its 16.7ms seed —
+       which made every slow frame look like a hang. Capping at 2s keeps a real
+       freeze (which only ever arrives as one capped outlier, at 10% weight)
+       from dragging the average up, while still letting a genuinely slow loop
+       raise its own bar. */
+    if (isFiniteNum(rawDt) && rawDt > 0) {
+      state.framePeriodMs = state.framePeriodMs * 0.9 + Math.min(rawDt, 2) * 1000 * 0.1;
+    }
 
-  /* --- Scroll velocity -> spin / tilt / stretch / particle streaks --- */
-  const rawVel = state.reduced
-    ? 0
-    : clamp(Math.abs(scrollY - state.lastScrollY) / Math.max(dt, 1e-4) / TUNING.velocity.max, 0, 1);
-  state.lastScrollY = scrollY;
-  state.velocity = damp(state.velocity, rawVel, TUNING.velocity.damping, dt);
+    runSubsystem('entrance', () => updateEntrance(now));
 
-  applySample(s);
-  state.camera.position.x += state.pointerSmooth.x * TUNING.parallax.strength * 0.30;
-  state.camera.position.y -= state.pointerSmooth.y * TUNING.parallax.strength * 0.20;
+    /* Before the intro is done the page is locked to the hero, so the scene must
+       be too. Reading `window.scrollY` here would let a restored scroll position
+       (or a stray touch) drag the whole 3D layout mid-intro. */
+    const scrollY = state.scrollUnlocked || state.reduced
+      ? (window.scrollY || window.pageYOffset || 0)
+      : 0;
 
-  updateRaycast();
-  updateFocus();
-  placeObjects(s, dt, state.elapsed, scrollY);
+    let s = state.engine.out;
+    if (!state.reduced) {
+      state.progressTarget = state.engine.computeProgress(scrollY);
+      state.progress = damp(state.progress, state.progressTarget, TUNING.scroll.damping, dt);
+      s = state.engine.sample(state.progress, scrollY);
+      state.yaw = damp(state.yaw, s.yaw, TUNING.scroll.damping, dt);
 
-  if (state.props) state.props.update(state.elapsed);
-  if (state.particles) {
-    const mat = state.particles.material;
-    mat.uniforms.uTime.value = state.elapsed;
-    mat.uniforms.uStreak.value = state.velocity * TUNING.velocity.streak;
-    if (mat.uniforms.uPointer) {
-      updateDustPointer(mat);
-      mat.uniforms.uPointerStr.value = state.dustActive * TUNING.dust.strength;
+      state.pointerSmooth.x = damp(state.pointerSmooth.x, state.pointer.x, TUNING.parallax.damping, dt);
+      state.pointerSmooth.y = damp(state.pointerSmooth.y, state.pointer.y, TUNING.parallax.damping, dt);
+      /* the dust field settles (and wakes) at its own rate, independent of the
+         parallax that drives the camera */
+      state.dustActive = damp(state.dustActive, state.pointerActive ? 1 : 0, TUNING.dust.fade, dt);
+    }
+
+    /* --- Scroll velocity -> spin / tilt / stretch / particle streaks --- */
+    const rawVel = state.reduced
+      ? 0
+      : clamp(Math.abs(scrollY - state.lastScrollY) / Math.max(dt, 1e-4) / TUNING.velocity.max, 0, 1);
+    state.lastScrollY = scrollY;
+    state.velocity = damp(state.velocity, rawVel, TUNING.velocity.damping, dt);
+
+    runSubsystem('sample', () => {
+      applySample(s);
+      state.camera.position.x += state.pointerSmooth.x * TUNING.parallax.strength * 0.30;
+      state.camera.position.y -= state.pointerSmooth.y * TUNING.parallax.strength * 0.20;
+    });
+    runSubsystem('raycast', updateRaycast);
+    runSubsystem('focus', updateFocus);
+    runSubsystem('placeObjects', () => placeObjects(s, dt, state.elapsed, scrollY));
+    runSubsystem('props', () => { if (state.props) state.props.update(state.elapsed); });
+    runSubsystem('particles', updateParticles);
+    runSubsystem('bokeh', () => {
+      if (state.bokeh) state.bokeh.material.uniforms.uTime.value = state.elapsed;
+    });
+    /* The overlay is a diagnostic: it must never be able to stall the scene it
+       is drawing over. `?scene3d=probe` never builds it, so this is a no-op
+       there. */
+    runSubsystem('debug', () => {
+      if (!TUNING.debug || !state.lastPlaces) return;
+      drawDebugOverlay(state.lastPlaces);
+      logPlacement(state.lastPlaces, state.engine.out.sectionId);
+    });
+
+    runSubsystem('render', renderFrame);
+    runSubsystem('perf', () => watchPerf(dt));
+  } catch (err) {
+    /* Reached only by an error that escaped every subsystem guard. Reported
+       once, never rethrown: the loop stays alive and the next frame tries
+       again. */
+    if (!state.loopErrorReported) {
+      state.loopErrorReported = true;
+      console.error('[scene3d] frame error — loop continues', err);
     }
   }
-  if (state.bokeh) state.bokeh.material.uniforms.uTime.value = state.elapsed;
+}
 
-  renderFrame();
-  watchPerf(dt);
+/** The reactive dust: time, the scroll-velocity streak, and the pointer field. */
+function updateParticles() {
+  if (!state.particles) return;
+  const mat = state.particles.material;
+  mat.uniforms.uTime.value = state.elapsed;
+  mat.uniforms.uStreak.value = state.velocity * TUNING.velocity.streak;
+  if (mat.uniforms.uPointer) {
+    updateDustPointer(mat);
+    mat.uniforms.uPointerStr.value = state.dustActive * TUNING.dust.strength;
+  }
 }
 
 /* ============================================================================
@@ -1492,17 +1690,81 @@ function updateEntrance(now) {
   }
 }
 
+/** Idempotent. `lastTime` is re-based on every start so the first frame after a
+ *  pause integrates dt from NOW, not from whenever the loop was parked. */
 function start() {
-  if (state.running) return;
+  if (state.running || state.contextLost) return;
   state.running = true;
-  state.lastTime = performance.now();
+  const now = performance.now();
+  state.lastTime = now;
+  state.lastFrameAt = now;
   state.rafId = requestAnimationFrame(animate);
+  ensureWatchdog();
 }
 
 function stop() {
   state.running = false;
   if (state.rafId) cancelAnimationFrame(state.rafId);
   state.rafId = 0;
+  stopWatchdog();
+}
+
+/** Resumes a loop that was parked for any reason other than a real pause. Used
+ *  by the resume signals (pageshow/focus/scroll/pointermove) and the watchdog. */
+function resume() {
+  if (state.reduced || document.hidden || !state.inView || state.contextLost) return;
+  start();
+}
+
+/* ============================================================================
+ * 10d. WATCHDOG
+ * ----------------------------------------------------------------------------
+ * A loop can die without anyone asking it to: the browser drops the rAF when a
+ * tab is discarded and never hands it back, a devtools pause or a page freeze
+ * can strand a pending frame, and a context loss that never restores leaves
+ * nothing scheduling. In every case `state.lastFrameAt` simply stops advancing.
+ *
+ * So once a second, if the loop is supposed to be running and the newest frame
+ * is older than `staleMs`, restart it. Cheap, and the failure it prevents (a
+ * permanently frozen scene with a clean console) is invisible.
+ * ==========================================================================*/
+
+function ensureWatchdog() {
+  if (state.watchdogId || !state.canvas) return;
+  state.watchdogId = window.setInterval(onWatchdogTick, TUNING.loop.watchdogMs);
+}
+
+function stopWatchdog() {
+  if (!state.watchdogId) return;
+  window.clearInterval(state.watchdogId);
+  state.watchdogId = 0;
+}
+
+function onWatchdogTick() {
+  if (!state.running || state.contextLost) return;
+  /* A hidden tab legitimately has no frames, and `stop()` already took the
+     watchdog with it — but a page hidden WITHOUT the visibilitychange landing
+     (some mobile backgrounding paths) must not look like a stall. */
+  if (document.hidden) return;
+  const age = performance.now() - state.lastFrameAt;
+  /* `staleMs` is the FLOOR, not the whole test. A frame that is merely slow is
+     not a dead loop: under software GL (or during a readPixels stall) a single
+     frame can legitimately take 700ms, and restarting on that just churns rAF
+     handles and spams the console about a loop that was running fine. A real
+     stall is a gap far larger than this loop's OWN recent cadence, so the bar
+     rises with the measured frame period and only a true hang clears it. */
+  const bar = Math.max(TUNING.loop.staleMs, state.framePeriodMs * TUNING.loop.stallPeriodMultiple);
+  if (age <= bar) return;
+  warn(`frame loop stalled for ${Math.round(age)}ms — restarting`);
+  /* Re-base first: the gap since the last frame is a stall, not elapsed time to
+     integrate. */
+  const now = performance.now();
+  state.lastTime = now;
+  state.lastFrameAt = now;
+  /* A stalled loop has no frame in flight to cancel, but clearing the handle
+     keeps the restart from ever leaving two loops driving the same scene. */
+  if (state.rafId) cancelAnimationFrame(state.rafId);
+  state.rafId = requestAnimationFrame(animate);
 }
 
 /* ============================================================================
@@ -1542,8 +1804,84 @@ function onVisibilityChange() {
     renderOnce();
     try { window.dispatchEvent(new CustomEvent("toolapis:3d-ready")); } catch (e) {}
   } else {
-    state.lastTime = performance.now();
-    start();
+    resume();
+  }
+}
+
+/* ============================================================================
+ * 10e. WEBGL CONTEXT LOSS
+ * ----------------------------------------------------------------------------
+ * A GPU reset, a driver update or a laptop switching GPUs can drop the WebGL
+ * context without warning. Everything the renderer holds — programs, textures,
+ * the PMREM bake, the composer's render targets — becomes invalid, and the
+ * scene goes black or the first draw throws.
+ *
+ * `webglcontextlost` is cancelable: the default action is to NOT restore, so
+ * without preventDefault() the context is gone for good and there is nothing to
+ * rebuild into. Preventing it is what gives the browser permission to fire
+ * `webglcontextrestored`, which is where the rebuild happens.
+ *
+ * The scene GRAPH survives on the CPU — geometry, materials, the object tree
+ * and every tuning number are plain JS. What is rebuilt is the GPU-side and
+ * derived state: the environment bake and the bloom composer (both are render
+ * targets that were allocated against the dead context), plus the shared
+ * procedural texture cache, whose canvases still hold their pixels but whose GPU
+ * uploads died with the context.
+ * ==========================================================================*/
+
+function onContextLost(e) {
+  /* The cancelable default is "never restore". */
+  if (e && typeof e.preventDefault === 'function') e.preventDefault();
+  state.contextLost = true;
+  stop();
+  console.warn('[scene3d] WebGL context lost — waiting for restore');
+}
+
+function onContextRestored() {
+  console.warn('[scene3d] WebGL context restored — rebuilding GPU resources');
+  try {
+    /* The environment bake and the composer's targets were allocated against
+       the lost context, so they are rebuilt from scratch. Both builders are
+       already written to degrade to a working scene on their own failure. */
+    if (state.pmremRT) {
+      state.scene.environment = null;
+      state.pmremRT.dispose();
+      state.pmremRT = null;
+    }
+    createEnvironment();
+    /* Same condition as a tier change: bloom is desktop-only, and the adaptive
+       step-down may already have removed it before the context was lost —
+       restoring it would silently undo a quality decision. */
+    const bloomStep = TUNING.adaptive.steps.indexOf('bloom');
+    const wantBloom = TUNING.bloom.enabled
+      && state.tier === 'desktop'
+      && (bloomStep < 0 || state.qualityStep <= bloomStep);
+    if (wantBloom) createComposer();
+
+    /* Three.js re-uploads the geometry and materials it still holds, but any
+       material built while the context was gone needs its programs rebuilt. */
+    for (const m of state.trackedMats) {
+      try { m.needsUpdate = true; } catch (e) { /* not every material has it */ }
+    }
+
+    /* Shared procedural maps keep their canvases but lost their GPU uploads;
+       dropping the cache lets objects.js regenerate them on the next use. */
+    disposeSharedTextures();
+    if (state.props && typeof state.props.update === 'function') state.props.update(state.elapsed);
+
+    /* Force a re-measure: the copy may have reflowed while the context was
+       gone, and the solver's obstacle banks would otherwise be stale. */
+    try { state.engine.remeasure(); } catch (e) { /* not fatal */ }
+
+    state.contextLost = false;
+    /* Rebase the clock: the gap covered the loss, not elapsed animation. */
+    resume();
+  } catch (err) {
+    /* A failed rebuild must not leave the flag set forever, which would keep
+       the loop parked with nothing watching it. */
+    state.contextLost = false;
+    degrade('context restore failed — continuing without rebuilt GPU resources', err);
+    resume();
   }
 }
 
@@ -1591,7 +1929,7 @@ function onMediaQueryChange(e) {
     if (TUNING.showStaticOnReducedMotion) renderOnce();
   } else {
     state.reduced = false;
-    if (state.inView && !document.hidden) start();
+    resume();
   }
 }
 
@@ -1608,6 +1946,23 @@ function addListeners() {
   document.addEventListener('pointerout', onPointerOut, { passive: true });
   document.addEventListener('click', onClick);
   window.addEventListener('pagehide', dispose, { once: true });
+
+  /* ---- Resume signals ----
+   * Back/forward cache restores (pageshow), a window that regains focus, and
+   * any real user input each say the same thing: the visitor is looking at the
+   * page again, so the loop should be alive. `resume()` is idempotent and
+   * respects every deliberate pause (hidden tab, out of view, reduced motion,
+   * lost context), so these cannot start a loop that should be off. */
+  window.addEventListener('pageshow', resume);
+  window.addEventListener('focus', resume);
+  window.addEventListener('scroll', resume, { passive: true });
+  window.addEventListener('pointermove', resume, { passive: true });
+
+  /* ---- WebGL context loss ---- */
+  if (state.canvas) {
+    state.canvas.addEventListener('webglcontextlost', onContextLost, false);
+    state.canvas.addEventListener('webglcontextrestored', onContextRestored, false);
+  }
 
   if (window.matchMedia) {
     motionQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
@@ -1634,7 +1989,15 @@ function removeListeners() {
   document.removeEventListener('visibilitychange', onVisibilityChange);
   document.removeEventListener('pointerover', onPointerOver);
   document.removeEventListener('pointerout', onPointerOut);
-  document.removeEventListener('click', onClick);
+  window.removeEventListener('pageshow', resume);
+  window.removeEventListener('focus', resume);
+  window.removeEventListener('scroll', resume);
+  window.removeEventListener('pointermove', resume);
+  window.removeEventListener('click', onClick);
+  if (state.canvas) {
+    state.canvas.removeEventListener('webglcontextlost', onContextLost);
+    state.canvas.removeEventListener('webglcontextrestored', onContextRestored);
+  }
   if (motionQuery && motionQuery.removeEventListener) {
     motionQuery.removeEventListener('change', onMediaQueryChange);
   }

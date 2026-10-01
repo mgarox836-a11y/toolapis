@@ -660,6 +660,38 @@ export const TUNING = {
     mobile:  { posScale: 0.40, scaleMul: 0.72, camPush: 2.2, exposureMul: 0.80 },
   },
 
+  /* ==== Loop resilience ====
+   * The frame loop is the one thing that must never die: a throw anywhere in a
+   * subsystem update would otherwise leave the page with a permanently frozen
+   * 3D layer and no visible cause. Each subsystem update gets its own try/catch
+   * (scene3d.js -> runSubsystem), and a subsystem that throws
+   * `maxSubsystemFailures` frames running is switched off so the rest of the
+   * scene keeps running at full rate. The first failure of each subsystem is
+   * logged in full; the rest are counted silently so a persistent fault cannot
+   * flood the console at 60fps. */
+  loop: {
+    /* dt is clamped to this before anything integrates it, so a tab switch, a
+       long GC pause or a backgrounded frame cannot teleport the dampers. */
+    maxDt: 0.05,
+    maxSubsystemFailures: 3,
+    /* The watchdog: if the last rendered frame is older than `staleMs`, the loop
+       is presumed dead and restarted. It ticks every `watchdogMs`.
+
+       `staleMs` is a FLOOR, not the whole test — a software-GL frame can
+       legitimately take 700ms, and restarting on that churns rAF handles and
+       logs about a loop that is running fine. The real bar is
+       `staleMs` OR `stallPeriodMultiple x` this loop's own smoothed frame
+       period, whichever is larger, so only a genuine hang (a rAF that never
+       comes back) trips it. */
+    watchdogMs: 1000,
+    staleMs: 500,
+    stallPeriodMultiple: 8,
+    /* Above this magnitude a position/scale/quaternion/opacity/spring is not
+       "a bit off", it is the result of a divide by zero or an unproject of a
+       point behind the camera — reset the prop rather than draw it. */
+    maxAbs: 1e6,
+  },
+
   /* ==== Accessibility / debug ====
    * `debug` paints the solver overlay (obstacles, accepted candidates, the
    * committed boxes) — invasive, so it is opt-in and never part of a capture.
