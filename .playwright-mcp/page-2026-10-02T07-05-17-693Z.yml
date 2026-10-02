@@ -1,0 +1,167 @@
+- generic [active] [ref=f4e1]:
+  - link "Skip to content" [ref=f4e2] [cursor=pointer]:
+    - /url: "#main-content"
+  - progressbar [aria-hidden] [ref=f4e3]:
+    - generic [ref=f4e4]:
+      - generic [ref=f4e5]: TOOLAPIS.
+      - generic [ref=f4e10]:
+        - generic [ref=f4e11]: "099"
+        - generic [ref=f4e12]: /
+        - generic [ref=f4e13]: Initializing tools
+      - generic [ref=f4e14]:
+        - generic [ref=f4e15]: Hardware that keeps pace with your workflow
+        - generic [ref=f4e16]: Load-tested gear, clean signal paths, and a zero-friction experience designed to stay out of your way.
+  - generic [ref=f4e18]: TOOLAPIS.
+  - banner [ref=f4e20]:
+    - generic [ref=f4e22]:
+      - link "TOOLAPIS home" [ref=f4e23] [cursor=pointer]:
+        - /url: "#overview"
+        - generic [ref=f4e24]: TL
+        - generic [ref=f4e25]: TOOLAPIS.
+      - navigation "Primary" [ref=f4e26]:
+        - link "Overview" [ref=f4e27] [cursor=pointer]:
+          - /url: "#overview"
+        - link "Features" [ref=f4e28] [cursor=pointer]:
+          - /url: "#features"
+        - link "Flow" [ref=f4e29] [cursor=pointer]:
+          - /url: "#flow"
+        - link "Clarity" [ref=f4e30] [cursor=pointer]:
+          - /url: "#clarity"
+      - generic [ref=f4e31]:
+        - link "Open Social Media hub" [ref=f4e32] [cursor=pointer]:
+          - /url: https://newsocapis.vercel.app
+          - generic [aria-hidden] [ref=f4e33]: 
+        - link "Open HD Enhancer" [ref=f4e34] [cursor=pointer]:
+          - /url: https://tiktok-hd-enhancer-by-apis-fgtkuxmpzmi7h8gifh4a8o.streamlit.app/
+          - generic [aria-hidden] [ref=f4e36]: 
+        - text: 
+  - main [ref=f4e37]:
+    - generic [ref=f4e38]:
+      - generic [ref=f4e40]:
+        - generic [ref=f4e41]:
+          - generic [aria-hidden] [ref=f4e42]: 
+          - generic [ref=f4e43]: Web Tools
+        - heading "Web Tools For You, All in One Place." [level=1] [ref=f4e44]
+        - paragraph [ref=f4e45]: Boost TikTok clips to HD, tether your PC's internet to Android over USB, or jump into the social media hub. One hub, three tools, zero friction.
+        - generic [ref=f4e46]:
+          - link "Open HD Enhancer" [ref=f4e47] [cursor=pointer]:
+            - /url: https://tiktok-hd-enhancer-by-apis-fgtkuxmpzmi7h8gifh4a8o.streamlit.app/
+            - generic [aria-hidden] [ref=f4e48]: 
+            - generic [aria-hidden] [ref=f4e50]: 
+          - link "Open Gnirehtet" [ref=f4e51] [cursor=pointer]:
+            - /url: https://drive.google.com/file/d/1gH_huKs7Pf9XP2uJcRfMaLqJonLfJcbI/view
+            - generic [aria-hidden] [ref=f4e52]: 
+            - generic [aria-hidden] [ref=f4e54]: 
+          - link "Social Media" [ref=f4e55] [cursor=pointer]:
+            - /url: https://newsocapis.vercel.app
+            - generic [aria-hidden] [ref=f4e56]: 
+            - generic [aria-hidden] [ref=f4e58]: 
+      - link "Scroll to tools" [ref=f4e59] [cursor=pointer]:
+        - /url: "#overview"
+    - generic [ref=f4e62]:
+      - generic [ref=f4e63]:
+        - generic [aria-hidden] [ref=f4e66]: 
+        - heading "TikTok HD Enhancer" [level=3] [ref=f4e67]
+        - paragraph [ref=f4e68]: A Streamlit-based app designed to automatically boost the visual resolution and clarity of your TikTok video content.
+        - link "Open HD Enhancer" [ref=f4e70] [cursor=pointer]:
+          - /url: https://tiktok-hd-enhancer-by-apis-fgtkuxmpzmi7h8gifh4a8o.streamlit.app/
+          - generic [aria-hidden] [ref=f4e72]: 
+      - generic [ref=f4e73]:
+        - img [aria-hidden] [ref=f4e76]: 
+        - heading "Gnirehtet Tethering" [level=3] [ref=f4e83]
+        - paragraph [ref=f4e84]: Share your PC's internet connection with your Android phone over USB. Fast, easy, and with no extra modem required.
+        - link "Open Gnirehtet" [ref=f4e86] [cursor=pointer]:
+          - /url: https://github.com/Genymobile/gnirehtet
+          - generic [aria-hidden] [ref=f4e88]: 
+      - generic [ref=f4e89]:
+        - img [aria-hidden] [ref=f4e92]: 
+        - heading "Social Media Hub" [level=3] [ref=f4e98]
+        - paragraph [ref=f4e99]: A dedicated hub that brings your social media tools and links together in one clean, easy-to-use place.
+        - link "Open Social Media" [ref=f4e101] [cursor=pointer]:
+          - /url: https://newsocapis.vercel.app
+          - generic [aria-hidden] [ref=f4e103]: 
+    - generic [ref=f4e104]:
+      - generic [ref=f4e105]:
+        - heading "Small hub. Real tools." [level=2] [ref=f4e106]
+        - paragraph [ref=f4e107]: No installs, no accounts, no filler. Just a few tools that do the job and get out of your way.
+      - generic [ref=f4e108]:
+        - generic [ref=f4e110]:
+          - generic [aria-hidden] [ref=f4e112]: 
+          - generic [ref=f4e113]:
+            - heading "HD upscaling" [level=3] [ref=f4e114]
+            - paragraph [ref=f4e115]: Raises the resolution and sharpness of low-quality TikTok clips automatically. No sliders, no settings, no guesswork.
+        - generic [ref=f4e117]:
+          - generic [aria-hidden] [ref=f4e119]: 
+          - generic [ref=f4e120]:
+            - heading "USB tethering" [level=3] [ref=f4e121]
+            - paragraph [ref=f4e122]: Shares your PC's internet with an Android phone over a USB cable, no extra modem or router setup.
+        - generic [ref=f4e124]:
+          - generic [aria-hidden] [ref=f4e126]: 
+          - generic [ref=f4e127]:
+            - heading "Web-first" [level=3] [ref=f4e128]
+            - paragraph [ref=f4e129]: Every tool launches straight from the browser. Grab a link, share it, and you're done.
+    - generic [ref=f4e130]:
+      - generic [ref=f4e131]:
+        - heading "Pick it up in a minute." [level=2] [ref=f4e132]
+        - paragraph [ref=f4e133]: Open a tool, run it, done. Nothing else on the page gets in your way.
+      - generic [ref=f4e134]:
+        - generic [ref=f4e135]:
+          - img [aria-hidden] [ref=f4e137]: 
+          - generic [ref=f4e139]:
+            - heading "Pick a tool" [level=3] [ref=f4e140]
+            - paragraph [ref=f4e141]: Enhancer for your videos, tethering for your connection, social hub for everything else.
+        - generic [ref=f4e143]:
+          - img [aria-hidden] [ref=f4e145]: 
+          - generic [ref=f4e151]:
+            - heading "Launch it" [level=3] [ref=f4e152]
+            - paragraph [ref=f4e153]: One click opens the app in your browser.
+        - generic [ref=f4e155]:
+          - img [aria-hidden] [ref=f4e157]: 
+          - generic [ref=f4e160]:
+            - heading "You're done" [level=3] [ref=f4e161]
+            - paragraph [ref=f4e162]: Upscale the clip or share the connection right away.
+    - generic [ref=f4e165]:
+      - heading "Clear tools, zero clutter." [level=2] [ref=f4e166]
+      - paragraph [ref=f4e167]: One hub for the tools you actually use. Open it, use it, move on.
+      - generic [ref=f4e168]:
+        - link "Open HD Enhancer" [ref=f4e169] [cursor=pointer]:
+          - /url: https://tiktok-hd-enhancer-by-apis-fgtkuxmpzmi7h8gifh4a8o.streamlit.app/
+          - generic [aria-hidden] [ref=f4e170]: 
+          - generic [aria-hidden] [ref=f4e172]: 
+        - button "Copy enhancer link" [ref=f4e173] [cursor=pointer]:
+          - generic [aria-hidden] [ref=f4e174]: 
+        - link "Social Media" [ref=f4e176] [cursor=pointer]:
+          - /url: https://newsocapis.vercel.app
+          - generic [aria-hidden] [ref=f4e177]: 
+          - generic [aria-hidden] [ref=f4e179]: 
+  - status:
+    - generic:
+      - generic [aria-hidden]: 
+      - generic: Link Copied!
+  - contentinfo [ref=f4e180]:
+    - generic [ref=f4e181]:
+      - generic [ref=f4e182]:
+        - link "TL TOOLAPIS ." [ref=f4e183] [cursor=pointer]:
+          - /url: "#overview"
+          - generic [ref=f4e184]: TL
+          - text: TOOLAPIS
+          - generic [ref=f4e185]: .
+        - paragraph [ref=f4e186]: © 2026 TOOLAPIS. All rights reserved.
+      - navigation "Footer" [ref=f4e187]:
+        - link "Overview" [ref=f4e188] [cursor=pointer]:
+          - /url: "#overview"
+        - link "Features" [ref=f4e189] [cursor=pointer]:
+          - /url: "#features"
+        - link "Flow" [ref=f4e190] [cursor=pointer]:
+          - /url: "#flow"
+        - link "Clarity" [ref=f4e191] [cursor=pointer]:
+          - /url: "#clarity"
+        - button "Reduce motion Turns off animation for this site" [ref=f4e192] [cursor=pointer]:
+          - generic [aria-hidden] [ref=f4e193]: 
+          - generic [ref=f4e194]: Reduce motion
+          - generic [ref=f4e195]: Turns off animation for this site
+      - generic [ref=f4e196]:
+        - link "Open Social Media hub" [ref=f4e197] [cursor=pointer]:
+          - /url: https://newsocapis.vercel.app
+          - generic [aria-hidden] [ref=f4e198]: 
+        - generic [ref=f4e199]: All systems operational

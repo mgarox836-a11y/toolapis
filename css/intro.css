@@ -9,12 +9,23 @@
    is no chance of a stuck black screen.
    ==================================================================== */
 
+/* ---------------------------------------------------------------------
+   The overlay's own tokens. These are the intro's private copies of the
+   page's accent/background, and they are deliberately the same values as
+   `--accent-mint` / `--surface` in style.css — the curtain covers the
+   whole viewport, so any drift from the page token shows as a colour jump
+   on the first frame the hero appears. Fonts are the redesign's three
+   free substitutes: Inter (Whyte Inktrap), Instrument Serif (GrandSlang,
+   unused here — the intro is a stamp, not a headline) and JetBrains Mono
+   (Whyte Inktrap Mono), which is what the wordmark and the counter are set
+   in.
+   --------------------------------------------------------------------- */
 :root {
-  --tl-accent: #A3E635;
-  --tl-bg: #0B0F12;
-  --tl-display: 'Space Grotesk', 'DM Sans', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
-  --tl-body: 'DM Sans', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
-  --tl-mono: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace;
+  --tl-accent: #af50ff;
+  --tl-bg: #090909;
+  --tl-display: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  --tl-body: 'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --tl-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 }
 
 /* Scroll lock while the intro owns the screen. */
@@ -30,9 +41,9 @@ html.intro-active body { overflow: hidden !important; }
   align-items: center;
   justify-content: center;
   background: var(--tl-bg);
-  background-image: radial-gradient(600px circle at 50% 115%, rgba(163, 230, 53, 0.09), transparent 60%);
+  background-image: radial-gradient(600px circle at 50% 115%, rgba(175, 80, 255, 0.07), transparent 60%);
   font-family: var(--tl-body);
-  color: #e6e6e6;
+  color: var(--color-almost-white, #f7f9fa);
   opacity: 0;
   visibility: hidden;
   pointer-events: none;
@@ -80,16 +91,15 @@ html.intro-active[data-intro-stage="2"] #intro-overlay .intro-logo { opacity: 1;
 
 #intro-overlay .intro-dot {
   width: 8px; height: 8px; flex: 0 0 8px;
-  border-radius: 9999px;
+  border-radius: 1584px;
   background: var(--tl-accent);
-  box-shadow: 0 0 16px rgba(163, 230, 53, .8);
   animation: intro-dot-pulse .9s ease-in-out infinite;
 }
 #intro-overlay .intro-wordmark {
   font-family: var(--tl-display);
-  font-weight: 700;
+  font-weight: 400;
   font-size: 1.1rem;
-  letter-spacing: .18em;
+  letter-spacing: .2em;
   text-transform: uppercase;
   color: #fff;
 }
@@ -99,8 +109,8 @@ html.intro-active[data-intro-stage="2"] #intro-overlay .intro-logo { opacity: 1;
 #intro-overlay .intro-progress {
   width: min(70vw, 20rem);
   height: 2px;
-  border-radius: 9999px;
-  background: rgba(255, 255, 255, .1);
+  border-radius: 1584px;
+  background: rgba(247, 249, 250, .1);
   overflow: hidden;
   opacity: 0;
   transform: translateY(.4rem);
@@ -111,7 +121,7 @@ html.intro-active[data-intro-stage="2"] #intro-overlay .intro-progress { opacity
 #intro-overlay .intro-progress-bar {
   height: 100%; width: 0%;
   border-radius: inherit;
-  background: linear-gradient(90deg, rgba(163, 230, 53, .3), var(--tl-accent));
+  background: linear-gradient(90deg, rgba(175, 80, 255, .3), var(--tl-accent));
   will-change: width;
 }
 
@@ -122,8 +132,8 @@ html.intro-active[data-intro-stage="2"] #intro-overlay .intro-progress { opacity
   font-family: var(--tl-mono);
   font-size: .75rem;
   font-variant-numeric: tabular-nums;
-  letter-spacing: .08em;
-  color: rgba(230, 230, 230, .6);
+  letter-spacing: .1em;
+  color: rgba(240, 240, 240, .6);
   opacity: 0;
   transition: opacity .4s ease;
 }
@@ -131,14 +141,14 @@ html.intro-active[data-intro-stage="1"] #intro-overlay .intro-meta,
 html.intro-active[data-intro-stage="2"] #intro-overlay .intro-meta { opacity: 1; }
 #intro-overlay .intro-counter { color: var(--tl-accent); min-width: 3ch; text-align: right; }
 #intro-overlay .intro-sep { opacity: .3; }
-#intro-overlay .intro-status { color: rgba(230, 230, 230, .6); }
+#intro-overlay .intro-status { color: rgba(240, 240, 240, .6); }
 
 /* ---- 3.6-4.4s : panels lift away ---- */
 #intro-overlay .intro-panel {
   padding: 1rem 1.25rem;
-  border-radius: 1rem;
-  background: rgba(16, 20, 24, .7);
-  border: 1px solid rgba(163, 230, 53, .14);
+  border-radius: 19.2px;
+  background: rgba(247, 249, 250, .03);
+  border: 1px solid rgba(175, 80, 255, .16);
   font-family: var(--tl-body);
   opacity: 0;
   transform: translateY(.6rem);
@@ -154,6 +164,11 @@ html.intro-active[data-intro-stage="2"] #intro-overlay .intro-panel { opacity: 1
    of the move and then flattens as the panel leaves — the shape a rolled
    curtain makes on its way up. js/intro.js removes the node when the
    animation ends (with a timeout as the backstop).
+
+   DURATION IS A CONTRACT. js/intro.js hardcodes `CURTAIN_MS = 900` and
+   arms its backstop at CURTAIN_MS + 160, so a curtain LONGER than .9s is
+   torn down mid-flight by the timeout. Keep this at .9s; a shorter value
+   is safe (animationend wins), longer is not.
    ==================================================================== */
 @keyframes tl-curtain-up {
   0% {

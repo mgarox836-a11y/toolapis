@@ -1,4 +1,5 @@
 node_modules/
 tools/shots/
 tools/*.png
-server.log
+server.log.playwright-mcp/
+reference/sky-original.mp4

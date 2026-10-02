@@ -1,0 +1,6 @@
+[     234ms] [WARNING] cdn.tailwindcss.com should not be used in production. To use Tailwind CSS in production, install it as a PostCSS plugin or use the Tailwind CLI: https://tailwindcss.com/docs/installation @ https://cdn.tailwindcss.com/:63
+[    1390ms] [WARNING] sigmaRadians, 0.1, is too large and will clip, as it requested 49 samples when the maximum is set to 20 @ https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js:16769
+[    1415ms] [WARNING] sigmaRadians, 0.1, is too large and will clip, as it requested 49 samples when the maximum is set to 20 @ https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js:16769
+[  228464ms] [WARNING] cdn.tailwindcss.com should not be used in production. To use Tailwind CSS in production, install it as a PostCSS plugin or use the Tailwind CLI: https://tailwindcss.com/docs/installation @ https://cdn.tailwindcss.com/:63
+[  229695ms] [WARNING] sigmaRadians, 0.1, is too large and will clip, as it requested 49 samples when the maximum is set to 20 @ https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js:16769
+[  229763ms] [WARNING] sigmaRadians, 0.1, is too large and will clip, as it requested 49 samples when the maximum is set to 20 @ https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js:16769

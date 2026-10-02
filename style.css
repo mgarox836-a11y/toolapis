@@ -1,16 +1,79 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,300;14..32,400;14..32,500;14..32,600;14..32,700&family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:wght@400;500&display=swap');
+
+/* ====================================================================
+   TOKENS — the single source of truth for the redesign.
+   --------------------------------------------------------------------
+   Palette: "midnight terminal, one violet signal". The page is 95%
+   achromatic; Signal Violet is rationed to exactly three jobs — the
+   feature-card bloom, one filled action, and accent strokes.
+
+   THE BRIDGE BLOCK. `--surface`, `--surface-card`, `--surface-border`,
+   `--accent-mint` and `--accent-mint-hover` are read at runtime by
+   js/config.js (see its PALETTE) to colour the WebGL layer and its fog.
+   Those five properties were previously UNDEFINED anywhere in the
+   project, so the 3D layer silently fell back to hardcoded #0B0F12 /
+   #A3E635 and could never follow the page. Defining them here is what
+   re-tints the 3D props to violet without touching a line of JS.
+
+   `--surface` MUST stay byte-identical to the html/body background: the
+   3D fog is the page background, and two different blacks make distant
+   geometry dissolve into a visible halo instead of the void.
+   ==================================================================== */
+:root {
+  /* ---- Colour ---- */
+  --color-near-black: #090909;      /* Void canvas: the page itself      */
+  --color-almost-white: #f7f9fa;    /* primary text, hairlines, strokes  */
+  --color-soft-white: #f0f0f0;      /* stamped labels, secondary headings */
+  --color-steel: #828384;           /* muted body copy, inactive surfaces */
+  --color-graphite: #474747;        /* card-internal text, faint dividers*/
+  --color-iron: #423738;            /* dark borders, translucent washes  */
+  --color-ash: #6b6b6b;             /* nav dividers, helper copy         */
+  --color-signal-violet: #af50ff;   /* THE accent. fills + glows only    */
+  --color-lavender-mist: #e1bdff;   /* violet hover, text on violet      */
+
+  /* ---- 3D bridge (read by js/config.js). Do not rename. ---- */
+  --surface: #090909;
+  --surface-card: #423738;
+  --surface-border: #2b2b2b;
+  --accent-mint: #af50ff;
+  --accent-mint-hover: #e1bdff;
+
+  /* ---- Type. Whyte Inktrap / GrandSlang / Whyte Inktrap Mono are paid;
+          these are the free Google Fonts substitutes DESIGN.md nominates. ---- */
+  --font-sans: 'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --font-display: 'Instrument Serif', ui-serif, Georgia, 'Times New Roman', serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+
+  /* ---- Shape. DESIGN.md allows exactly two button radii. ---- */
+  --r-card: 19.2px;      /* cards */
+  --r-btn: 8px;          /* buttons */
+  --r-control: 6px;      /* small controls */
+  --r-pill: 1584px;      /* pills, effectively fully round */
+
+  /* ---- Layout ---- */
+  --page-max: 1200px;
+  --section-gap: 120px;
+  --card-pad: 40px;
+
+  /* ---- Elevation. The system is shadowless by design; this is the ONE
+          sanctioned exception, used as signal lighting on the primary
+          action and the feature bloom. ---- */
+  --glow-signal: 0 0 28px rgba(175, 80, 255, 0.22);
+}
+
    /* Custom Scrollbar */
     ::-webkit-scrollbar { width: 8px; }
-    ::-webkit-scrollbar-track { background: #0B0F12; }
-    ::-webkit-scrollbar-thumb { background: #232D34; border-radius: 4px; }
-    ::-webkit-scrollbar-thumb:hover { background: #2E3A43; }
+    ::-webkit-scrollbar-track { background: #090909; }
+    ::-webkit-scrollbar-thumb { background: #2b2b2b; border-radius: 4px; }
+    ::-webkit-scrollbar-thumb:hover { background: #474747; }
 
     /* ---- Base fallbacks (FOUC shield: applied before Tailwind CDN finishes) ---- */
     html {
-      background-color: #0B0F12;
+      background-color: #090909;
       scrollbar-width: thin;
-      scrollbar-color: #2E3A43 #0B0F12;
+      scrollbar-color: #474747 #090909;
     }
-    body { background-color: #0B0F12; color: #E2E8F0; }
+    body { background-color: #090909; color: #f7f9fa; font-family: var(--font-sans); }
 
     /* Hero backdrop: dark base + mint glows + faint grid (no raster image)
        The two mint alphas are a fraction of what they were (0.15/0.08 ->
@@ -22,28 +85,27 @@
        values it is only just that. The grid and the base colour are the same
        pixels they were. */
     .hero-bg {
-      background-color: #0B0F12;
+      background-color: #090909;
       background-image:
-        radial-gradient(1100px 600px at 50% -10%, rgba(163, 230, 53, 0.055), transparent 62%),
-        radial-gradient(900px 560px at 105% 115%, rgba(163, 230, 53, 0.03), transparent 60%),
+        radial-gradient(1100px 600px at 50% -10%, rgba(175, 80, 255, 0.06), transparent 62%),
+        radial-gradient(900px 560px at 105% 115%, rgba(175, 80, 255, 0.035), transparent 60%),
         linear-gradient(rgba(255, 255, 255, 0.035) 1px, transparent 1px),
         linear-gradient(90deg, rgba(255, 255, 255, 0.035) 1px, transparent 1px);
       background-size: auto, auto, 56px 56px, 56px 56px;
     }
 
-    /* The hero's drifting blobs carry the same mint, at 0.16/0.14 inside
-       480-520px blurred circles — the other half of the wash. Reduced to
-       0.16 flat. An id + attribute selector outranks Tailwind's `.opacity-*`
-       utility classes, so this wins without !important. Both elements are
-       aria-hidden decoration: nothing changes but how much green sits on the
-       black. */
-    #glow-field > div[aria-hidden="true"] { opacity: 0.16; }
+    /* The hero's drifting blobs carry the same violet. Violet is much darker
+       than lime at equal luminance, so it needs a touch more alpha to read as
+       a glow rather than as a tint. An id + attribute selector outranks
+       Tailwind's `.opacity-*` utility classes, so this wins without
+       !important. Both elements are aria-hidden decoration. */
+    #glow-field > div[aria-hidden="true"] { opacity: 0.22; }
 
     /* ---- Hero bottom fade: smooth transition into the next section (no sharp edge) ----
-       Every stop is the page token itself. The old ramp ended on #0d0e12, which
-       is NOT #0B0F12: a fade that terminates on a different black draws a
-       visible band wherever it crosses the transparent WebGL layer, because the
-       two blacks are not the same black. */
+       Every stop is the page token itself, and the page token is the 3D fog
+       colour (js/config.js PALETTE.bg reads --surface). A fade that terminates
+       on a different black draws a visible band wherever it crosses the
+       transparent WebGL layer, because the two blacks are not the same black. */
     #hero::after {
       content: "";
       position: absolute;
@@ -53,58 +115,111 @@
       height: min(45vh, 22rem);
       z-index: 0;
       pointer-events: none;
-      background: linear-gradient(to bottom, rgba(11, 15, 18, 0) 0%, rgba(11, 15, 18, 0.4) 50%, rgba(11, 15, 18, 0.8) 80%, #0b0f12 100%);
+      background: linear-gradient(to bottom, rgba(9, 9, 9, 0) 0%, rgba(9, 9, 9, 0.4) 50%, rgba(9, 9, 9, 0.8) 80%, #090909 100%);
     }
 
-    /* ---- Hero layout: centered copy (no 3D background) ---- */
+    /* ---- Hero layout: LEFT-aligned copy, right side left to the 3D layer ----
+       index.html still carries text-center / mx-auto / max-w-2xl on
+       .hero-copy, and this sheet is the only thing allowed to change, so the
+       centring is undone here. The copy column stops at 55% of the page width
+       to leave the WebGL layer a clear field; DESIGN.md's "don't centre body
+       copy" is the rule this is enforcing. */
     .hero-grid {
       position: relative;
       z-index: 1;
       display: flex;
       flex-direction: column;
-      align-items: center;
+      align-items: flex-start;
       justify-content: center;
       min-height: calc(100dvh - 11rem); /* pt-28 (7rem) + pb-16 (4rem) */
     }
+    /* `html body` prefixes throughout this block: the Tailwind CDN sheet is an
+       inline <style> that lands AFTER this file, so text-center / max-w-2xl /
+       mx-auto / items-center / justify-center would otherwise win on source
+       order at equal specificity. */
+    html body .hero-copy {
+      text-align: left;
+      width: 100%;
+      max-width: min(55%, 40rem);
+      margin-left: 0;
+      margin-right: 0;
+    }
+    /* The CTA row and the eyebrow un-centre with it. */
+    html body .hero-copy #intro-actions {
+      align-items: flex-start;
+      justify-content: flex-start;
+    }
+    /* The hero headline: Inter for the plain clause, Instrument Serif Italic
+       for the gradient one. DESIGN.md's hero headline is a three-part rhythm
+       (serif italic / geometric sans / serif italic); this markup already has
+       two clauses, so italicising only the gradient span reproduces that
+       rhythm exactly without touching the HTML. */
+    html body .hero-copy h1#intro-h1 {
+      font-family: var(--font-sans);
+      font-weight: 600;
+      font-size: clamp(2.75rem, 6vw, 4.5rem);
+      line-height: 1.0;
+      letter-spacing: -0.02em;
+      margin-left: 0;
+      margin-right: 0;
+      max-width: 100%;
+    }
+    html body .hero-copy h1#intro-h1 .text-shimmer {
+      font-family: var(--font-display);
+      font-style: italic;
+      font-weight: 400;
+      letter-spacing: -0.03em;
+    }
+    html body .hero-copy #intro-p {
+      text-align: left;
+      margin-left: 0;
+      margin-right: 0;
+      max-width: 34rem;
+      font-weight: 300;
+      line-height: 1.6;
+      color: var(--color-almost-white);
+    }
 
-    /* ---- Button primitives (pill shape everywhere = consistent) ---- */
+    /* ---- Button primitives. 8px radius, 16px text, weight 400 (DESIGN.md
+       "Filled Action Button"). The radius change is the visible one: the pill
+       is gone. ---- */
     .btn {
       display: inline-flex;
       align-items: center;
       justify-content: center;
       gap: 0.625rem;
-      border-radius: 9999px;
-      font-size: 0.875rem;
-      font-weight: 700;
+      border-radius: var(--r-btn);
+      font-size: 1rem;
+      font-weight: 400;
       line-height: 1;
-      padding: 0.95rem 1.5rem;
+      padding: 1rem;
       transition: all .3s ease;
       will-change: transform;
       cursor: pointer;
       white-space: nowrap;
     }
     .btn:active { transform: scale(0.97); }
-    .btn-sm { padding: 0.55rem 1.25rem; font-size: 0.8125rem; }
+    .btn-sm { padding: 0.5rem 1rem; font-size: 0.875rem; }
 
     .btn-accent {
-      background: #A3E635;
-      color: #0B0F12;
+      background: var(--color-signal-violet);
+      color: var(--color-near-black);
     }
+    /* The ONE sanctioned shadow on the page: violet as signal lighting on the
+       primary action, not as elevation. */
     .btn-accent:hover {
-      background: #BEF264;
-      box-shadow: 0 0 24px rgba(163, 230, 53, 0.18);
+      background: var(--color-lavender-mist);
+      box-shadow: var(--glow-signal);
     }
 
     .btn-glass {
-      background: rgba(19, 25, 29, 0.65);
-      border: 1px solid rgba(255, 255, 255, 0.08);
-      color: #ffffff;
-      backdrop-filter: blur(16px);
-      -webkit-backdrop-filter: blur(16px);
+      background: rgba(247, 249, 250, 0.05);
+      border: 1px solid rgba(247, 249, 250, 0.12);
+      color: var(--color-almost-white);
     }
     .btn-glass:hover {
-      background: rgba(255, 255, 255, 0.08);
-      border-color: rgba(255, 255, 255, 0.16);
+      background: rgba(247, 249, 250, 0.1);
+      border-color: rgba(247, 249, 250, 0.24);
     }
 
     /* ---- Social media icon button ---- */
@@ -114,41 +229,38 @@
       justify-content: center;
       width: 2.5rem;
       height: 2.5rem;
-      border-radius: 9999px;
-      background: rgba(19, 25, 29, 0.65);
-      border: 1px solid rgba(255, 255, 255, 0.08);
-      color: #CBD5E1;
+      border-radius: var(--r-btn);
+      background: rgba(247, 249, 250, 0.05);
+      border: 1px solid rgba(247, 249, 250, 0.12);
+      color: var(--color-soft-white);
       transition: all .3s ease;
       will-change: transform;
       cursor: pointer;
     }
     .social-btn:hover {
-      background: rgba(163, 230, 53, 0.12);
-      border-color: rgba(163, 230, 53, 0.35);
-      color: #A3E635;
-      box-shadow: 0 0 18px rgba(163, 230, 53, 0.15);
+      background: rgba(175, 80, 255, 0.12);
+      border-color: rgba(175, 80, 255, 0.35);
+      color: var(--color-signal-violet);
     }
     .social-btn:active { transform: scale(0.95); }
 
-    /* ---- Section eyebrow ---- */
+    /* ---- Section eyebrow. One of the two things that stay a full pill. ---- */
     .eyebrow {
       display: inline-flex;
       align-items: center;
       gap: 0.5rem;
-      border-radius: 9999px;
-      background: rgba(255, 255, 255, 0.05);
-      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: var(--r-pill);
+      background: rgba(247, 249, 250, 0.04);
+      border: 1px solid rgba(247, 249, 250, 0.12);
       padding: 0.35rem 0.9rem;
-      font-size: 0.6875rem;
-      font-weight: 600;
-      letter-spacing: 0.16em;
+      font-size: 0.625rem;
+      font-weight: 500;
+      letter-spacing: 0.18em;
       text-transform: uppercase;
-      color: #CBD5E1;
-      backdrop-filter: blur(10px);
-      -webkit-backdrop-filter: blur(10px);
+      color: var(--color-soft-white);
       white-space: nowrap;
     }
-    .eyebrow i { color: #A3E635; font-size: 0.8125rem; }
+    .eyebrow i { color: var(--color-signal-violet); font-size: 0.75rem; }
 
     /* ---- Mobile nav panel ---- */
     .mobile-menu {
@@ -166,34 +278,38 @@
     /* ---- Subdued transparency preference ---- */
     @media (prefers-reduced-transparency: reduce) {
       .glass-panel, .glass-pill, .btn-glass, #navbar.nav-solid {
-        background: rgba(19, 25, 29, 0.98);
+        background: var(--color-iron);
         backdrop-filter: none;
         -webkit-backdrop-filter: none;
       }
     }
 
-    /* Subtle Glassmorphism */
+    /* Flat surfaces. DESIGN.md is shadowless: separation comes from a 1px
+       low-opacity hairline, never from blur or depth. backdrop-filter is
+       dropped from every one of these (and is not re-introduced anywhere
+       else in this sheet). */
     .glass-panel {
-      background: rgba(19, 25, 29, 0.65);
-      backdrop-filter: blur(16px);
-      -webkit-backdrop-filter: blur(16px);
-      border: 1px solid rgba(255, 255, 255, 0.08);
+      background: rgba(51, 50, 72, 0.7);
+      border: 1px solid rgba(247, 249, 250, 0.12);
     }
 
+    /* The nav pill becomes a hairline-bordered capsule chip rather than a
+       frosted lozenge: flat, 8px, achromatic fill. */
     .glass-pill {
-      background: rgba(255, 255, 255, 0.05);
-      backdrop-filter: blur(10px);
-      -webkit-backdrop-filter: blur(10px);
-      border: 1px solid rgba(255, 255, 255, 0.1);
+      background: rgba(51, 50, 72, 0.7);
+      border: 1px solid rgba(247, 249, 250, 0.12);
+      border-radius: var(--r-btn);
     }
 
-    /* Film Grain Overlay (fixed, pointer-events none) */
+    /* Film Grain Overlay (fixed, pointer-events none). Kept, at a lower alpha:
+       its job is to stop #090909 from banding, and on a near-black canvas that
+       matters more than it did on #0B0F12. */
     .grain {
       position: fixed;
       inset: 0;
       z-index: 60;
       pointer-events: none;
-      opacity: 0.03;
+      opacity: 0.025;
       background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.5'/%3E%3C/svg%3E");
     }
 
@@ -218,13 +334,11 @@
        - data-delay-step="110" -> opsional di wadah: ukuran jeda antar anak
     */
 
-    /* ---- Navbar solid state ---- */
-    #navbar { transition: background-color .3s ease, box-shadow .3s ease; }
+    /* ---- Navbar solid state. Flat: a hairline, not a shadow, and no blur. ---- */
+    #navbar { transition: background-color .3s ease, border-color .3s ease; }
     #navbar.nav-solid {
-      background: rgba(11, 15, 18, 0.8);
-      backdrop-filter: blur(16px);
-      -webkit-backdrop-filter: blur(16px);
-      box-shadow: 0 1px 0 rgba(255, 255, 255, 0.06);
+      background: rgba(9, 9, 9, 0.9);
+      border-bottom: 1px solid rgba(247, 249, 250, 0.1);
     }
 
     /* ---- Inline card + stepper glyphs ----
@@ -272,7 +386,7 @@
       border-radius: inherit;
       opacity: 0;
       transition: opacity .3s ease;
-      background: radial-gradient(420px circle at var(--mx, 50%) var(--my, 50%), rgba(163, 230, 53, 0.09), transparent 65%);
+      background: radial-gradient(420px circle at var(--mx, 50%) var(--my, 50%), rgba(175, 80, 255, 0.1), transparent 65%);
       pointer-events: none;
     }
     .spot-card:hover::before { opacity: 1; }
@@ -285,7 +399,7 @@
       inset: 0;
       border-radius: inherit;
       padding: 1px;
-      background: linear-gradient(120deg, rgba(163, 230, 53, 0.45), transparent 38%, rgba(163, 230, 53, 0.18));
+      background: linear-gradient(120deg, rgba(175, 80, 255, 0.45), transparent 38%, rgba(175, 80, 255, 0.18));
       -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
       -webkit-mask-composite: xor;
       mask-composite: exclude;
@@ -326,9 +440,9 @@
 
     /* Focus ring consistency for interactive elements */
     a:focus-visible, button:focus-visible {
-      outline: 2px solid rgba(163, 230, 53, 0.7);
+      outline: 2px solid rgba(175, 80, 255, 0.7);
       outline-offset: 3px;
-      border-radius: 8px;
+      border-radius: var(--r-btn);
     }
 
     /* ---- Skip link (keyboard accessibility) ---- */
@@ -337,31 +451,37 @@
       top: -100%;
       left: 1rem;
       z-index: 90;
-      background: #A3E635;
-      color: #0B0F12;
-      font-weight: 700;
-      font-size: 0.8125rem;
+      background: var(--color-signal-violet);
+      color: var(--color-near-black);
+      font-weight: 500;
+      font-size: 0.875rem;
       padding: 0.7rem 1.2rem;
-      border-radius: 9999px;
+      border-radius: var(--r-btn);
       transition: top .25s ease;
-      box-shadow: 0 8px 24px rgba(0,0,0,.4);
     }
     .skip-link:focus { top: 1rem; }
 
-    /* ---- Active nav link indicator ---- */
-    .nav-link { position: relative; }
-    .nav-link.active { color: #ffffff; }
+    /* ---- Nav links. DESIGN.md "Text-Only Nav Link": unbordered, 0px radius,
+       10.4px vertical padding, quiet until hover. ---- */
+    html body .nav-link {
+      position: relative;
+      padding: 10.4px 0;
+      border-radius: 0;
+      letter-spacing: 0.07em;
+      font-weight: 500;
+      color: var(--color-steel);
+    }
+    .nav-link.active { color: var(--color-almost-white); }
     .nav-link.active::after {
       content: "";
       position: absolute;
       left: 50%;
       transform: translateX(-50%);
-      bottom: -7px;
+      bottom: -1px;
       width: 4px;
       height: 4px;
-      border-radius: 9999px;
-      background: #A3E635;
-      box-shadow: 0 0 8px rgba(163, 230, 53, 0.8);
+      border-radius: var(--r-pill);
+      background: var(--color-signal-violet);
     }
 
     /* ---- Back-to-top floating action ---- */
@@ -370,6 +490,7 @@
       right: 1.25rem;
       bottom: 1.25rem;
       z-index: 55;
+      border-radius: var(--r-btn);
       opacity: 0;
       visibility: hidden;
       transform: translateY(12px);
@@ -392,16 +513,16 @@
       place-items: center;
       width: 2.25rem;
       height: 2.25rem;
-      border-radius: 9999px;
-      border: 1px solid rgba(255, 255, 255, 0.12);
-      background: rgba(19, 25, 29, 0.4);
-      color: #94A3B8;
+      border-radius: var(--r-btn);
+      border: 1px solid rgba(247, 249, 250, 0.12);
+      background: rgba(247, 249, 250, 0.04);
+      color: var(--color-steel);
       transition: border-color .3s ease, background-color .3s ease, color .3s ease;
     }
     .hero-scroll:hover {
-      border-color: rgba(163, 230, 53, 0.45);
-      background: rgba(19, 25, 29, 0.65);
-      color: #A3E635;
+      border-color: rgba(175, 80, 255, 0.45);
+      background: rgba(247, 249, 250, 0.08);
+      color: var(--color-signal-violet);
     }
     .hero-scroll-line {
       width: 1px;
@@ -438,7 +559,7 @@
     html.motion-reduced .title-line::after, html.motion-reduced .footer-nav a::after { transform: scaleX(1); transition: none; }
     html.motion-reduced .reveal > div:first-child, html.motion-reduced .reveal > div:first-child :is(i, svg) { transition: none; }
 
-    /* ---- Scroll progress bar ---- */
+    /* ---- Scroll progress bar. Flat violet, no glow: the fill IS the signal. ---- */
     #scroll-progress {
       position: fixed;
       top: 0;
@@ -448,8 +569,7 @@
       z-index: 45;
       transform-origin: 0 50%;
       transform: scaleX(0);
-      background: linear-gradient(90deg, #A3E635, #BEF264, rgba(163, 230, 53, 0.7));
-      box-shadow: 0 0 12px rgba(163, 230, 53, 0.45);
+      background: linear-gradient(90deg, var(--color-signal-violet), var(--color-lavender-mist), rgba(175, 80, 255, 0.7));
       pointer-events: none;
     }
 
@@ -508,19 +628,22 @@
       left: 0;
       bottom: 0;
       width: 100%;
-      height: 3px;
-      border-radius: 9999px;
-      background: linear-gradient(90deg, #A3E635, transparent);
+      height: 1px;
+      border-radius: var(--r-pill);
+      background: linear-gradient(90deg, var(--color-signal-violet), transparent);
       transform: scaleX(0);
       transform-origin: left;
       transition: transform .9s cubic-bezier(.16, 1, .3, 1) .15s;
     }
     .title-line.is-titled::after { transform: scaleX(1); }
 
-    /* ---- Active nav dot: breathing glow ---- */
+    /* ---- Active nav dot: breathing. Animates transform/opacity instead of
+       box-shadow, because the system is shadowless — the old version of this
+       keyframe animated a glow that no longer exists. The reduced-motion block
+       further up still names `.nav-link.active::after`, which stays correct. ---- */
     @keyframes dotPulse {
-      0%, 100% { box-shadow: 0 0 8px rgba(163, 230, 53, 0.8); }
-      50%      { box-shadow: 0 0 14px rgba(163, 230, 53, 1); }
+      0%, 100% { transform: translateX(-50%) scale(1); opacity: 1; }
+      50%      { transform: translateX(-50%) scale(1.6); opacity: 0.6; }
     }
     .nav-link.active::after { animation: dotPulse 2.2s ease-in-out infinite; }
 
@@ -542,16 +665,16 @@
       right: 100%;
       bottom: 0;
       height: 1px;
-      background: #A3E635;
+      background: var(--color-signal-violet);
       transition: right .28s ease;
     }
     .footer-nav a:hover::after { right: 0; }
 
     /* ---- Page transition overlay ----
-       The radial is graded the same way as the hero's: 0.09 was a mint tint
-       over a full-screen #0B0F12 plate, so the whole overlay read greener than
-       the page it is meant to look identical to. It only ever shows during a
-       route change, so it needs to be a hint, not a colour. */
+       The radial is graded the same way as the hero's: it has to be a hint, not
+       a colour, because this plate is only ever meant to look identical to the
+       page it covers. Its background-color is the page token, because
+       js/config.js reads --surface as the 3D fog from the same token. */
     #page-transition {
       position: fixed;
       inset: 0;
@@ -561,8 +684,8 @@
       align-items: center;
       justify-content: center;
       gap: 1.1rem;
-      background-color: #0B0F12;
-      background-image: radial-gradient(600px circle at 50% 115%, rgba(163, 230, 53, 0.045), transparent 60%);
+      background-color: #090909;
+      background-image: radial-gradient(600px circle at 50% 115%, rgba(175, 80, 255, 0.05), transparent 60%);
       opacity: 0;
       visibility: hidden;
       transition: opacity .45s ease, visibility .45s;
@@ -571,21 +694,21 @@
       opacity: 1;
       visibility: visible;
     }
+    /* The route-change plate is a stamp, so it is set in mono. */
     .pt-logo {
-      font-family: 'Space Grotesk', sans-serif;
-      font-weight: 700;
+      font-family: var(--font-mono);
+      font-weight: 400;
       font-size: 1.1rem;
-      letter-spacing: 0.18em;
+      letter-spacing: 0.2em;
       text-transform: uppercase;
-      color: #ffffff;
+      color: var(--color-almost-white);
     }
-    .pt-logo span { color: #A3E635; }
+    .pt-logo span { color: var(--color-signal-violet); }
     .pt-dot {
       width: 8px;
       height: 8px;
-      border-radius: 9999px;
-      background: #A3E635;
-      box-shadow: 0 0 16px rgba(163, 230, 53, 0.8);
+      border-radius: var(--r-pill);
+      background: var(--color-signal-violet);
       animation: ptPulse .9s ease-in-out infinite;
     }
     @keyframes ptPulse {
@@ -597,11 +720,11 @@
        Floating 3D layer (js/scene3d.js)
        -------------------------------------------------------------------
        The canvas is created with `alpha: true` and a fully transparent clear,
-       so WebGL never owns the page background — `html` keeps #0B0F12 and the
+       so WebGL never owns the page background — `html` keeps #090909 and the
        props composite over it. That matters because the clear colour in an
-       EffectComposer chain is ACES tone-mapped, which pushes #0B0F12 to about
-       rgb(50,64,73) and drifts with toneMappingExposure: an opaque canvas
-       would show a slate rectangle that changes as you scroll.
+       EffectComposer chain is ACES tone-mapped, which pushes #090909 to about
+       rgb(50,50,50) and drifts with toneMappingExposure: an opaque canvas
+       would show a grey rectangle that changes as you scroll.
 
        The canvas sits at z-index: -1, so it renders underneath every existing
        layer (spotlight 30, navbar 40, progress 45, back-to-top 55, grain 60,
@@ -630,22 +753,30 @@
        NOTE: the canvas is a z-index:-1 child of <body>, and body's own opaque
        background paints AFTER negative-z descendants — so body's background
        would hide the canvas entirely. Only the *colour* is reset: .hero-bg
-       keeps its mint glows and grid, which now composite over the 3D.
-       Gated on html.scene3d so the no-WebGL path is unchanged. */
-    html.scene3d body { background-color: transparent; }
+       keeps its violet glows and grid, which now composite over the 3D.
+       Gated on html.scene3d so the no-WebGL path is unchanged.
+
+       `.bg-surface` is named explicitly here on purpose. The Tailwind override
+       block earlier in this sheet targets `html body .bg-surface` at the SAME
+       0-1-2 specificity, so these two rules used to be separated by nothing but
+       source order. Adding the class makes the scene3d path win on specificity
+       alone, which means the two blocks can no longer be broken by reordering
+       or by a future rule landing between them. */
+    html.scene3d body,
+    html.scene3d body.bg-surface { background-color: transparent; }
     html.scene3d .hero-bg { background-color: transparent; }
 
-    /* The hero's bottom fade is already graded onto #0b0f12 in the base rule,
-       which is also the page background, so this re-grade is redundant. Kept
-       anyway as a safety net for a stale cached stylesheet: if the base rule
-       has not updated, the fade still terminates on the page token instead of
-       on a second black. */
+    /* The hero's bottom fade is already graded onto #090909 in the base rule,
+       which is also the page background AND the 3D fog colour (--surface), so
+       this re-grade is redundant. Kept anyway as a safety net for a stale cached
+       stylesheet: if the base rule has not updated, the fade still terminates on
+       the page token instead of on a second black. */
     html.scene3d #hero::after {
       background: linear-gradient(to bottom,
-        rgba(11, 15, 18, 0) 0%,
-        rgba(11, 15, 18, 0.40) 50%,
-        rgba(11, 15, 18, 0.80) 80%,
-        #0b0f12 100%);
+        rgba(9, 9, 9, 0) 0%,
+        rgba(9, 9, 9, 0.40) 50%,
+        rgba(9, 9, 9, 0.80) 80%,
+        #090909 100%);
     }
 
     /* Reduced motion: no cross-fade, just snap in. Class-keyed — see the
@@ -690,7 +821,7 @@ html.motion-reduced { scroll-behavior: auto; }
 /* ============================================================================
    MOTION TOGGLE (footer)
    ----------------------------------------------------------------------------
-   Small, lime-on-black, and honest about state: the label names the ACTION
+   Small, violet-on-black, and honest about state: the label names the ACTION
    ("Reduce motion" while animating, "Enable motion" while static) and
    aria-pressed carries the STATE. A label that described the state instead
    would read backwards right after the click.
@@ -704,14 +835,14 @@ html.motion-reduced { scroll-behavior: auto; }
   display: inline-flex;
   align-items: center;
   gap: 0.4rem;
-  /* Lime/black, matching the accent tokens used elsewhere in the footer. */
-  color: #0B0F12;
-  background: #A3E635;
-  border: 1px solid #A3E635;
-  border-radius: 9999px;
+  /* Violet/black, matching the accent tokens used elsewhere in the footer. */
+  color: var(--color-near-black);
+  background: var(--color-signal-violet);
+  border: 1px solid var(--color-signal-violet);
+  border-radius: var(--r-btn);
   padding: 0.3rem 0.7rem;
   font-size: 0.7rem;
-  font-weight: 700;
+  font-weight: 500;
   letter-spacing: 0.04em;
   text-transform: uppercase;
   cursor: pointer;
@@ -720,23 +851,241 @@ html.motion-reduced { scroll-behavior: auto; }
      a slow fade would make the button feel unresponsive. */
   transition: background-color .15s ease, color .15s ease, border-color .15s ease;
 }
-.motion-toggle:hover { background: #BEF264; border-color: #BEF264; }
+.motion-toggle:hover { background: var(--color-lavender-mist); border-color: var(--color-lavender-mist); }
 .motion-toggle:active { transform: translateY(1px); }
 .motion-toggle:focus-visible {
-  outline: 2px solid rgba(163, 230, 53, 0.9);
+  outline: 2px solid rgba(175, 80, 255, 0.9);
   outline-offset: 3px;
 }
 /* Pressed = motion is OFF. Inverted fill so the state is legible without
    reading the label, and readable in both light and dark surroundings. */
 .motion-toggle[aria-pressed="true"] {
-  color: #A3E635;
-  background: #0B0F12;
-  border-color: #A3E635;
+  color: var(--color-signal-violet);
+  background: var(--color-near-black);
+  border-color: var(--color-signal-violet);
 }
 .motion-toggle[aria-pressed="true"]:hover {
-  color: #0B0F12;
-  background: #BEF264;
+  color: var(--color-near-black);
+  background: var(--color-lavender-mist);
 }
+
+/* ============================================================================
+   TAILWIND OVERRIDES  (redesign step 3 + 4)
+   ----------------------------------------------------------------------------
+   The Tailwind CDN does not inject a <link> — it injects an inline <style>
+   that lands in <head> AFTER all three of our stylesheets, so at equal
+   specificity it wins on source order and every colour/radius utility
+   generated from script.js's tailwind.config would survive a redesign that
+   only touched our sheets. Every rule below is therefore prefixed `html body`
+   to outrank it on specificity instead, which needs no !important.
+
+   What this block owns, and why it cannot live anywhere else:
+     * the violet accent (script.js maps accent-mint -> #A3E635, and that file
+       is out of scope, so the utility classes are re-pointed here);
+     * the DESIGN.md radii (the markup says rounded-2xl / rounded-3xl /
+       rounded-xl / rounded-full, none of which are 19.2 / 8 / 6);
+     * the flattened text ramp (slate-200/300/400 -> almost-white / soft-white
+       / steel);
+     * the selection pair, which was lime-on-black;
+     * the 1200px page width and 120px section rhythm, which the markup carries
+       as max-w-7xl / py-28 utilities.
+
+   Escaped slashes are required: `.border-accent-mint\/20` is one class name,
+   not a descendant combinator.
+   ========================================================================== */
+
+/* ---- Accent: lime -> Signal Violet ---- */
+html body .bg-accent-mint { background-color: var(--color-signal-violet); }
+html body .text-accent-mint { color: var(--color-signal-violet); }
+html body .bg-accent-mint\/10 { background-color: rgba(175, 80, 255, 0.1); }
+html body .bg-accent-mint\/12 { background-color: rgba(175, 80, 255, 0.12); }
+html body .border-accent-mint\/20,
+html body .border-accent-mint\/25,
+html body .border-accent-mint\/30 { border-color: rgba(175, 80, 255, 0.22); }
+html body .hover\:text-accent-mint:hover,
+html body .group:hover .group-hover\:text-accent-mint { color: var(--color-signal-violet); }
+html body .hover\:border-accent-mint\/30:hover { border-color: rgba(175, 80, 255, 0.45); }
+/* The headline gradient. Tailwind v3 compiles a from/to pair into three
+   custom properties, so all three are re-pointed or the ramp still starts on
+   lime. */
+html body .from-accent-mint {
+  --tw-gradient-from: var(--color-signal-violet) var(--tw-gradient-from-position);
+  --tw-gradient-to: rgba(175, 80, 255, 0) var(--tw-gradient-to-position);
+  --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to);
+}
+html body .to-accent-mint-hover {
+  --tw-gradient-to: var(--color-lavender-mist) var(--tw-gradient-to-position);
+}
+
+/* ---- Text ramp ---- */
+html body .text-slate-200 { color: var(--color-almost-white); }
+html body .text-slate-300 { color: var(--color-soft-white); }
+html body .text-slate-400 { color: var(--color-steel); }
+html body .text-white { color: var(--color-almost-white); }
+html body .text-surface { color: var(--color-near-black); }
+html body .bg-surface { background-color: var(--color-near-black); }
+
+/* ---- Surfaces & borders ---- */
+html body .border-surface-border { border-color: rgba(247, 249, 250, 0.12); }
+html body .border-t { border-top-width: 1px; }
+/* The shadow purge. `shadow-2xl` is on the toast, and DESIGN.md has no
+   elevation at all; the toast is separated by its hairline instead. */
+html body .shadow-2xl { box-shadow: none; }
+
+/* ---- Radii. DESIGN.md: cards 19.2px, buttons 8px, small controls 6px.
+        The pills that genuinely stay pills (.eyebrow, .nav-link.active::after)
+        are set in their own rules, not here. ---- */
+html body .rounded-2xl,
+html body .rounded-3xl { border-radius: var(--r-card); }
+html body .rounded-xl { border-radius: var(--r-control); }
+/* The three square-ish controls the markup rounds fully: the menu toggle, the
+   back-to-top button and the nav capsule. All three are controls, so 8px. */
+html body .rounded-full { border-radius: var(--r-btn); }
+/* ...except the two things that are meant to read as pills. */
+html body .eyebrow { border-radius: var(--r-pill); }
+
+/* ---- Layout: 1200px content width, 120px section rhythm, 40px card padding ---- */
+html body main > section[id] {
+  max-width: var(--page-max);
+  padding-left: 2rem;
+  padding-right: 2rem;
+  padding-top: var(--section-gap);
+  padding-bottom: var(--section-gap);
+}
+/* The hero is the one section that owns the viewport, so it keeps its own
+   padding and is exempt from the rhythm above. */
+html body main > section#hero {
+  max-width: none;
+  padding-top: 7rem;
+  padding-bottom: 4rem;
+}
+html body main > section#hero > .hero-grid { max-width: var(--page-max); margin-inline: auto; }
+html body #overview .spot-card { padding: var(--card-pad); }
+
+/* ---- Selection. Lime-on-black becomes violet-on-black; dark text on violet
+        keeps the contrast a light-on-lime pair had.
+
+        The `[class]` hops are load-bearing, not decoration. `::selection` is a
+        pseudo-element, so its specificity lands in the element column — plain
+        `html body ::selection` computes to (0,0,3) and LOSES to Tailwind's
+        `.selection\:bg-accent-mint::selection` at (0,1,1). Adding an attribute
+        selector puts a class back in the class column, which is the only way to
+        outrank the utility variant without !important. ---- */
+html body ::selection { background: var(--color-signal-violet); color: var(--color-near-black); }
+html body[class]::selection,
+html body [class]::selection { background: var(--color-signal-violet); color: var(--color-near-black); }
+html body ::-moz-selection { background: var(--color-signal-violet); color: var(--color-near-black); }
+
+/* ---- <body> IS NOT A DESCENDANT OF ITSELF.
+
+        Every override above is written `html body .utility`, which beats
+        Tailwind's `.utility` on specificity (0,1,2 vs 0,1,0). That trick
+        silently fails on exactly one element: <body>, which carries
+        `bg-surface text-slate-200 font-sans selection:*` directly. A
+        descendant combinator demands strict descent, so `html body .font-sans`
+        can never match `<body class="font-sans">` — verified false via
+        Element.matches() — and the whole page kept rendering in the old
+        DM Sans / #0B0F12 pair with no visible error anywhere.
+
+        So body gets its own `body.utility` forms, which match it directly and
+        carry the same (0,1,2). ---- */
+html body.bg-surface { background-color: var(--surface); }
+html body.font-sans { font-family: var(--font-sans); }
+html body.text-slate-200 { color: var(--color-almost-white); }
+
+/* ---- THE LAST OF THE LIME: FIVE INLINE GRADIENTS IN index.html.
+
+        index.html is frozen (out of scope), and five decorative blobs bake
+        `rgba(163,230,53,…)` straight into a `style` attribute: the cursor
+        spotlight, two drifting blobs in the hero, the ring glow inside the
+        TikTok card, and two washes in the closing band. An inline declaration
+        beats every selector in this file, so recolouring them REQUIRES
+        !important. That is the one place this redesign uses it, and it is worth
+        the trade: a lime glow bleeding through a violet page is a visible
+        regression, and editing the markup to avoid it is not on the table.
+
+        Selectors match on the literal old colour via `[style*=]`, so they
+        target exactly the six offending elements and nothing that merely
+        happens to be decorative. `#spotlight` is listed separately because it
+        alone is written with spaces (`163, 230, 53`) and so misses the
+        substring.
+
+        Intensities are re-rationed, not just re-hued. The hero already spends
+        its violet allowance on `.glow-field`, the accent button and the title
+        underline, so its two blobs drop to a tenth; the TikTok card's ring is
+        the one feature-card glow DESIGN.md allows and keeps its strength. */
+#spotlight {
+  background-image: radial-gradient(600px circle at 0px 0px, rgba(175, 80, 255, 0.07), transparent 80%) !important;
+}
+html body [style*="163,230,53"] {
+  background-image: radial-gradient(circle, rgba(175, 80, 255, 0.16), transparent 65%) !important;
+}
+html body #hero [style*="163,230,53"] {
+  background-image: radial-gradient(circle, rgba(175, 80, 255, 0.10), transparent 65%) !important;
+}
+html body .ring-float[style*="163,230,53"] {
+  background-image: radial-gradient(circle, rgba(175, 80, 255, 0.22), transparent 62%) !important;
+}
+html body #clarity [style*="163,230,53"].inset-0 {
+  background-image: radial-gradient(700px circle at 50% -20%, rgba(175, 80, 255, 0.10), transparent 60%) !important;
+}
+
+/* ---- Card + stepper headings: Inter, not the old display grotesque. `.font-display`
+        is on the h1, all nine h3s, the wordmark and the footer brand, so it is
+        re-pointed at the body face here and the hero re-asserts its own two
+        faces above. ---- */
+html body .font-display { font-family: var(--font-sans); }
+html body .font-sans { font-family: var(--font-sans); }
+
+/* ---- Stamped Section Heading. DESIGN.md "Stamped Section Heading": mono,
+        uppercase, heavily tracked, Soft White — the letterspaced breath IS the
+        heading. The wordmark `text-3xl md:text-5xl` and `tracking-tight` are
+        undone here. Capped at 56px rather than the reference 74px because the
+        copy here is three short sentences, and 74px + 0.2em would overflow a
+        1200px measure and wrap into three ragged lines.
+
+        WHY `[class]`, on all three rules below.
+
+        `html body main h2` reads like a specificity boost and is not one. All
+        four of its parts are TYPE selectors, so it computes to (0,0,4) — no
+        classes at all. Specificity compares columns left to right, so a single
+        class anywhere beats any number of types: Tailwind's `.text-3xl` at
+        (0,1,0) wins, and the h2 stayed 48px Inter with -1.2px tracking. Adding
+        one attribute selector puts a real (0,1,4) in front and the utilities
+        stop mattering. `h2[class]` rather than `h2.font-display` so the rule
+        holds for any h2 the markup might gain; every h2/h3/p in index.html
+        carries classes, so the selector always matches. ---- */
+html body main h2[class] {
+  font-family: var(--font-mono);
+  font-weight: 400;
+  font-size: clamp(2.25rem, 5vw, 3.5rem);
+  line-height: 0.95;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--color-soft-white);
+  max-width: 100%;
+}
+@media (max-width: 699px) {
+  /* 0.2em at 36px is unreadable narrow; the stamp tightens as it shrinks. */
+  html body main h2[class] { letter-spacing: 0.12em; font-size: clamp(1.5rem, 7vw, 2.25rem); }
+}
+
+/* ---- Card + stepper h3: the geometric sans at weight 500/600 ---- */
+html body main h3[class] {
+  font-family: var(--font-sans);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--color-almost-white);
+}
+
+/* ---- Body copy: Inter 300, DESIGN.md's 1.5-1.6 leading ---- */
+html body main p[class] {
+  font-weight: 300;
+  line-height: 1.6;
+  color: var(--color-steel);
+}
+html body #clarity p[class] { color: var(--color-soft-white); font-weight: 300; }
+
 /* The icon swaps to a pause mark when motion is off; kept as a glyph change
    only (no rotation loop), so the button itself never becomes an animation. */
 .motion-toggle-icon { font-size: 0.9rem; }

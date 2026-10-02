@@ -11,9 +11,9 @@
    `data-delay`), and js/reveal.js owns everything script.js does not
    reach. This file is the LOOK: one effect, applied to both.
 
-       hidden    opacity 0, translate3d(0, 28px, 0), blur(12px)
-       visible   opacity 1, translate3d(0, 0, 0),    blur(0)
-       timing    .9s, cubic-bezier(.22, 1, .36, 1), on opacity,
+       hidden    opacity 0, translate3d(0, 20px, 0), blur(8px)
+       visible   opacity 1, translate3d(0, 0, 0),  blur(0)
+       timing    .8s, cubic-bezier(.22, 1, .36, 1), on opacity,
                  transform AND filter; per-element delay from
                  `--reveal-delay`
 
@@ -34,14 +34,29 @@
    the 5.5s failsafe's one-way kill switch.
    ==================================================================== */
 
+/* --------------------------------------------------------------------
+   THE NUMBERS — and two unit contracts with js/reveal.js.
+
+   `--reveal-duration` is read by `cssPx()` (js/reveal.js) and multiplied
+   by 1000, so it MUST be expressed in SECONDS. Writing `800ms` there would
+   be parsed as 800 and budgeted as 800,000ms.
+   `--reveal-max-delay` and `--reveal-stagger` are read raw, so they MUST
+   be in MILLISECONDS.
+
+   The redesigned numbers are gentler than the originals: the blur is the
+   single most expensive thing on this page and the achromatic palette does
+   not need as much softening to read as an arrival, so distance, blur and
+   duration all come down together. Nothing else in this file changes — the
+   effect, the blur budget and every failsafe stay exactly as they were.
+   -------------------------------------------------------------------- */
 :root {
-  --reveal-distance: 28px;              /* how far below the block starts   */
-  --reveal-blur: 12px;                  /* never more than 12: big radii are */
+  --reveal-distance: 20px;              /* how far below the block starts   */
+  --reveal-blur: 8px;                   /* never more than 12: big radii are */
                                         /* the single most expensive thing  */
                                         /* on an Intel iGPU                */
-  --reveal-duration: .9s;
+  --reveal-duration: .8s;               /* SECONDS — see the note above     */
   --reveal-stagger: 100ms;              /* per index inside a group         */
-  --reveal-max-delay: 420ms;            /* ceiling: a long cascade cannot    */
+  --reveal-max-delay: 360ms;            /* ceiling: a long cascade cannot    */
                                         /* push its tail past the entrance  */
   --reveal-ease: cubic-bezier(.22, 1, .36, 1);
 }
@@ -140,8 +155,8 @@ html.reveal-ready #clarity > .reveal {
    -------------------------------------------------------------------- */
 @media (max-width: 699px) {
   :root {
-    --reveal-distance: 16px;
-    --reveal-blur: 6px;
+    --reveal-distance: 12px;
+    --reveal-blur: 5px;
     --reveal-max-delay: 300ms;
   }
 }
