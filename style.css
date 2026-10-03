@@ -334,10 +334,23 @@
        - data-delay-step="110" -> opsional di wadah: ukuran jeda antar anak
     */
 
-    /* ---- Navbar solid state. Flat: a hairline, not a shadow, and no blur. ---- */
-    #navbar { transition: background-color .3s ease, border-color .3s ease; }
+    /* ---- Navbar: ONE bar, and it is not a card. -------------------------------
+       Over the hero it is completely transparent — no pill, no plate, no border
+       — so the video runs edge to edge under it. script.js (read-only for this
+       work) flips `.nav-solid` from the #nav-sentinel, i.e. on any scroll at all;
+       that single class is the only thing this block styles.
+
+       The scrolled state is the frosted strip DESIGN.md's "Frosted Nav Bar"
+       describes: rgba(9,9,9,0.7) + backdrop blur(12px) + a hairline
+       border-bottom. Nothing else about the bar changes, so there is no second
+       visual identity to reconcile at the moment the class lands. ------------ */
+    #navbar {
+      transition: background-color .3s ease, border-color .3s ease;
+    }
     #navbar.nav-solid {
-      background: rgba(9, 9, 9, 0.9);
+      background-color: rgba(9, 9, 9, 0.7);
+      -webkit-backdrop-filter: blur(12px);
+      backdrop-filter: blur(12px);
       border-bottom: 1px solid rgba(247, 249, 250, 0.1);
     }
 
@@ -445,6 +458,85 @@
       border-radius: var(--r-btn);
     }
 
+    /* ============================================================================
+       TOOL CARDS (the three #overview tiles)
+       ----------------------------------------------------------------------------
+       DESIGN.md, not the old frosted plate: background rgba(255,255,255,0.03),
+       a 1px rgba(255,255,255,0.1) hairline, 16px radius, and NO shadow. The
+       markup still carries `glass-panel` + `rounded-2xl`, which resolve to the
+       purple-grey plate and 19.2px, so both are overridden here. Every selector
+       is `html body …` because the Tailwind CDN injects its <style> after this
+       file and would otherwise win on source order at equal specificity.
+
+       Hover raises the hairline to white 25%. The violet is the EXISTING
+       .spot-card::before radial — reused rather than replaced with a box-shadow,
+       because the system is shadowless and that wash was already the card's
+       hover glow. Only its duration changes (300ms -> 200ms), which is also what
+       the border transition below is set to, so the two move as one.
+       ========================================================================== */
+    html body #overview .tool-card {
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 16px;
+      box-shadow: none;
+      transition: background-color .2s ease, border-color .2s ease;
+    }
+    html body #overview .tool-card:hover {
+      background: rgba(255, 255, 255, 0.045);
+      border-color: rgba(255, 255, 255, 0.25);
+    }
+    html body #overview .tool-card.spot-card::before { transition: opacity .2s ease; }
+    html body #overview .tool-card.spot-card:hover::before { opacity: 1; }
+
+    /* The eyebrow above the icon: mono, uppercase, 0.18em — the stamped-label
+       voice at caption size. A bare label, not the .eyebrow pill badge. */
+    html body #overview .tool-card-eyebrow {
+      display: flex;
+      align-items: center;
+      gap: 0.55rem;
+      font-family: var(--font-mono);
+      font-size: 10px;
+      font-weight: 400;
+      line-height: 1;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: rgba(247, 249, 250, 0.45);
+    }
+    html body #overview .tool-card-eyebrow i {
+      font-style: normal;
+      color: var(--color-signal-violet);
+    }
+
+    /* Icon tile: hairline outline box, transparent fill. The old version was a
+       violet 10% wash plus a blurred violet halo behind it — two fills, which
+       is exactly what DESIGN.md's "no fill inside the outline" rules out. */
+    html body #overview .tool-card-icon {
+      position: relative;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 48px;
+      height: 48px;
+      border-radius: var(--r-control);
+      background: transparent;
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      color: var(--color-almost-white);
+      transition: border-color .2s ease, color .2s ease;
+    }
+    html body #overview .tool-card:hover .tool-card-icon {
+      border-color: rgba(255, 255, 255, 0.28);
+      color: var(--color-signal-violet);
+    }
+
+    /* Card title: Inter at 500 (the general h3 rule above is 600), body copy at
+       white 65% rather than Steel, which was reading as flat grey against the
+       much lighter 3% wash. */
+    html body #overview .tool-card h3[class] { font-weight: 500; }
+    html body #overview .tool-card p[class] {
+      color: rgba(247, 249, 250, 0.65);
+      font-weight: 300;
+    }
+
     /* ---- Skip link (keyboard accessibility) ---- */
     .skip-link {
       position: fixed;
@@ -461,27 +553,99 @@
     }
     .skip-link:focus { top: 1rem; }
 
-    /* ---- Nav links. DESIGN.md "Text-Only Nav Link": unbordered, 0px radius,
-       10.4px vertical padding, quiet until hover. ---- */
-    html body .nav-link {
+/* ---- Nav links. The stamped-letterhead voice (mono, uppercase, heavily
+           tracked) at nav scale: 11px / 0.16em, white at 70%, white at 100%
+           when active with the small violet dot underneath.
+
+           Scoped to #navbar so the footer nav, which is a different component
+           at a different size, is untouched. `html body #navbar` is needed
+           because the <nav> itself carries Tailwind's text-xs / text-slate-300
+           and the Tailwind CDN stylesheet is injected after this file. ------ */
+    html body #navbar .nav-link {
       position: relative;
       padding: 10.4px 0;
       border-radius: 0;
-      letter-spacing: 0.07em;
-      font-weight: 500;
-      color: var(--color-steel);
+      font-family: var(--font-mono);
+      font-size: 11px;
+      font-weight: 400;
+      line-height: 1;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      color: rgba(247, 249, 250, 0.7);
+      transition: color .2s ease;
     }
-    .nav-link.active { color: var(--color-almost-white); }
-    .nav-link.active::after {
+    html body #navbar .nav-link:hover { color: var(--color-almost-white); }
+    html body #navbar .nav-link.active { color: var(--color-almost-white); }
+    html body #navbar .nav-link.active::after {
       content: "";
       position: absolute;
       left: 50%;
       transform: translateX(-50%);
-      bottom: -1px;
+      bottom: 2px;
       width: 4px;
       height: 4px;
       border-radius: var(--r-pill);
       background: var(--color-signal-violet);
+    }
+
+    /* ---- Outline pill: the nav's only button shape. Transparent fill, a
+           30%-white hairline, mono uppercase label; hover adds the 10% white
+           fill and ONE thin violet glow. This is the replacement for the solid
+           violet button that used to sit in the bar — violet is rationed to
+           fills and glows, and a filled pill floating over the hero video was
+           neither. `.btn` supplies padding/size, so only the skin is here. */
+    .btn-outline {
+      background: transparent;
+      border: 1px solid rgba(255, 255, 255, 0.3);
+      color: var(--color-almost-white);
+      font-family: var(--font-mono);
+      font-size: 0.6875rem;
+      font-weight: 400;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      box-shadow: none;
+      transition: background .2s ease, border-color .2s ease, box-shadow .2s ease, color .2s ease;
+    }
+    .btn-outline:hover {
+      background: rgba(255, 255, 255, 0.1);
+      border-color: rgba(255, 255, 255, 0.45);
+      color: var(--color-almost-white);
+      box-shadow: 0 0 20px rgba(175, 80, 255, 0.14);
+    }
+    /* The mobile-menu copy of the same CTA is full-width and wants a touch more
+       vertical presence than the bar version. */
+    #mobile-menu .btn-outline { padding: 0.9rem 1rem; }
+
+    /* The square icon controls (share button, menu toggle) are outline for the
+       same reason — one skin for every control in the bar. 8px radius, since
+       DESIGN.md allows exactly two button radii and this is a control. */
+    .btn-outline-icon {
+      background: transparent;
+      border: 1px solid rgba(255, 255, 255, 0.3);
+      color: var(--color-almost-white);
+      box-shadow: none;
+      transition: background .2s ease, border-color .2s ease, box-shadow .2s ease, color .2s ease;
+    }
+    .btn-outline-icon:hover {
+      background: rgba(255, 255, 255, 0.1);
+      border-color: rgba(255, 255, 255, 0.45);
+      color: var(--color-almost-white);
+      box-shadow: 0 0 20px rgba(175, 80, 255, 0.14);
+    }
+    /* The bar's share button keeps .social-btn's 2.5rem square and re-skins to
+       the outline above. The footer's copy of the same component is left alone. */
+    html body #navbar .social-btn {
+      background: transparent;
+      border: 1px solid rgba(255, 255, 255, 0.3);
+      color: var(--color-almost-white);
+      border-radius: var(--r-btn);
+      transition: background .2s ease, border-color .2s ease, box-shadow .2s ease, color .2s ease;
+    }
+    html body #navbar .social-btn:hover {
+      background: rgba(255, 255, 255, 0.1);
+      border-color: rgba(255, 255, 255, 0.45);
+      color: var(--color-almost-white);
+      box-shadow: 0 0 20px rgba(175, 80, 255, 0.14);
     }
 
     /* ---- Back-to-top floating action ---- */
@@ -766,11 +930,15 @@
     html.scene3d body.bg-surface { background-color: transparent; }
     html.scene3d .hero-bg { background-color: transparent; }
 
-    /* The hero's bottom fade is already graded onto #090909 in the base rule,
-       which is also the page background AND the 3D fog colour (--surface), so
-       this re-grade is redundant. Kept anyway as a safety net for a stale cached
-       stylesheet: if the base rule has not updated, the fade still terminates on
-       the page token instead of on a second black. */
+    /* DEAD, and deliberately documented rather than deleted: css/hero.css sets
+       `#hero.hero-new::after { content: none }` and is linked after this sheet,
+       so the pseudo-element is never generated and no background here can paint.
+       The live hero-to-next fade is `.hero-overlay::after` in css/hero.css, which
+       is the one place it should be. Previously this rule was described as a
+       "safety net for a stale cached stylesheet" — that was never true, because a
+       stale hero.css would also be the stale sheet that lets this rule paint, and
+       a fresh hero.css suppresses it either way. Left in place only to record why
+       adding a second fade here would be a no-op. */
     html.scene3d #hero::after {
       background: linear-gradient(to bottom,
         rgba(9, 9, 9, 0) 0%,
@@ -1015,7 +1183,23 @@ html body.text-slate-200 { color: var(--color-almost-white); }
         underline, so its two blobs drop to a tenth; the TikTok card's ring is
         the one feature-card glow DESIGN.md allows and keeps its strength. */
 #spotlight {
-  background-image: radial-gradient(600px circle at 0px 0px, rgba(175, 80, 255, 0.07), transparent 80%) !important;
+  /* The lime radial came from an inline style; !important is needed to recolour
+     the image, but we MUST NOT bake the 'at 0px 0px' position into the
+     background-image shorthand because script.js rewrites the entire inline
+     'background' on mousemove to track the cursor. Freezing the position
+     pins the radial to the top-left and can paint a visible edge near the
+     hero/next join on some viewports. Recolour only via CSS variable or by
+     overriding just the colour stops; easier: set a recoloured gradient with
+     background-image !important but leave position alone by not specifying it,
+     and rely on the inline 'background' (which includes position) to win for
+     position? No — inline background is the full shorthand. So instead, keep
+     the shape in the inline or override via CSS custom property. Simpler: do
+     not set background-image here at all; set --spotlight-colour and have the
+     inline use it, or recolour by using background with !important but preserve
+     the position tokens if we know them. Easier: let script.js write violet
+     directly. */
+  background-image: none !important;
+  background: radial-gradient(600px circle at 0px 0px, rgba(175, 80, 255, 0.07), transparent 80%) !important;
 }
 html body [style*="163,230,53"] {
   background-image: radial-gradient(circle, rgba(175, 80, 255, 0.16), transparent 65%) !important;

@@ -273,9 +273,9 @@
 
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="description" content="TOOLAPIS is a small hub of real web tools: upscale TikTok clips to HD, share your PC's internet with Android over USB, or jump into the social media hub.">
-  <meta name="theme-color" content="#0B0F12">
+  <meta name="theme-color" content="#090909">
   <meta name="color-scheme" content="dark">
-  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='16' fill='%23A3E635'/%3E%3Ctext x='16' y='21.5' font-family='Arial,sans-serif' font-size='12.5' font-weight='800' text-anchor='middle' fill='%230B0F12'%3ETL%3C/text%3E%3C/svg%3E">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='16' fill='%23af50ff'/%3E%3Ctext x='16' y='21.5' font-family='Arial,sans-serif' font-size='12.5' font-weight='800' text-anchor='middle' fill='%23090909'%3ETL%3C/text%3E%3C/svg%3E">
   <meta property="og:type" content="website">
   <meta property="og:title" content="TOOLAPIS — Web Tools Hub">
   <meta property="og:description" content="Upscale TikTok clips to HD, tether your PC's internet to Android over USB, or open the social hub. One place, zero friction.">
@@ -298,11 +298,11 @@
        `html.reveal-ready`, which only js/reveal.js adds, so no JS means no
        hidden content. See css/reveal.css. -->
   <link rel="stylesheet" href="css/reveal.css">
+  <link rel="stylesheet" href="css/hero.css">
 
   <!-- Google Fonts CDN -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600;9..40,700&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
 
   <!-- Phosphor Icons (deferred, non-blocking) -->
   <link rel="preconnect" href="https://unpkg.com">
@@ -375,8 +375,10 @@
           </span>
         </a>
 
-        <!-- Navigation Links (desktop) -->
-        <nav class="hidden md:flex items-center gap-8 glass-pill px-6 py-2 rounded-full text-xs font-medium tracking-wider uppercase text-slate-300" aria-label="Primary">
+        <!-- Navigation Links (desktop). No dark pill and no pill background at
+             all: the bar is transparent over the hero and only turns into a
+             frosted strip once .nav-solid lands (see style.css). -->
+        <nav class="hidden md:flex items-center gap-8 text-xs uppercase text-slate-300" aria-label="Primary">
           <a href="#overview" class="nav-link hover:text-white transition-colors">Overview</a>
           <a href="#features" class="nav-link hover:text-white transition-colors">Features</a>
           <a href="#flow" class="nav-link hover:text-white transition-colors">Flow</a>
@@ -388,13 +390,13 @@
           <a href="https://newsocapis.vercel.app" target="_blank" rel="noopener noreferrer" data-magnetic class="social-btn hidden sm:inline-flex" aria-label="Open Social Media hub">
             <i class="ph-bold ph-share-network text-lg" aria-hidden="true"></i>
           </a>
-          <a href="https://tiktok-hd-enhancer-by-apis-fgtkuxmpzmi7h8gifh4a8o.streamlit.app/" target="_blank" rel="noopener noreferrer" data-magnetic class="btn btn-accent btn-sm hidden sm:inline-flex">
+          <a href="https://tiktok-hd-enhancer-by-apis-fgtkuxmpzmi7h8gifh4a8o.streamlit.app/" target="_blank" rel="noopener noreferrer" data-magnetic class="btn btn-outline btn-sm hidden sm:inline-flex">
             <span class="hidden lg:inline">Open HD Enhancer</span>
             <span class="lg:hidden">HD Enhancer</span>
             <i class="ph ph-arrow-up-right font-bold" aria-hidden="true"></i>
           </a>
 
-          <button id="nav-toggle" class="md:hidden flex items-center justify-center w-11 h-11 rounded-full glass-pill text-white transition-colors hover:bg-white/10" aria-label="Toggle menu" aria-expanded="false" aria-controls="mobile-menu">
+          <button id="nav-toggle" class="md:hidden flex items-center justify-center w-11 h-11 rounded-full btn-outline-icon text-white transition-colors" aria-label="Toggle menu" aria-expanded="false" aria-controls="mobile-menu">
             <i id="nav-icon" class="ph-bold ph-list text-lg pointer-events-none" aria-hidden="true"></i>
           </button>
         </div>
@@ -416,7 +418,7 @@
             Clarity <i class="ph-bold ph-arrow-right text-accent-mint" aria-hidden="true"></i>
           </a>
         </nav>
-        <a href="https://tiktok-hd-enhancer-by-apis-fgtkuxmpzmi7h8gifh4a8o.streamlit.app/" target="_blank" rel="noopener noreferrer" class="btn btn-accent w-full mt-4">
+        <a href="https://tiktok-hd-enhancer-by-apis-fgtkuxmpzmi7h8gifh4a8o.streamlit.app/" target="_blank" rel="noopener noreferrer" class="btn btn-outline w-full mt-4">
           <i class="ph-bold ph-arrow-up-right" aria-hidden="true"></i>
           <span>Open HD Enhancer</span>
         </a>
@@ -430,82 +432,98 @@
 
   <!-- Hero Main Section -->
   <main id="main-content">
-    <section id="hero" class="hero-bg min-h-[100dvh] flex items-center px-4 md:px-8 pt-28 pb-16 relative overflow-hidden">
+    <section id="hero" class="hero-new" data-section="hero">
+      <div class="hero-card">
+        <div class="hero-layers">
+          <video class="hero-video" autoplay muted loop playsinline preload="metadata" poster="assets/sky-poster.jpg">
+            <source src="assets/sky.webm" type="video/webm">
+            <source src="assets/sky.mp4" type="video/mp4">
+          </video>
+          <div class="hero-overlay"></div>
+        </div>
 
-      <!-- Ambient drift glows (parallax field) -->
-      <div id="glow-field" class="absolute inset-0 z-0 pointer-events-none">
-        <div aria-hidden="true" class="pointer-events-none absolute -top-32 -left-24 z-0 w-[480px] h-[480px] rounded-full blur-3xl opacity-40 drift" style="background: radial-gradient(circle, rgba(163,230,53,0.16), transparent 65%);"></div>
-        <div aria-hidden="true" class="pointer-events-none absolute -bottom-40 -right-32 z-0 w-[520px] h-[520px] rounded-full blur-3xl opacity-30 drift" style="background: radial-gradient(circle, rgba(163,230,53,0.14), transparent 65%);"></div>
-      </div>
+        <!-- ONE navbar only: the fixed #navbar above owns scroll-spy + the active
+             indicator, so nothing lives here. What was removed used to stack a
+             second brand/link/action row on top of it inside the hero. The inline
+             entrance script at the bottom of this file queries .hero-navbar behind
+             an `if (navbar)` guard, so its absence is already handled. -->
+        <div class="hero-content">
+          <div class="hero-body">
+            <div class="hero-copy-left">
+              <h1 class="hero-title">
+                <span class="hero-title-line sans word-mask"><span class="word-reveal">Web</span> <span class="word-reveal">Tools</span></span>
+                <span class="hero-title-line light word-mask"><span class="word-reveal">For</span> <span class="word-reveal">You,</span></span>
+                <span class="hero-title-line light word-mask"><span class="word-reveal">All</span> <span class="word-reveal">in</span> <span class="word-reveal serif-italic">One</span> <span class="word-reveal">Place.</span></span>
+              </h1>
+              <p class="hero-subtitle reveal">
+                Boost TikTok clips to HD, tether your PC's internet to Android over USB, or jump into the social media hub. One hub, three tools, zero friction.
+              </p>
+              <div class="hero-cta-row reveal">
+                <a href="#flow" class="hero-link-see">
+                  <span>See how in 30s</span>
+                  <i class="ph-bold ph-arrow-right"></i>
+                </a>
+                <a href="#flow" class="hero-play-btn" aria-label="See how in 30s">
+                  <i class="ph-bold ph-play"></i>
+                </a>
+              </div>
+            </div>
 
-      <!-- Hero layout grid: centered copy -->
-      <div class="hero-grid max-w-7xl mx-auto w-full">
+            <div class="hero-aircraft">
+              <div class="hero-contrail">
+                <svg class="hero-contrail-line" viewBox="0 0 240 2" preserveAspectRatio="none">
+                  <line x1="240" y1="1" x2="0" y2="1"></line>
+                </svg>
+              </div>
+              <svg class="hero-plane" viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                <path d="M2 16l26-6-10 6 10 6z" fill="currentColor" opacity="0.98"></path>
+                <path d="M28 10l-10 6 10 6-2-6z" fill="currentColor" opacity="0.6"></path>
+              </svg>
+            </div>
 
-        <!-- Copy column -->
-        <div class="hero-copy text-center space-y-7 max-w-2xl mx-auto">
-          <!-- Eyebrow Badge -->
-          <div class="reveal eyebrow" data-delay="0" data-intro-reveal="1" id="intro-badge">
-            <i class="ph-bold ph-sparkle" aria-hidden="true"></i>
-            <span>Web Tools</span>
+            <div class="hero-boarding">
+              <div class="hero-boarding-header">
+                <span class="hero-boarding-label">TOOL PASS</span>
+                <div class="hero-barcode"></div>
+              </div>
+              <div class="hero-boarding-fields">
+                <div class="hero-field">
+                  <span class="hero-field-label">FROM</span>
+                  <span class="hero-field-value">BROWSER</span>
+                </div>
+                <div class="hero-field">
+                  <span class="hero-field-label">TO</span>
+                  <span class="hero-field-value">HD</span>
+                </div>
+              </div>
+              <div class="hero-boarding-body">
+                <h3 class="hero-boarding-title">Ready in one click.</h3>
+                <div class="hero-boarding-actions">
+                  <a href="https://tiktok-hd-enhancer-by-apis-fgtkuxmpzmi7h8gifh4a8o.streamlit.app/" target="_blank" rel="noopener noreferrer" class="hero-pill-outline" style="width:100%; justify-content:center;">
+                    <span>OPEN HD ENHANCER</span>
+                  </a>
+                  <a href="https://drive.google.com/file/d/1gH_huKs7Pf9XP2uJcRfMaLqJonLfJcbI/view" target="_blank" rel="noopener noreferrer" class="hero-pill-outline" style="width:100%; justify-content:center;">
+                    <span>OPEN GNIREHTET</span>
+                  </a>
+                </div>
+              </div>
+            </div>
           </div>
 
-          <!-- Main Headline -->
-          <h1 id="intro-h1" class="reveal font-display text-4xl sm:text-5xl md:text-6xl font-bold text-white tracking-tight leading-[1.08] max-w-3xl mx-auto text-balance" data-delay="150" data-intro-reveal="2">
-            Web Tools For You,<br class="hidden sm:block">
-            <span class="text-transparent bg-clip-text bg-gradient-to-r from-accent-mint to-accent-mint-hover text-shimmer">All in One Place.</span>
-          </h1>
-
-          <!-- Description Subtext -->
-          <p id="intro-p" class="reveal text-slate-300 text-base md:text-lg max-w-2xl mx-auto font-normal leading-relaxed" data-delay="300" data-intro-reveal="3">
-            Boost TikTok clips to HD, tether your PC's internet to Android over USB, or jump into the social media hub. One hub, three tools, zero friction.
-          </p>
-
-          <!-- Primary Action Buttons -->
-          <div id="intro-actions" class="reveal pt-3 flex flex-col sm:flex-row items-center justify-center gap-4" data-delay="450" data-intro-reveal="4">
-
-            <!-- Button 1: TikTok HD Enhancer -->
-            <a href="https://tiktok-hd-enhancer-by-apis-fgtkuxmpzmi7h8gifh4a8o.streamlit.app/"
-               target="_blank"
-               rel="noopener noreferrer"
-               data-magnetic
-               data-3d="hd"
-               class="btn btn-accent w-full sm:w-auto group">
-              <i class="ph-bold ph-magic-wand text-lg" aria-hidden="true"></i>
-              <span>Open HD Enhancer</span>
-              <i class="ph-bold ph-arrow-right text-sm transition-transform group-hover:translate-x-1" aria-hidden="true"></i>
-            </a>
-
-            <!-- Button 2: Gnirehtet USB Tethering -->
-            <a href="https://drive.google.com/file/d/1gH_huKs7Pf9XP2uJcRfMaLqJonLfJcbI/view"
-               target="_blank"
-               rel="noopener noreferrer"
-               data-magnetic
-               data-3d="usb"
-               class="btn btn-glass w-full sm:w-auto group">
-              <i class="ph-bold ph-usb text-lg text-accent-mint" aria-hidden="true"></i>
-              <span>Open Gnirehtet</span>
-              <i class="ph-bold ph-arrow-square-out text-sm text-slate-400 group-hover:text-white transition-colors" aria-hidden="true"></i>
-            </a>
-
-            <!-- Button 3: Social Media -->
-            <a href="https://newsocapis.vercel.app"
-               target="_blank"
-               rel="noopener noreferrer"
-               data-magnetic
-               data-3d="social"
-               class="btn btn-glass w-full sm:w-auto group">
-              <i class="ph-bold ph-share-network text-lg text-accent-mint" aria-hidden="true"></i>
-              <span>Social Media</span>
-              <i class="ph-bold ph-arrow-square-out text-sm text-slate-400 group-hover:text-white transition-colors" aria-hidden="true"></i>
-            </a>
+          <div class="hero-bottom-strip">
+            <div class="hero-strip-left">
+              <span>+</span>
+              <span>FLY DIRECT</span>
+              <span class="hero-strip-sep">|</span>
+              <span>WEB TOOLS</span>
+            </div>
+            <div class="hero-strip-right">
+              <span data-coords>37.7681° N, -122.0039° W</span>
+              <span class="hero-heart">♥</span>
+            </div>
           </div>
         </div>
       </div>
-
-      <!-- Scroll cue -->
-      <a href="#overview" class="hero-scroll" aria-label="Scroll to tools">
-        <span class="hero-scroll-line" aria-hidden="true"></span>
-      </a>
     </section>
 
     <!-- Overview / Tool Cards Section -->
@@ -513,9 +531,9 @@
       <div class="reveal-group grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
 
         <!-- Card 1: TikTok HD Enhancer -->
-        <div class="reveal tilt spot-card sheen glass-panel p-6 md:p-8 rounded-2xl space-y-4 hover:border-accent-mint/30 transition-colors duration-300" data-tilt="8">
-          <div class="relative w-12 h-12 rounded-xl bg-accent-mint/10 border border-accent-mint/20 flex items-center justify-center text-accent-mint">
-            <span aria-hidden="true" class="absolute -inset-1 rounded-xl bg-accent-mint/10 blur-lg"></span>
+        <div class="reveal tilt spot-card sheen glass-panel tool-card p-6 md:p-8 rounded-2xl space-y-4 hover:border-accent-mint/30 transition-colors duration-300" data-tilt="8">
+          <span class="tool-card-eyebrow"><i>01</i> Enhance</span>
+          <div class="tool-card-icon">
             <i class="ph-bold ph-sparkle text-2xl" aria-hidden="true"></i>
           </div>
           <h3 class="font-display font-bold text-xl text-white">TikTok HD Enhancer</h3>
@@ -531,9 +549,9 @@
         </div>
 
         <!-- Card 2: Gnirehtet Tethering -->
-        <div class="reveal tilt spot-card sheen glass-panel p-6 md:p-8 rounded-2xl space-y-4 hover:border-accent-mint/30 transition-colors duration-300" data-tilt="8">
-          <div class="relative w-12 h-12 rounded-xl bg-accent-mint/10 border border-accent-mint/20 flex items-center justify-center text-accent-mint">
-            <span aria-hidden="true" class="absolute -inset-1 rounded-xl bg-accent-mint/10 blur-lg"></span>
+        <div class="reveal tilt spot-card sheen glass-panel tool-card p-6 md:p-8 rounded-2xl space-y-4 hover:border-accent-mint/30 transition-colors duration-300" data-tilt="8">
+          <span class="tool-card-eyebrow"><i>02</i> Connect</span>
+          <div class="tool-card-icon">
             <svg class="ph ph-usb" viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><circle cx="7.4" cy="7.4" r="1.3"/><path d="M8.5 8.5 11.6 11.6"/><path d="M4 20.4 11.6 12.8"/><path d="M11.6 12.8 17.2 7.2"/><path d="M15.8 7.2h2.8"/><path d="M11.6 12.8 16.2 17.4"/><rect x="16.2" y="17.4" width="3" height="3" rx=".5"/></svg>
           </div>
           <h3 class="font-display font-bold text-xl text-white">Gnirehtet Tethering</h3>
@@ -549,9 +567,9 @@
         </div>
 
         <!-- Card 3: Social Media Hub -->
-        <div class="reveal tilt spot-card sheen glass-panel p-6 md:p-8 rounded-2xl space-y-4 hover:border-accent-mint/30 transition-colors duration-300" data-tilt="8">
-          <div class="relative w-12 h-12 rounded-xl bg-accent-mint/10 border border-accent-mint/20 flex items-center justify-center text-accent-mint">
-            <span aria-hidden="true" class="absolute -inset-1 rounded-xl bg-accent-mint/10 blur-lg"></span>
+        <div class="reveal tilt spot-card sheen glass-panel tool-card p-6 md:p-8 rounded-2xl space-y-4 hover:border-accent-mint/30 transition-colors duration-300" data-tilt="8">
+          <span class="tool-card-eyebrow"><i>03</i> Share</span>
+          <div class="tool-card-icon">
             <svg class="ph ph-share-network" viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><circle cx="18" cy="5.5" r="2.4"/><circle cx="6" cy="12" r="2.4"/><circle cx="18" cy="18.5" r="2.4"/><path d="M8.1 10.8 15.9 6.7"/><path d="M8.1 13.2 15.9 17.3"/></svg>
           </div>
           <h3 class="font-display font-bold text-xl text-white">Social Media Hub</h3>
@@ -780,5 +798,28 @@
   <script type="module" src="js/intro.js"></script>
   <script type="module" src="js/reveal.js"></script>
   <script type="module" src="js/scene3d.js"></script>
+  <script>
+    (function(){
+      const hero = document.getElementById('hero');
+      if(!hero) return;
+      const card = hero.querySelector('.hero-card');
+      const video = hero.querySelector('.hero-video');
+      const navbar = hero.querySelector('.hero-navbar');
+      const words = hero.querySelectorAll('.word-reveal');
+      const reveals = hero.querySelectorAll('.reveal');
+      const boarding = hero.querySelector('.hero-boarding');
+      const strip = hero.querySelector('.hero-bottom-strip');
+      requestAnimationFrame(function(){
+        if(card) card.classList.add('is-visible');
+        if(video) setTimeout(()=>video.classList.add('is-visible'), 200);
+        if(navbar) setTimeout(()=>navbar.classList.add('is-visible'), 300);
+        words.forEach((w,i)=>setTimeout(()=>w.classList.add('is-visible'), 400 + i*90));
+        reveals.forEach(r=>r.classList.add('is-visible'));
+        if(boarding) setTimeout(()=>{ boarding.classList.add('is-visible'); setTimeout(()=>boarding.classList.add('is-float'), 700); }, 1100);
+        if(strip) setTimeout(()=>strip.classList.add('is-visible'), 1400);
+      });
+    })();
+  </script>
+  <script src="js/hero-extras.js"></script>
 </body>
 </html>

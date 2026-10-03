@@ -1,0 +1,712 @@
+/* Hero override (dope.security inspired) — non-destructive to existing styles */
+:root {
+  --hero-radius: 0px;
+  /* The height of the bottom fade band. The hero is exactly 100svh tall, so 25%
+     of the viewport is 25% of the hero: the band and the strip's lift below are
+     both derived from this one number, which is why they can never disagree.
+     The clamp keeps it usable on a short landscape phone. */
+  --hero-fade-h: clamp(150px, 25svh, 300px);
+  /* Height of the fixed bar, so the hero copy clears it once the hero's own
+     navbar row was removed. */
+  --hero-nav-h: 87px;
+}
+
+@media (max-width: 899px) {
+  :root { --hero-nav-h: 76px; }
+}
+
+#hero.hero-new {
+  padding: 0 !important;
+  margin: 0;
+  width: 100%;
+  height: 100svh;
+  min-height: 100svh;
+  display: flex;
+  align-items: stretch;
+  justify-content: stretch;
+  /* The void, so any sub-pixel gap the video cannot cover is already the colour
+     the next section sits on. */
+  background: #090909;
+  position: relative;
+}
+
+#hero.hero-new::after {
+  content: none;
+}
+
+/* FULL-BLEED. No margin, no radius, no border: the hero used to be a 16px-
+   inset card with a 24px radius and a white hairline, and that outline is
+   exactly what read as a hard edge between the hero and the section under it.
+   The only thing that defines the hero now is its own bottom fade. */
+.hero-card {
+  position: relative;
+  margin: 0;
+  width: 100%;
+  height: 100%;
+  border-radius: 0;
+  border: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  background: #090909;
+  will-change: opacity;
+  opacity: 0;
+  /* Fades only. This used to scale up from 0.985, which on a full-bleed card
+     means 7px of #090909 showing along all four edges for the length of the
+     entrance — i.e. a re-created version of the very frame we just deleted, on
+     the one element that must never have one. */
+  transition: opacity 0.8s ease;
+}
+
+.hero-card.is-visible {
+  opacity: 1;
+}
+
+.hero-layers {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  /* The void behind the video. The video is masked to transparent over its
+     bottom third (below), and without this the mask would fade out onto
+     whatever is behind the section — i.e. onto the WebGL layer. */
+  background: #090909;
+}
+
+.hero-video {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  /* Overscan bleeds off the TOP only — the bottom edge stays flush with the
+     hero. That matters more than it looks: this used to be a symmetric
+     transform: scale(1.08), which hung the video box ~4% of the hero height
+     (36px at 1440x900, 34px at 390x844) BELOW the join. The mask below reaches
+     full transparency at 100% of its own box, so the video was still ~12% opaque
+     at the row where the hero clipped it — a flat, faintly violet band across
+     the last ~19 rows that ended in a visible step. Reduced-motion was never
+     affected, because that path zeroes the transform and restores the flush box.
+     With the overscan above the top edge, 100% of the mask IS the join, at any
+     height. Height stays explicit: a <video> is a replaced element, so height:auto
+     would resolve to the intrinsic size and ignore the insets entirely. */
+  height: 104%;
+  top: -4%;
+  bottom: auto;
+  object-fit: cover;
+  z-index: 0;
+  opacity: 0;
+  transition: opacity 0.8s ease;
+  /* Belt and braces with .hero-overlay::after. The overlay fade is the thing
+     that actually dissolves the seam; this mask makes sure the video itself is
+     already gone before the overlay gets there, so no engine that clips the
+     overlay (or any future re-ordering of these two layers) can expose a video
+     edge. */
+  -webkit-mask-image: linear-gradient(to bottom, #000 0%, #000 70%, transparent 100%);
+  mask-image: linear-gradient(to bottom, #000 0%, #000 70%, transparent 100%);
+}
+
+.hero-video.is-visible {
+  opacity: 1;
+}
+
+.hero-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  background:
+    linear-gradient(90deg, rgba(0,0,0,0.72) 0%, rgba(0,0,0,0.42) 55%, rgba(0,0,0,0.1) 80%, rgba(0,0,0,0) 100%),
+    linear-gradient(0deg, rgba(0,0,0,0.68) 0%, rgba(0,0,0,0.28) 45%, rgba(0,0,0,0) 80%);
+}
+
+/* ---- THE SEAM KILLER. ----
+   A transparent-to-#090909 gradient over the bottom quarter of the hero, so the
+   last pixel row of the hero and the first pixel row of #overview are the same
+   colour and there is nothing left to see. Every stop is the page token, which
+   is also --surface, which is also the 3D fog colour (js/config.js PALETTE.bg
+   reads it) — terminate a fade on a second black and the WebGL props dissolve
+   into a visible halo right where the eye is already looking for a join.
+
+   The ramp is deliberately front-loaded (55% opaque by 48% of the band) so the
+   hero strip, which sits inside the band's lower third, is legible instead of
+   being mono-white text over a bright horizon. */
+.hero-overlay::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: var(--hero-fade-h);
+  background: linear-gradient(to bottom,
+    rgba(9, 9, 9, 0) 0%,
+    rgba(9, 9, 9, 0.28) 22%,
+    rgba(9, 9, 9, 0.55) 40%,
+    rgba(9, 9, 9, 0.78) 58%,
+    rgba(9, 9, 9, 0.92) 76%,
+    #090909 100%);
+}
+
+.hero-content {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  /* Top padding clears the fixed bar (the hero's own navbar row is gone), and
+     the bottom padding reserves the fade band so the copy can never end up
+     sitting in it. */
+  padding: calc(var(--hero-nav-h) + clamp(12px, 1.6vw, 20px)) clamp(20px, 2.4vw, 32px) 0;
+}
+
+.hero-body {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  justify-content: space-between;
+  gap: clamp(24px, 4vw, 48px);
+  margin-top: clamp(16px, 2vw, 24px);
+}
+
+@media (max-width: 899px) {
+  .hero-body {
+    flex-direction: column;
+    align-items: flex-start;
+    justify-content: center;
+    gap: clamp(20px, 4vw, 28px);
+  }
+}
+
+.hero-copy-left {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: clamp(16px, 2vw, 24px);
+  max-width: min(60vw, 52rem);
+}
+
+@media (max-width: 899px) {
+  .hero-copy-left {
+    max-width: 100%;
+  }
+}
+
+.hero-title {
+  display: flex;
+  flex-direction: column;
+  gap: clamp(6px, 1vw, 10px);
+  line-height: 0.95;
+  letter-spacing: -0.02em;
+  color: var(--color-almost-white);
+}
+
+.hero-title-line {
+  font-family: var(--font-sans);
+  font-size: clamp(44px, 6.2vw, 92px);
+  will-change: transform, opacity, filter;
+}
+
+.hero-title-line.sans {
+  font-weight: 600;
+}
+
+.hero-title-line.light {
+  font-weight: 400;
+}
+
+.hero-title-line.serif-italic {
+  font-family: var(--font-display);
+  font-style: italic;
+  font-weight: 300;
+  font-size: calc(clamp(44px, 6.2vw, 92px) * 1.25);
+  letter-spacing: -0.03em;
+}
+
+.hero-subtitle {
+  font-family: var(--font-sans);
+  font-size: clamp(18px, 1.6vw, 20px);
+  font-weight: 300;
+  color: rgba(247,249,250,0.85);
+  max-width: 30ch;
+  line-height: 1.5;
+}
+
+.hero-cta-row {
+  display: flex;
+  align-items: center;
+  gap: clamp(12px, 1.6vw, 16px);
+}
+
+.hero-link-see {
+  font-family: var(--font-sans);
+  font-size: clamp(14px, 1.4vw, 16px);
+  color: rgba(247,249,250,0.85);
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  transition: color 200ms ease;
+}
+
+.hero-link-see:hover {
+  color: rgba(247,249,250,1);
+}
+
+.hero-play-btn {
+  width: 40px;
+  height: 40px;
+  border-radius: 999px;
+  border: 1px solid rgba(255,255,255,0.35);
+  background: rgba(255,255,255,0.08);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-almost-white);
+  transition: background 200ms ease, border-color 200ms ease, box-shadow 200ms ease;
+}
+
+.hero-play-btn:hover {
+  background: rgba(255,255,255,0.14);
+  border-color: rgba(255,255,255,0.5);
+  box-shadow: 0 0 0 1px rgba(175,80,255,0.22) inset, 0 0 28px rgba(175,80,255,0.18);
+}
+
+.hero-aircraft {
+  position: absolute;
+  top: 50%;
+  left: 52%;
+  transform: translate(-50%, -50%);
+  display: none;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0;
+  pointer-events: none;
+  z-index: 1;
+}
+
+@media (min-width: 960px) {
+  .hero-aircraft {
+    display: flex;
+  }
+}
+
+.hero-contrail {
+  position: relative;
+  width: clamp(160px, 18vw, 240px);
+  height: 2px;
+  margin-right: 14px;
+  transform-origin: right center;
+}
+
+.hero-contrail-line {
+  position: absolute;
+  inset: 0;
+  stroke: rgba(255,255,255,0.95);
+  stroke-width: 1px;
+  stroke-linecap: round;
+  fill: none;
+  stroke-dasharray: 1.6;
+  stroke-dashoffset: 1.6;
+  transition: stroke-dashoffset 1.6s ease-in-out;
+}
+
+.hero-contrail.is-drawn .hero-contrail-line {
+  stroke-dashoffset: 0;
+}
+
+.hero-contrail::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, rgba(255,255,255,0.95) 0%, rgba(255,255,255,0) 100%);
+  mask: linear-gradient(90deg, black 60%, transparent 100%);
+  -webkit-mask: linear-gradient(90deg, black 60%, transparent 100%);
+  opacity: 0.9;
+}
+
+.hero-plane {
+  width: clamp(26px, 2vw, 32px);
+  height: clamp(26px, 2vw, 32px);
+  color: #f7f9fa;
+  transform: translateX(0);
+  transition: transform 0.9s ease-in-out 0.4s;
+  will-change: transform;
+}
+
+.hero-contrail.is-drawn + .hero-plane {
+  transform: translateX(clamp(36px, 4vw, 44px));
+}
+
+.hero-contrail.is-loop + .hero-plane {
+  animation: hero-plane-sway 9s ease-in-out infinite;
+}
+
+@keyframes hero-plane-sway {
+  0%, 100% { transform: translateX(clamp(36px, 4vw, 44px)); }
+  50% { transform: translateX(clamp(40px, 4.4vw, 48px)); }
+}
+
+.hero-boarding {
+  position: relative;
+  width: min(340px, 88vw);
+  border-radius: 16px;
+  background: rgba(255,255,255,0.07);
+  backdrop-filter: blur(18px) saturate(120%);
+  -webkit-backdrop-filter: blur(18px) saturate(120%);
+  border: 1px solid rgba(255,255,255,0.18);
+  padding: clamp(16px, 1.8vw, 20px);
+  display: flex;
+  flex-direction: column;
+  gap: clamp(16px, 1.8vw, 20px);
+  will-change: transform, opacity;
+  transform: translateY(24px);
+  opacity: 0;
+  transition: transform 0.7s ease, opacity 0.7s ease;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.12);
+}
+
+@media (max-width: 899px) {
+  .hero-boarding {
+    width: 100%;
+  }
+}
+
+.hero-boarding.is-visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.hero-boarding.is-float {
+  animation: hero-boarding-float 7s ease-in-out infinite;
+}
+
+@keyframes hero-boarding-float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-6px); }
+}
+
+.hero-boarding::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  background: radial-gradient(120% 120% at 85% 10%, rgba(175,80,255,0.14), transparent 70%);
+}
+
+.hero-boarding::after {
+  content: '';
+  position: absolute;
+  top: -1px;
+  right: -1px;
+  width: clamp(48px, 6vw, 64px);
+  height: clamp(40px, 5vw, 52px);
+  border-top-right-radius: 16px;
+  border-bottom-left-radius: 16px;
+  background: radial-gradient(140% 140% at top right, rgba(9,9,9,0.4) 0%, rgba(9,9,9,0.1) 70%, transparent 100%);
+  pointer-events: none;
+}
+
+.hero-boarding-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: clamp(12px, 1.6vw, 16px);
+  position: relative;
+  z-index: 1;
+}
+
+.hero-boarding-label {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: rgba(247,249,250,0.72);
+}
+
+.hero-boarding-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: clamp(8px, 1.2vw, 12px);
+  padding: clamp(8px, 1.2vw, 10px) clamp(10px, 1.2vw, 12px);
+  border-radius: clamp(10px, 1.2vw, 12px);
+  border: 1px dashed rgba(255,255,255,0.22);
+  background: rgba(255,255,255,0.06);
+}
+
+.hero-field {
+  display: flex;
+  flex-direction: column;
+  gap: clamp(2px, 0.4vw, 4px);
+}
+
+.hero-field-label {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: rgba(247,249,250,0.52);
+}
+
+.hero-field-value {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: rgba(247,249,250,0.92);
+}
+
+.hero-barcode {
+  width: clamp(20px, 2vw, 24px);
+  height: clamp(56px, 7vw, 72px);
+  border-radius: clamp(4px, 0.6vw, 6px);
+  background-image: repeating-linear-gradient(
+    to bottom,
+    rgba(255,255,255,0.45) 0px,
+    rgba(255,255,255,0.45) 2px,
+    transparent 2px,
+    transparent 4px
+  );
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,0.18);
+}
+
+.hero-boarding-body {
+  display: flex;
+  flex-direction: column;
+  gap: clamp(12px, 1.6vw, 16px);
+  position: relative;
+  z-index: 1;
+}
+
+.hero-boarding-title {
+  font-family: var(--font-sans);
+  font-size: clamp(20px, 1.8vw, 24px);
+  font-weight: 500;
+  color: var(--color-almost-white);
+  line-height: 1.1;
+}
+
+.hero-boarding-actions {
+  display: flex;
+  flex-direction: column;
+  gap: clamp(8px, 1.2vw, 10px);
+}
+
+/* DESIGN.md "Ghost Pill Button": the two CTAs inside the boarding pass. A faint
+   translucent wash, no border, fully-round radius — the pill shape is the one
+   exception to the 8px control radius, and it only appears on this card. Kept
+   here (rather than reusing the nav's outline pill) because the bar and the
+   boarding pass are two different components with two different jobs. */
+.hero-pill-outline {
+  display: inline-flex;
+  align-items: center;
+  gap: clamp(6px, 0.8vw, 8px);
+  padding: clamp(9px, 1vw, 11px) clamp(14px, 1.6vw, 18px);
+  border-radius: 999px;
+  border: 1px solid transparent;
+  background: rgba(255, 255, 255, 0.07);
+  color: var(--color-almost-white);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  text-decoration: none;
+  transition: background 200ms ease, border-color 200ms ease, box-shadow 200ms ease;
+  white-space: nowrap;
+}
+
+.hero-pill-outline:hover {
+  background: rgba(255, 255, 255, 0.12);
+  border-color: rgba(255, 255, 255, 0.2);
+  box-shadow: 0 0 24px rgba(175, 80, 255, 0.16);
+}
+
+/* The bottom strip. The hairline is gone: a rule across a fade is a line across
+   a fade, and it was the second edge competing with the section join. `margin-
+   bottom` is a fraction of --hero-fade-h, which puts the strip 30% up the fade
+   band — dark enough to read the mono at 60% white, and high enough off the
+   floor that the hero does not look bottom-heavy. Derived from the same
+   variable as the band, so the two can never drift apart at any viewport. */
+.hero-bottom-strip {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: clamp(10px, 1.6vw, 14px);
+  margin-top: auto;
+  margin-bottom: calc(var(--hero-fade-h) * 0.3);
+  border-top: 0;
+  padding-top: 0;
+  opacity: 0;
+  transition: opacity 0.6s ease 0.2s;
+}
+
+.hero-bottom-strip.is-visible {
+  opacity: 1;
+}
+
+.hero-strip-left {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: clamp(6px, 1vw, 8px);
+  font-family: var(--font-mono);
+  font-size: clamp(9px, 1vw, 11px);
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: rgba(247,249,250,0.6);
+}
+
+.hero-strip-sep {
+  opacity: 0.4;
+}
+
+.hero-strip-right {
+  display: flex;
+  align-items: center;
+  gap: clamp(6px, 0.8vw, 8px);
+  font-family: var(--font-mono);
+  font-size: clamp(9px, 1vw, 11px);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: rgba(247,249,250,0.6);
+}
+
+.hero-heart {
+  width: clamp(16px, 1.4vw, 18px);
+  height: clamp(16px, 1.4vw, 18px);
+  border-radius: 999px;
+  border: 1px solid rgba(255,255,255,0.25);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: clamp(10px, 1vw, 12px);
+  line-height: 1;
+}
+
+.word-mask {
+  overflow: hidden;
+  display: inline-block;
+  padding-bottom: 0.04em;
+}
+
+.word-reveal {
+  display: inline-block;
+  transform: translateY(100%);
+  opacity: 0;
+  filter: blur(6px);
+  will-change: transform, opacity, filter;
+  transition: transform 0.6s cubic-bezier(0.22,1,0.36,1), opacity 0.6s ease, filter 0.6s ease;
+}
+
+.word-reveal.is-visible {
+  transform: translateY(0);
+  opacity: 1;
+  filter: blur(0);
+}
+
+#hero .reveal {
+  opacity: 0;
+  transform: translateY(16px);
+  transition: transform 0.6s ease, opacity 0.6s ease;
+}
+
+#hero .reveal.is-visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hero-video,
+  .hero-card,
+  .word-reveal,
+  #hero .reveal,
+  .hero-boarding,
+  .hero-contrail-line,
+  .hero-plane,
+  .hero-contrail.is-loop + .hero-plane,
+  .hero-boarding.is-float {
+    animation: none !important;
+    transition-duration: 0.01ms !important;
+    transition-delay: 0ms !important;
+    transform: none !important;
+    opacity: 1 !important;
+    filter: none !important;
+  }
+  .hero-video {
+    transform: none !important;
+  }
+}
+
+@media (max-width: 899px) {
+  .hero-aircraft {
+    display: none;
+  }
+}
+
+/* Hide 3D objects in hero (keep alive elsewhere) */
+#hero ~ #scene-container,
+#hero + #scene-container,
+#hero #scene-container,
+#scene-container.hero-hidden {
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
+
+#hero canvas,
+#hero .webgl,
+#hero #webgl {
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
+
+/* ============================================================================
+   THE 3D LAYER UNDER THE HERO  (CSS only — js/scene3d.js is untouched)
+   ----------------------------------------------------------------------------
+   Three things have to be true at once, and all three are decided here:
+
+   1. BEHIND THE FADE. The canvas is a z-index:-1 child of <body> (style.css),
+      so every layer inside the hero — the video, the overlay, the bottom fade —
+      paints over it. A 3D prop therefore cannot cut a hole in the hero or sit
+      on top of its bottom edge; it is occluded by the very gradient that ends
+      the hero, which is what makes the hand-off read as depth instead of as a
+      second page.
+
+   2. NOT CLIPPED BY THE HERO. .hero-card keeps `overflow:hidden` for the video,
+      but that clips only its own subtree. The canvas is fixed to the viewport,
+      so it is never truncated at the hero's boundary — it is only *covered*
+      there, which is the point.
+
+   3. SLOW IN. #scene3d-canvas is opacity 0 until js/scene3d.js adds .is-ready
+      after a frame has actually rendered. The transition below is stretched to
+      2.4s (from 1.4s) so the props arrive as the intro curtain lifts instead of
+      arriving with it, and the cubic-bezier has a long tail so there is no
+      visible "half faded" plateau. `visibility` is NOT transitioned: the canvas
+      stays in the hit-test-free layer throughout (it already carries
+      pointer-events:none), and toggling it would only add a repaint.
+
+   html.scene3d is the class js/scene3d.js adds once WebGL is confirmed live,
+   so the no-WebGL path (no .is-ready, opacity 0) is unchanged.
+   ========================================================================== */
+#scene3d-canvas {
+  transition: opacity 2.4s cubic-bezier(.16, 1, .3, 1);
+  will-change: opacity;
+}
+
+/* Entrance timing: with the hero's own navbar row gone, the strip is the last
+   thing to arrive and the board pass is the second. Unchanged durations — only
+   the removed .hero-navbar entry is dropped, so nothing else in the sequence
+   shifts by even a frame. */
+.hero-card { transition-delay: 0s; }
+.hero-video { transition-delay: 0.2s; }
+.hero-title .word-reveal:nth-child(1) { transition-delay: 0.4s; }
+.hero-title .word-reveal:nth-child(2) { transition-delay: 0.49s; }
+.hero-title .word-reveal:nth-child(3) { transition-delay: 0.58s; }
+.hero-title .word-reveal:nth-child(4) { transition-delay: 0.67s; }
+.hero-title .word-reveal:nth-child(5) { transition-delay: 0.76s; }
+.hero-title .word-reveal:nth-child(6) { transition-delay: 0.85s; }
+.hero-title .word-reveal:nth-child(7) { transition-delay: 0.94s; }
+#hero .hero-subtitle.reveal { transition-delay: 0.8s; }
+#hero .hero-cta-row.reveal { transition-delay: 0.9s; }
+.hero-boarding { transition-delay: 1.1s; }
+.hero-bottom-strip { transition-delay: 1.4s; }
+
+/* Start hidden state helper */
+.hero-card:not(.is-visible) + .hero-layers .hero-video,
+.hero-card:not(.is-visible) ~ * .hero-video { opacity: 0; }

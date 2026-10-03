@@ -259,7 +259,7 @@
       spotlight.classList.remove('opacity-0');
       spotlight.classList.add('opacity-100');
       window.addEventListener('mousemove', (e) => {
-        spotlight.style.background = 'radial-gradient(600px circle at ' + e.clientX + 'px ' + e.clientY + 'px, rgba(163, 230, 53, 0.055), transparent 80%)';
+        spotlight.style.background = 'radial-gradient(600px circle at ' + e.clientX + 'px ' + e.clientY + 'px, rgba(175, 80, 255, 0.07), transparent 80%)';
       }, { passive: true });
     }
 
