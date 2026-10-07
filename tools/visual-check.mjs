@@ -123,27 +123,7 @@ for (const width of WIDTHS) {
   });
 
   /* Park the cursor so #spotlight is in a known place rather than wherever the
-     last synthetic event left it; then read what it actually resolved to.
-
-     The 3D layer is hidden for the duration. It is a WebGL canvas repainting
-     every frame, and `animations: 'disabled'` does not reach it — only CSS
-     animations and transitions. It sits at z-index -1 directly behind the page,
-     so any pixel that is not covered by an opaque surface can catch a different
-     frame in each of the two captures, and the exoneration comparison below
-     then measures frame noise. That is not a small effect: it produced 3-vs-15
-     and 3-vs-19 on byte-identical markup.
-
-     Hiding it costs this claim nothing. At the join, .hero-bg is opaque Void
-     Canvas and .hero-fade reaches full opacity exactly at the hero's bottom
-     edge, so the WebGL layer is already completely covered there — it cannot be
-     the source of a seam, which is exactly why seam-assert.mjs can prove the
-     join flat from the paint stack alone. What is left is the 2D paint this
-     tool is here to photograph. */
-  await page.evaluate(() => {
-    const c = document.getElementById('scene3d-canvas');
-    if (c) { c.dataset.vcParked = '1'; c.style.display = 'none'; }
-  });
-
+     last synthetic event left it; then read what it actually resolved to. */
   await page.mouse.move(width * 0.5, height * 0.5);
   await wait(400);
   const spot = await page.evaluate(() => {

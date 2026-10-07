@@ -128,7 +128,7 @@ html.rv-measuring :is(.reveal, [data-reveal], .rv, main h2, footer) {
   transform: none !important;
 }
 
-html.reveal-ready :is(.reveal, [data-reveal], .rv):not([data-intro-reveal]):not(#navbar):not(#nav-sentinel):not(#scroll-progress):not(#back-to-top):not(#spotlight):not(.grain):not(#page-transition):not(#toast):not(#intro-overlay):not(#scene3d-canvas):not(.mobile-menu):not(.skip-link) {
+html.reveal-ready :is(.reveal, [data-reveal], .rv):not([data-intro-reveal]):not(#navbar):not(#nav-sentinel):not(#scroll-progress):not(#back-to-top):not(#spotlight):not(.grain):not(#page-transition):not(#toast):not(#intro-overlay):not(.mobile-menu):not(.skip-link) {
   opacity: 0;
   transform: translate3d(0, var(--reveal-distance), 0);
   transition:
@@ -136,7 +136,7 @@ html.reveal-ready :is(.reveal, [data-reveal], .rv):not([data-intro-reveal]):not(
     transform var(--reveal-duration) var(--reveal-ease);
   transition-delay: var(--reveal-delay, 0ms);
 }
-html.reveal-ready :is(.reveal, [data-reveal], .rv):not([data-intro-reveal]):not(#navbar):not(#nav-sentinel):not(#scroll-progress):not(#back-to-top):not(#spotlight):not(.grain):not(#page-transition):not(#toast):not(#intro-overlay):not(#scene3d-canvas):not(.mobile-menu):not(.skip-link):is(.is-visible, .active) {
+html.reveal-ready :is(.reveal, [data-reveal], .rv):not([data-intro-reveal]):not(#navbar):not(#nav-sentinel):not(#scroll-progress):not(#back-to-top):not(#spotlight):not(.grain):not(#page-transition):not(#toast):not(#intro-overlay):not(.mobile-menu):not(.skip-link):is(.is-visible, .active) {
   opacity: 1;
   transform: translate3d(0, 0, 0);
 }

@@ -7,7 +7,7 @@
  *
  *   node tools/no-undef.mjs
  */
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import { createRequire } from 'node:module';
@@ -61,9 +61,16 @@ const GLOBALS = new Set([
 ]);
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+/* Enumerated, not listed. A hardcoded array went stale the moment the 3D layer
+   was deleted — it kept reporting ENOENT for js/objects.js, js/scene3d.js and
+   js/scroll.js while still printing "clean", which reads like a pass. Reading
+   the directory means a file can never be silently skipped again. */
 const FILES = [
-  'js/config.js', 'js/intro.js', 'js/objects.js', 'js/reveal.js',
-  'js/scene3d.js', 'js/scroll.js', 'script.js',
+  ...readdirSync(path.join(ROOT, 'js'))
+    .filter((f) => f.endsWith('.js'))
+    .sort()
+    .map((f) => 'js/' + f),
+  'script.js',
 ];
 
 /* `script.js` is a classic script (loaded without type=module), so top-level

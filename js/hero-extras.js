@@ -9,11 +9,11 @@
    WHAT THIS FILE NO LONGER OWNS
    -----------------------------------------------------------------------------
    The previous build ran a full-bleed sky <video> and an animated contrail
-   behind the hero. DESIGN.md's imagery is neon-lit 3D geometry on a dark
-   gradient ground, and the 3D props are drawn by js/scene3d.js, so both were
-   removed with the markup. Their players and observers are gone rather than
-   left behind guarding elements that no longer exist — there is no video to
-   pause, and no contrail to draw.
+   behind the hero, then a WebGL layer behind those. All three are gone. The
+   ground DESIGN.md asks for — neon-lit geometry on a dark gradient, blending
+   into #070707 with no hard mask — is drawn entirely in CSS by css/hero.css.
+   The players and observers went with them rather than being left behind
+   guarding elements that no longer exist.
 
    The headline parallax lives in js/motion-fx.js now, alongside the rest of the
    ambient motion, so all decorative motion is in one place.

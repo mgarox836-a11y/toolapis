@@ -1,16 +1,22 @@
 /* =============================================================================
-   HERO — DESIGN.md "Hero Headline (Calsans Display)" + "3D Product Visual Block"
+   HERO — DESIGN.md "Hero Headline (Calsans Display)" + the ground beneath it
    -----------------------------------------------------------------------------
-   The old hero was a full-bleed sky video under a violet wash. Both are gone.
-   What replaces them is the DESIGN.md imagery brief: neon-lit 3D geometry on a
-   dark gradient ground, blending into the #070707 canvas with no hard mask and
-   no hard edge.
+   The old hero was a full-bleed sky video under a violet wash. Both are gone,
+   and so is the WebGL layer that used to sit behind them (js/scene3d.js,
+   js/objects.js, js/scroll.js). What remains is the whole hero in CSS.
 
-   The 3D props themselves still come from js/scene3d.js — that layer is
-   untouched and now reads the DESIGN.md tokens (see the 3D bridge in
-   css/tokens.css), so its neon is phosphor mint on the void. This file owns
-   everything the DOM draws: the grid ground, the glow, the horizon, the copy
-   column and the TOOL PASS card.
+   DESIGN.md's imagery brief is "neon-lit geometry on a dark gradient ground,
+   blending into the #070707 canvas with no hard mask and no hard edge". That is
+   what the four layers below are, in order of depth:
+
+     .hero-bg           Void Canvas plus a diagonal darkening gradient
+     .hero-grid-lines   a 56px grid, Iron Edge at 10%, masked to a radial pool
+     .hero-glow         one phosphor bloom, the accent used as light not fill
+     .hero-horizon      a single hairline the fade below dissolves
+     .hero-fade         dissolves all of it into the canvas at the hero's bottom
+
+   Every layer is a token, so the room re-tints with the palette, and every
+   layer ends at Void Canvas so the join to the next section cannot be a line.
    ========================================================================== */
 
 #hero {
@@ -288,45 +294,6 @@
 }
 html.motion-reduced .hero-glow,
 html.motion-reduced .hero-grid-lines { animation: none !important; }
-
-/* ============================================================================
-   THE 3D LAYER (js/scene3d.js creates this canvas; no JS was touched)
-   -----------------------------------------------------------------------------
-   The renderer is created with `alpha: true` and a fully transparent clear, so
-   WebGL never owns the page background — `html` keeps Void Canvas and the props
-   composite over it. That matters because the clear colour in an
-   EffectComposer chain is ACES tone-mapped, which would lift #070707 to a
-   visible grey rectangle that drifts with exposure.
-
-   The canvas sits at z-index -1 so it renders UNDER everything else (spotlight
-   30, navbar 40, progress 45, back-to-top 55, grain 60, toast 70, page
-   transition 100), and pointer-events:none guarantees it can never swallow a
-   click. `.is-ready` is added by JS only after a frame has actually rendered.
-
-   With the canvas live, body's own opaque background is reset to transparent —
-   a body's background paints AFTER its negative-z children, so leaving it would
-   hide the whole layer. Gated on `html.scene3d` so the no-WebGL path is
-   pixel-identical to the 2D design.
-   ========================================================================== */
-#scene3d-canvas {
-  position: fixed;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  z-index: -1;
-  pointer-events: none;
-  opacity: 0;
-  transition: opacity 2.4s var(--ease-out-quint);
-  will-change: opacity;
-}
-#scene3d-canvas.is-ready { opacity: 1; }
-
-html.scene3d body { background-color: transparent; }
-
-@media (prefers-reduced-motion: reduce) {
-  #scene3d-canvas { transition: none; }
-}
-html.motion-reduced #scene3d-canvas { transition: none; }
 
 /* ============================================================================
    SECTION LAYOUT

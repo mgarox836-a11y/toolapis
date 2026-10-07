@@ -27,7 +27,8 @@
  *
  * No dependencies, no top-level side effects, every DOM/storage touch is
  * try/caught: this module is imported by the intro controller, the reveal
- * observer and the 3D scene, and a throw in here would take all three down.
+ * observer and the hero ambient motion, and a throw in here would take all
+ * three down.
  * ========================================================================== */
 
 import { TUNING } from './config.js';

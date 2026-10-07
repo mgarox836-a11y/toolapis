@@ -9,7 +9,7 @@
  * What "without a reload" has to cover, and who owns each piece:
  *   html classes           js/motion.js applyHtmlClass()      (CSS follows free)
  *   Tailwind utilities     js/motion.js stripOsMotionClasses()
- *   3D layer               js/scene3d.js onMotionPolicyChange()
+ *   hero ambient motion    js/motion-fx.js onMotionPolicyChange()
  *   reveals / scroll       CSS transitions, which re-resolve on the class flip
  *
  * So this file only has to render the control and call one function; the

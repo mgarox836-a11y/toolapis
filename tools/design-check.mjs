@@ -185,13 +185,12 @@ for (const vp of VIEWPORTS) {
       scrollW: document.documentElement.scrollWidth,
       clientW: document.documentElement.clientWidth,
       htmlBg: getComputedStyle(document.documentElement).backgroundColor,
-      /* With the 3D layer live, `html.scene3d body { background: transparent }`
-         is set (see css/hero.css) so the canvas is not painted over — a body's
-         own background paints AFTER its negative-z children. The page canvas is
-         therefore whatever <html> holds in that state, and that is the value
-         that has to be Void Canvas. */
+      /* Both <html> and <body> paint Void Canvas now. When the 3D layer was
+         live it needed `html.scene3d body { background: transparent }` — a
+         body's background paints AFTER its negative-z children — and this
+         assertion had to branch on which state it was in. There is no layer
+         behind the page any more, so the two must simply agree. */
       bodyBg: getComputedStyle(document.body).backgroundColor,
-      scene3d: document.documentElement.classList.contains('scene3d'),
       cards,
       filledButtons,
       mintCards,
@@ -239,13 +238,13 @@ for (const vp of VIEWPORTS) {
   const ok = [], bad = [];
   const check = (label, pass, detail) => (pass ? ok : bad).push(`${label}${detail ? '  [' + detail + ']' : ''}`);
 
-  /* 1 — canvas. <html> is the canvas in every state. <body> is Void Canvas
-     until the 3D layer is confirmed, then deliberately transparent so the
-     WebGL props show through (a body's background paints after its negative-z
-     children, so leaving it opaque would hide the layer entirely). */
-  check('canvas is Void Canvas', r.htmlBg === T.void
-    && (r.bodyBg === T.void || (r.scene3d && r.bodyBg === 'rgba(0, 0, 0, 0)')),
-    `${r.htmlBg} / ${r.bodyBg}${r.scene3d ? ' (3D live, body intentionally transparent)' : ''}`);
+  /* 1 — canvas. Nothing paints behind the page any more, so <html> and <body>
+     must both hold Void Canvas. This used to branch on whether the WebGL layer
+     had confirmed itself, because that layer needed a transparent body to show
+     through; the branch was an exception, not a second valid state. */
+  check('canvas is Void Canvas on both <html> and <body>',
+    r.htmlBg === T.void && r.bodyBg === T.void,
+    `${r.htmlBg} / ${r.bodyBg}`);
 
   /* 2 — cards */
   check('every card is Carbon Plate with a 1px Fog hairline, 20px radius, no shadow',

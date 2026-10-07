@@ -10,11 +10,18 @@
  *
  * THREE JOBS
  * ---------------------------------------------------------------------------
- * 1. THE CURTAIN. 0.6s logo, 0.6-3.6s counter, then at 3.6s the whole panel
- *    slides up and out (0.9s) while the hero assembles underneath it and the
- *    3D props fly in. The overlay is removed when the animation ends, or after
- *    a timeout, whichever comes first. INTRO_DURATION (5.0s) is the end of the
- *    experience; the hard failsafe at 5.5s lives in the inline head script.
+ * 1. THE CURTAIN. The logo, then a counter that runs only until the page is
+ *    actually ready (fonts settled, document parsed) between MIN_SHOW and
+ *    MAX_SHOW, then the whole panel slides up and out (CURTAIN_MS) while the
+ *    hero assembles underneath it. The overlay is removed when the animation
+ *    ends, or on a timeout, whichever comes first. INTRO_DURATION (2.5s) is a
+ *    ceiling the normal path never reaches; the hard failsafe at 3s lives in
+ *    the inline head script.
+ *
+ *    This used to be a flat 3.6s of simulated loading standing in for Three.js,
+ *    the sky video and webfonts. With those gone there is nothing left to fake,
+ *    and the fixed wait was costing every visitor ~4s and the Performance score
+ *    19 points.
  *
  * 2. WHERE THE PAGE OPENS. Always the hero at the top, never the cards. A
  *    deliberate hash (#features, #flow, #clarity) is honoured with the short
@@ -35,14 +42,19 @@
    0.6s stub whether they wanted it or not. js/motion.js asks the visitor. */
 import { motionAllowed } from './motion.js';
 
-export const INTRO_DURATION = 5.0;      /* seconds, full experience   */
-export const INTRO_SHORT = 1.5;         /* hash / no-WebGL / failure  */
-export const FAILSAFE_MS = 5500;
+/* The ceiling on the whole experience, and the floor/ceiling on the counter.
+   INTRO_DURATION used to be 5.0s to match a flat 3.6s of simulated loading that
+   no longer exists; it is now a backstop that should never be the thing that
+   ends the intro. The hard failsafe that cuts a wedged timeline loose lives in
+   the inline <head> script, where it cannot itself fail to load. */
+export const INTRO_DURATION = 2.5;      /* seconds, hard ceiling          */
+export const INTRO_SHORT = 1.5;         /* hash / failure path             */
 
 /* Curtain timeline, in ms from module boot. */
-const LOAD_MS = 3600;                   /* counter hits 100, curtain lifts */
-const CURTAIN_MS = 900;                 /* the slide-up itself               */
-const REDUCED_LAND_MS = 320;            /* whole reduced intro <= 0.6s      */
+const MIN_SHOW = 420;                    /* counter is a beat, not a flash  */
+const MAX_SHOW = 900;                    /* nor can it hold a slow device   */
+const CURTAIN_MS = 620;                  /* the slide-up itself            */
+const REDUCED_LAND_MS = 320;            /* whole reduced intro <= 0.6s    */
 
 const BOOT = performance.now();
 const html = document.documentElement;
@@ -539,49 +551,58 @@ function run() {
     return;
   }
 
-  /* ---- full timeline: 0-3.6s loading, 3.6-4.5s curtain, 5.0s done ---- */
-  let sceneReady = false;
-  const onReady = () => { sceneReady = true; };
-  window.addEventListener('toolapis:3d-ready', onReady, { once: true });
-
-  /* No WebGL (or the scene failed): nothing is going to fly in behind the
-     curtain, so use the short plan instead of a fake 3.6s of loading. */
-  window.addEventListener('toolapis:3d-unavailable', () => {
-    if (lifted || cleaned || finished) return;
-    dropPlan();
-    if (stopProgress) { try { stopProgress(); } catch (e) {} stopProgress = null; }
-    runShort('no-webgl');
-  }, { once: true });
-
-  let fontsReady = false;
+  /* ---- full timeline: a floor, then out as soon as the page is real ----
+   *
+   * This used to be a flat 3.6s of simulated loading: the counter ran to 100 on
+   * a timer while the real work it was standing in for — Three.js, the scene
+   * build, the sky video, webfonts — happened (or didn't) underneath. It even
+   * listened for `toolapis:3d-ready` to decide how full to fill the bar.
+   *
+   * None of that is here any more, and with it the justification for waiting.
+   * A fixed 3.6s now buys a visitor nothing at all while costing them every
+   * second of it: it is what held Speed Index at 6.6s and Performance at 77,
+   * where skipping the intro entirely scores 96. So the bar now tracks real
+   * readiness — document parsed and fonts settled — and the only floors are
+   * MIN_SHOW, so the counter reads as a beat rather than a flash, and MAX_SHOW,
+   * so a slow device can never hold the page. */
+  let fontsReady = !!(document.fonts && document.fonts.ready);
   if (document.fonts && document.fonts.ready) {
     document.fonts.ready.then(() => { fontsReady = true; }).catch(() => { fontsReady = true; });
-  } else {
-    fontsReady = true;
   }
 
-  plan(() => setStage(1), 600);
-  runProgress(LOAD_MS, 0.86, () => {
-    let v = 0;
-    if (fontsReady) v += 0.35;
-    if (sceneReady) v += 0.65;
-    /* Never stalls: a small time-based trickle guarantees movement. */
-    const t = (performance.now() - BOOT) / LOAD_MS;
-    return Math.max(v, Math.min(0.85, t * 0.85));
-  });
-  scheduleStatus(600, LOAD_MS);
+  const docReady = () => document.readyState === 'complete'
+    || (document.readyState === 'interactive' && fontsReady);
 
-  /* Info panel while the counter works, then the exit. */
-  plan(() => setStage(2), LOAD_MS - 700);
-  plan(() => lift(), LOAD_MS);
-  plan(() => land(), LOAD_MS + CURTAIN_MS + 40);
+  /* How long the counter should run: its own floor, its own ceiling, and
+     never past the moment there is actually nothing left to wait for. */
+  const showFor = () => Math.min(
+    MAX_SHOW,
+    Math.max(MIN_SHOW, performance.now() - BOOT),
+  );
+
+  plan(() => setStage(1), 120);
+  runProgress(showFor(), 0.86, () => {
+    /* Real progress only: fonts settled, then the document complete. The old
+       time-based trickle is gone — with nothing left to fake, a bar that creeps
+       on a timer is a lie about how much is happening. */
+    if (fontsReady && docReady()) return 1;
+    if (fontsReady) return 0.45;
+    return 0.12;
+  });
+  scheduleStatus(120, showFor());
+
+  /* Info panel while the counter works, then the exit. All four steps are
+     planned off the same window, so the timeline stays in one piece. */
+  plan(() => setStage(2), Math.max(160, showFor() - 260));
+  plan(() => lift(), showFor());
+  plan(() => land(), showFor() + CURTAIN_MS + 40);
   /* Untracked: cleanup() drops the plan, and the end of the experience still
      has to be announced. */
   setTimeout(() => finish('timed'), INTRO_DURATION * 1000);
 }
 
 /* Entry policy and the icon net are installed at module scope: neither may
-   depend on the overlay, the intro timeline, or the 3D scene. */
+   depend on the overlay or on the intro timeline. */
 try { setupAnchorPolicy(); } catch (err) { /* the page still works */ }
 try { startIconWatch(); } catch (err) { /* ditto */ }
 

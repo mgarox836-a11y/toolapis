@@ -14,10 +14,10 @@
  *   3. subscribe to OS changes — a no-op unless
  *      TUNING.motion.respectReducedMotion is true.
  *
- * Nothing here throws by construction, and if this file never runs the three
- * controllers that matter (intro, reveal, scene3d) each fall back to the html
- * class the bootstrap set, so the worst case is "no live toggle of OS changes",
- * not a broken page.
+ * Nothing here throws by construction, and if this file never runs the
+ * controllers that matter (intro, reveal, hero ambient motion) each fall back
+ * to the html class the bootstrap set, so the worst case is "no live toggle of
+ * OS changes", not a broken page.
  * ========================================================================== */
 
 import { initMotionPolicy } from './motion.js';

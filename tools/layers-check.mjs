@@ -1,20 +1,24 @@
 #!/usr/bin/env node
 /* ============================================================================
- * tools/layers-check.mjs — verify the two layers the CSS work touched that a
- * geometry check can't see: the 3D scene's slow fade-in, and the three tool cards.
+ * tools/layers-check.mjs — verify the three tool cards against DESIGN.md.
  * ----------------------------------------------------------------------------
- * Both were previously only asserted as "the rule I wrote is in the sheet", which
- * is not the same as "the browser ran it". Two concrete failure modes this catches:
+ * The tool cards were previously only asserted as "the rule I wrote is in the
+ * sheet", which is not the same as "the browser ran it". This samples the
+ * computed geometry of each one and checks the things a stylesheet cannot
+ * report on its own:
  *
- *   1. #scene3d-canvas sits at opacity 0 until js/scene3d.js adds .is-ready after
- *      a real frame renders. If that never happens — or if a competing rule wins
- *      the cascade — the whole 3D layer is simply invisible and the page still
- *      looks finished. Nothing in the DOM would say so.
+ *   1. a card is a Dark Surface Card — a Carbon Plate fill, a single 1px Fog
+ *      hairline, 20px radius, and no box-shadow at all. Elevation in this system
+ *      comes from the light border and the surface step, never from a shadow, so
+ *      a stray `shadow` here means the old styling is still winning.
+ *   2. each card fits its parent. A card that overflows looks fine in the DOM and
+ *      broken on a phone.
+ *   3. the eyebrow is stamped mono uppercase with wide tracking, and the icon is
+ *      an outlined box rather than a filled swatch — DESIGN.md's rule that colour
+ *      is rationed, so an icon well may not become a violet/mint block.
  *
- *   2. style.css and css/hero.css both declare a transition for that canvas
- *      (1.4s vs the stretched 2.4s). Both are single-ID selectors, so the winner
- *      is decided purely by stylesheet order in index.html. This samples the
- *      resolved value and the running opacity instead of trusting the order.
+ * This file used to also prove the 3D scene's fade-in (opacity 0 -> .is-ready).
+ * That layer is gone, so that half of it is gone with it.
  *
  *   node tools/layers-check.mjs
  *   node tools/layers-check.mjs --width 390
@@ -44,86 +48,15 @@ const browser = await chromium.launch({
 for (const width of WIDTHS) {
   const height = width === 390 ? 844 : 900;
   const ctx = await browser.newContext({ viewport: { width, height } });
-  /* Installed before any page script runs. The fade is over in 2.4s, and this
-     environment needs 15-30s to reach readyState=complete, so a sampler started
-     after load only ever sees the finished value — it measures its own lateness,
-     not the transition. This watches the class from the moment the canvas exists
-     and then tracks the running opacity on rAF until it settles. */
-  await ctx.addInitScript(() => {
-    window.__fade = { readyAt: null, samples: [], done: false, timer: null, clear: () => { if (window.__fade.timer) clearTimeout(window.__fade.timer); } };
-    const attach = (c) => {
-      if (c.__watched) return;
-      c.__watched = true;
-      /* The decisive fact: the canvas is already painted at opacity 0 before the
-         class lands, so the two states are separated by a real style recalc and
-         the transition cannot be a snap. Read it the moment the element exists. */
-      window.__fade.opacityAtAttach = +(+getComputedStyle(c).opacity).toFixed(3);
-      window.__fade.hadReadyAtAttach = c.classList.contains('is-ready');
-      const begin = () => {
-        if (window.__fade.readyAt !== null) return;
-        window.__fade.readyAt = Math.round(performance.now());
-        window.__fade.transition = getComputedStyle(c).transitionDuration + ' ' + getComputedStyle(c).transitionTimingFunction;
-        tick();
-      };
-      const tick = () => {
-        const s = getComputedStyle(c);
-        window.__fade.samples.push([Math.round(performance.now()), +(+s.opacity).toFixed(3)]);
-        if (window.__fade.readyAt !== null && !window.__fade.done) {
-          const elapsed = performance.now() - window.__fade.readyAt;
-          /* Generous window on purpose. The resolved transition is 2.4s, but
-             under swiftshader this compositor produces roughly one frame every
-             5–7s, so the ramp only advances when a frame lands — measured, a
-             full 0→1 fade takes ~10s of wall clock, not 2.4s. A 6s cutoff was
-             sampling a starved compositor mid-transition and reporting a
-             healthy ramp as stalled. */
-          if (elapsed > 30000 || +s.opacity >= 0.999) { window.__fade.done = true; window.__fade.settledAt = Math.round(elapsed); window.__fade.clear(); return; }
-        }
-        /* setInterval, not requestAnimationFrame: under swiftshader this page
-           composites at roughly 0.2fps, and a rAF sampler gets one frame in six
-           seconds — which measures the starved compositor, not the transition. */
-        window.__fade.timer = setTimeout(tick, 40);
-      };
-      const mo = new MutationObserver(() => { if (c.classList.contains('is-ready')) begin(); });
-      mo.observe(c, { attributes: true, attributeFilter: ['class'] });
-      /* This poll runs on rAF, which cannot fire until the first paint — by
-         which time js/scene3d.js may already have added .is-ready, in which case
-         the observer above never fires and the fade is missed entirely. */
-      if (c.classList.contains('is-ready')) begin();
-    };
-    const find = () => {
-      const c = document.getElementById('scene3d-canvas');
-      if (c) attach(c); else requestAnimationFrame(find);
-    };
-    find();
-  });
   const page = await ctx.newPage();
   const consoleErrors = [];
   page.on('console', (m) => { if (m.type() === 'error') consoleErrors.push(m.text()); });
   page.on('pageerror', (e) => consoleErrors.push('pageerror: ' + e.message));
 
   await page.goto(BASE, { waitUntil: 'domcontentloaded', timeout: 90000 });
-  await page.waitForFunction(() => window.__fade && window.__fade.done, null, { timeout: 120000 }).catch(() => {});
   await page.waitForFunction(() => document.readyState === 'complete', null, { timeout: 150000 }).catch(() => {});
   await wait(500);
 
-  const fade = await page.evaluate(() => window.__fade);
-
-  const final = await page.evaluate(() => {
-    const c = document.getElementById('scene3d-canvas');
-    const s = c ? getComputedStyle(c) : null;
-    return {
-      canvasExists: !!c,
-      ready: c ? c.classList.contains('is-ready') : false,
-      scene3d: document.documentElement.classList.contains('scene3d'),
-      opacity: s ? +(+s.opacity).toFixed(3) : null,
-      transition: s ? s.transitionDuration + ' ' + s.transitionTimingFunction : null,
-      zIndex: s ? s.zIndex : null,
-      position: s ? s.position : null,
-      size: c ? [Math.round(c.getBoundingClientRect().width), Math.round(c.getBoundingClientRect().height)] : null,
-    };
-  });
-
-  /* ---- the three cards ------------------------------------------------ */
   const cards = await page.evaluate(() => {
     return Array.from(document.querySelectorAll('#overview .tool-card')).map((el, i) => {
       const r = el.getBoundingClientRect();
@@ -158,31 +91,6 @@ for (const width of WIDTHS) {
   const ok = [], bad = [];
   const check = (label, pass, detail) => (pass ? ok : bad).push(`${label}${detail ? '  [' + detail + ']' : ''}`);
 
-  /* This page blocks its main thread in ~8s chunks under swiftshader (WebGL init
-     plus software raster), so a 40ms timer still only lands two samples and the
-     intermediate ramp is unobservable here. Asserting on it would be asserting
-     on the renderer. What is decidable: the canvas was painted at 0 before the
-     class landed, so a transition is required, and the declared duration is the
-     stretched one. The intermediate-value count is reported, not enforced. */
-  const partials = fade.samples.filter(([, o]) => o > 0.001 && o < 0.999);
-  const distinct = new Set(partials.map(([, o]) => o)).size;
-  const monotonic = partials.every((s, i) => i === 0 || s[1] >= partials[i - 1][1]);
-
-  check('3D canvas element exists', final.canvasExists);
-  check('js/scene3d.js confirmed WebGL (html.scene3d)', final.scene3d);
-  check('canvas reached .is-ready', final.ready);
-  check('canvas is fully visible, not stuck at opacity 0', final.opacity >= 0.99, `opacity=${final.opacity}`);
-  check('the resolved transition is the stretched 2.4s, not style.css\'s 1.4s', /(^|,)\s*2\.4s/.test(final.transition || ''), final.transition || 'n/a');
-  /* Two orderings both prove a transition is running, and which one you get
-     depends on when this thread first gets scheduled:
-       (a) seen at opacity 0, .is-ready added later  -> a recalc is required
-       (b) .is-ready already set but opacity still 0  -> the ramp is in progress
-     The invariant is the opacity: it must read 0 while .is-ready is applied. */
-  check('the canvas is still at opacity 0 while .is-ready is applied, so the fade is a real transition', fade.opacityAtAttach === 0, `opacity at attach=${fade.opacityAtAttach}, is-ready already present=${fade.hadReadyAtAttach}`);
-  check('.is-ready landed after first paint, well after the canvas existed', fade.readyAt !== null, fade.readyAt !== null ? `+${fade.readyAt}ms` : 'never observed');
-  check('the opacity ramp only ever increases', monotonic);
-  check('the ramp completes rather than stalling part-way', final.opacity >= 0.99, `settled at opacity ${final.opacity}`);
-  check('canvas is fixed behind the content at z-index -1', final.position === 'fixed' && final.zIndex === '-1', `${final.position} / z=${final.zIndex}, size ${final.size}`);
   check('exactly three tool cards', cards.length === 3, `found ${cards.length}`);
   check('no console errors', consoleErrors.length === 0, consoleErrors.join(' / ') || 'none');
 
@@ -192,15 +100,9 @@ for (const width of WIDTHS) {
     check(`card ${c.i} has no box-shadow`, c.shadow === 'none', c.shadow);
     check(`card ${c.i} fits the viewport`, !c.overflowsParent, `${c.rect[0]}x${c.rect[1]}`);
     check(`card ${c.i} eyebrow is stamped mono uppercase`, c.eyebrow && /Mono/i.test(c.eyebrow.ff) && c.eyebrow.tt === 'uppercase', c.eyebrow ? `${c.eyebrow.ff} ${c.eyebrow.fs} ${c.eyebrow.tt} ls=${c.eyebrow.ls}` : 'missing');
-    check(`card ${c.i} icon is an outline box, not a violet fill`, c.icon && c.icon.bg === 'rgba(0, 0, 0, 0)' && /^1px/.test(c.icon.border), c.icon ? `${c.icon.box.join('x')} bg=${c.icon.bg} border=${c.icon.border}` : 'missing');
+    check(`card ${c.i} icon is an outline box, not a filled swatch`, c.icon && c.icon.bg === 'rgba(0, 0, 0, 0)' && /^1px/.test(c.icon.border), c.icon ? `${c.icon.box.join('x')} bg=${c.icon.bg} border=${c.icon.border}` : 'missing');
   });
 
-  console.log(`\n=== ${width}x${height} · 3D fade ===`);
-  console.log(`  .is-ready at +${fade.readyAt}ms, settled after ${fade.settledAt ?? 'n/a'}ms`);
-  console.log(`  canvas was at opacity ${fade.opacityAtAttach} when first seen (is-ready already present: ${fade.hadReadyAtAttach})`);
-  console.log('  opacity ramp: ' + fade.samples.map(([t, o]) => `${t}ms=${o}`).join('  '));
-  console.log(`  ramp detail: ${distinct} distinct partial opacities${distinct > 0 ? ' — an intermediate value was captured, the ramp is real' : ' — no intermediate captured this run (renderer-dependent, not enforced)'}`);
-  console.log(`  final: ${JSON.stringify(final)}`);
   console.log(`=== ${width}x${height} · tool cards ===`);
   cards.forEach((c) => console.log(`  ${c.i}. ${c.text.padEnd(16)} ${c.rect.join('x').padEnd(10)} r=${c.radius.padEnd(8)} border=${c.border.padEnd(34)} shadow=${c.shadow}`));
   ok.forEach((l) => console.log('  PASS  ' + l));

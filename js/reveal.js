@@ -93,7 +93,7 @@ const CANDIDATES = ['h3', '.reveal p', '.reveal .btn', '.reveal button'].join(',
 const CHROME = [
   '#navbar', '#nav-sentinel', '#scroll-progress', '#back-to-top',
   '#spotlight', '.grain', '#toast', '#page-transition', '#intro-overlay',
-  '#mobile-menu', '.skip-link', '#scene3d-canvas', '#scene3d-debug',
+  '#mobile-menu', '.skip-link',
 ].join(',');
 
 const html = document.documentElement;

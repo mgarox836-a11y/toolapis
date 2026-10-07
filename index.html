@@ -81,11 +81,11 @@
       }
 
       /* The hard failsafe, still the one independent of every module. */
-      window.setTimeout(cleanup, 5500);
+      window.setTimeout(cleanup, 3000);
 
       /* The scroll-reveal failsafe, same clock, same argument. script.js sets
          `html.js` on its first line and js/reveal.js sets `data-reveal-live`.
-         At 5.5s the curtain is long gone; if either half is missing, snap
+         By 3s the curtain is long gone; if either half is missing, snap
          everything visible so nothing is stranded at opacity 0. */
       window.setTimeout(function () {
         try {
@@ -96,7 +96,7 @@
           d.classList.add('reveal-all');
           if (d) d.setAttribute('data-reveal-failsafe', '1');
         } catch (e) {}
-      }, 5500);
+      }, 3000);
 
       var BOOT = performance.now();
 
@@ -109,10 +109,10 @@
       } catch (e) {}
 
       var tick = setInterval(function () {
-        if (performance.now() - BOOT >= 5500) { clearInterval(tick); cleanup(); }
+        if (performance.now() - BOOT >= 3000) { clearInterval(tick); cleanup(); }
       }, 500);
       function wake() {
-        if (performance.now() - BOOT >= 5500) { clearInterval(tick); cleanup(); }
+        if (performance.now() - BOOT >= 3000) { clearInterval(tick); cleanup(); }
         forceTop();
       }
       window.addEventListener('pageshow', wake, true);
@@ -224,19 +224,6 @@
     })();
   </script>
 
-  <!--
-    Three.js (pinned). Importmap must appear before any module script.
-    Loaded with type="module", so it is deferred and non-blocking by default.
-  -->
-  <script type="importmap">
-    {
-      "imports": {
-        "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
-        "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
-      }
-    }
-  </script>
-
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="description" content="TOOLAPIS is a small hub of real web tools: upscale TikTok clips to HD, share your PC's internet with Android over USB, or jump into the social media hub.">
   <meta name="theme-color" content="#070707">
@@ -258,13 +245,31 @@
        tracking preserved at every size.
        Body face: Geist (300–600), with DESIGN.md's own fallback (Inter) behind
        it. Mono: Geist Mono, falling back to JetBrains Mono.
+
+       Loaded non-render-blocking. A plain stylesheet link here blocks first
+       paint until the CSS2 endpoint answers, and on a throttled mobile run that
+       alone was most of the gap between FCP 3.2s and FCP 1.0s. `media="print"`
+       makes the sheet non-render-blocking; the inline onload promotes it to
+       `all` the moment it arrives. The preconnects still go out first, so the
+       fetch itself starts early — only the *blocking* is removed, not the load.
+       `font-display=swap` is in the URL, so text paints in the fallback face
+       and swaps when the real one lands. The <noscript> keeps it working
+       without scripting, which the media trick would otherwise silently break.
        ========================================================================== -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Geist:wght@300;400;500;600&family=Geist+Mono:wght@400;500&display=swap">
+  <link rel="preload" as="style"
+        href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Geist:wght@300;400;500;600&family=Geist+Mono:wght@400;500&display=swap">
+  <link rel="stylesheet"
+        href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Geist:wght@300;400;500;600&family=Geist+Mono:wght@400;500&display=swap"
+        media="print" onload="this.media='all'">
+  <noscript>
+    <link rel="stylesheet"
+          href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Geist:wght@300;400;500;600&family=Geist+Mono:wght@400;500&display=swap">
+  </noscript>
 
   <!-- ==========================================================================
-       STYLESHEETS — order matters.
+       STYLESHEET — one request, built from seven sources.
        tokens.css  : the DESIGN.md values, and nothing else
        base.css    : reset, document, type scale, focus, selection
        animations  : keyframes + the reveal system (before components, so a
@@ -272,16 +277,19 @@
        components  : every component skin
        hero.css    : the hero's own layout and ground
        toolpass.css: the Phosphor accent card's two moving parts
-       intro.css   : the loader skin (must stay last of the deferred set: it
-                     is purely additive and must lose nothing)
+       intro.css   : the loader skin (last: purely additive, loses nothing)
+
+       Those seven are linked individually again only because they used to be.
+       Seven stylesheet tags are seven chances to block first paint, and under
+       mobile throttling they measured ~3.2s of it — components.css alone 1.2s,
+       hero.css and animations.css 600ms each — for 80KB of same-origin CSS
+       that fits in one round trip. tools/build-css.mjs concatenates them into
+       css/bundle.css in the order above; run it after editing anything in
+       css/, and `node tools/build-css.mjs --check` fails if the bundle has
+       gone stale. The split files stay the sources: tokens.css is still the
+       DESIGN.md reference and components.css is still the component library.
        ========================================================================== -->
-  <link rel="stylesheet" href="css/tokens.css">
-  <link rel="stylesheet" href="css/base.css">
-  <link rel="stylesheet" href="css/animations.css">
-  <link rel="stylesheet" href="css/components.css">
-  <link rel="stylesheet" href="css/hero.css">
-  <link rel="stylesheet" href="css/toolpass.css">
-  <link rel="stylesheet" href="css/intro.css">
+  <link rel="stylesheet" href="css/bundle.css">
 
   <!--
     ICON SPRITE — replaces the Phosphor icon FONT.
@@ -319,9 +327,6 @@
   <!-- Motion Vanilla (deferred, non-blocking; progressive enhancement only) -->
   <link rel="preconnect" href="https://cdn.jsdelivr.net">
   <script defer src="https://cdn.jsdelivr.net/npm/motion@12.9.2/dist/motion.js"></script>
-
-  <!-- Same origin as the pinned Three.js importmap above (module fetch, so crossorigin) -->
-  <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
 </head>
 <body>
 
@@ -439,9 +444,10 @@
 
     <!-- ======================================================================
          HERO — DESIGN.md "Hero Headline (Calsans Display)"
-         50/50 split: copy left, the accent card right. The ground is the CSS
-         neon-grid block in css/hero.css plus the Three.js prop layer, which
-         now reads the phosphor tokens. No video, no violet wash.
+         Copy left, accent card right. The ground is entirely css/hero.css: a
+         Void Canvas gradient, a masked 56px grid, one phosphor bloom, a
+         horizon hairline, and the fade that dissolves all of it into the
+         canvas. No video, no WebGL, no violet.
          ====================================================================== -->
     <section id="hero" data-section="hero">
       <div class="hero-bg" aria-hidden="true"></div>
@@ -846,7 +852,6 @@
   <script type="module" src="js/motion-fx.js"></script>
   <script type="module" src="js/intro.js"></script>
   <script type="module" src="js/reveal.js"></script>
-  <script type="module" src="js/scene3d.js"></script>
-  <script src="js/hero-extras.js"></script>
+  <script defer src="js/hero-extras.js"></script>
 </body>
 </html>
