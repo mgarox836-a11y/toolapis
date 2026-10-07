@@ -1,83 +1,79 @@
-# dope.security — Style Reference
-> Midnight terminal with violet beacons
+# Harness.io — Style Reference
+> midnight mission control with phosphor-green accents
 
 **Theme:** dark
 
 Source measurements are normalized; roles and recommendations are interpreted. Font summary lists are independent, not paired by position. HTML examples are reconstructions, not source components.
 
-dope.security is a midnight terminal aesthetic: near-black canvas, a single vivid violet signal flare, and typography that borrows from luxury travel editorial. The system pairs a geometric sans (Whyte Inktrap) with an italic display serif (GrandSlang) for hero drama and a monospaced inktrap with extreme tracking for the section labels that feel stamped from a boarding pass. Surfaces are flat and borderless; elevation comes from hairline strokes and translucent washes, never shadows. Color is rationed — the violet only appears as a glow, a fill on a single feature, and accent strokes — while the rest of the interface stays in a tight achromatic scale from #f7f9fa down to #090909. The result reads as confident, expensive, and slightly secretive, like a premium lounge at 2am with a single neon sign.
+Harness's Gitness surface reads as a nocturnal command deck: near-black canvas (#070707) with stacked card surfaces in marginally lighter shades, oversized display headlines in a condensed Calsans face with positive tracking, and a teal/mint accent (#70dcd3) that surfaces on highlight cards like a phosphor monitor glow. The page stays quiet and high-contrast — white text at AAA contrast on deep neutrals, hairline borders in light gray (not dark) to define edges against the dark canvas, and pill-shaped controls (800px radius) that feel like physical hardware buttons. Color is rationed: one bright blue (#0092e4) for active link borders and one mint (#70dcd3) for accent cards, nothing else. Spacing breathes — generous card padding, comfortable section gaps, and large display sizes that let the type carry the hierarchy rather than color or weight.
 
 ## Tokens — Colors
 
 | Name | Value | Token | Role |
 |------|-------|-------|------|
-| Near Black | `#090909` | `--color-near-black` | Page canvas, card surfaces, filled button backgrounds — the default void everything else floats in |
-| Almost White | `#f7f9fa` | `--color-almost-white` | Primary text, icon strokes, nav labels, and 1px borders — the paper-white that does all the talking against the void |
-| Soft White | `#f0f0f0` | `--color-soft-white` | Section label text in the stamped uppercase style — same family as Almost White but slightly dimmer for hierarchy |
-| Steel | `#828384` | `--color-steel` | Muted secondary text, inactive button surfaces, subdued borders |
-| Graphite | `#474747` | `--color-graphite` | Card internal text and subtle dividers — readable on the near-black without competing with the primary text |
-| Iron | `#423738` | `--color-iron` | Dark borders and separators for elevated surfaces and inverted UI. Do not promote it to the primary CTA color |
-| Ash | `#6b6b6b` | `--color-ash` | Nav border dividers, helper text, low-emphasis body copy |
-| Signal Violet | `#af50ff` | `--color-signal-violet` | The only chromatic voice: feature card glow, primary action fill, and accent strokes — rationed like runway lighting, not decoration |
-| Lavender Mist | `#e1bdff` | `--color-lavender-mist` | Soft tint paired with Signal Violet for contrast-safe text and washed background accents |
+| Void Canvas | `#070707` | `--color-void-canvas` | Page background, deepest surface — near-black, the floor everything else sits on |
+| Carbon Plate | `#0d0e12` | `--color-carbon-plate` | Primary card surface, one step above the canvas — the dominant elevated panel |
+| Obsidian | `#141418` | `--color-obsidian` | Secondary card surface, code blocks, nested panels |
+| Iron Edge | `#2e3038` | `--color-iron-edge` | Mid-tier surface, dividers, hover overlays on dark surfaces |
+| Steel Border | `#22222a` | `--color-steel-border` | Heavy structural borders, button outlines on dark, nav separators |
+| Pure White | `#ffffff` | `--color-pure-white` | Primary text, filled pill button fill, icon strokes — the only high-luminance neutral |
+| Cloud Mist | `#f0f0f0` | `--color-cloud-mist` | Secondary text, soft fills, muted surface highlights |
+| Fog | `#d9dae5` | `--color-fog` | Card hairline borders — counterintuitively light on the dark canvas, defining card edges by luminosity contrast |
+| Ash | `#c8cad0` | `--color-ash` | Body text secondary, muted descriptions, helper text |
+| Graphite | `#aeaeb7` | `--color-graphite` | Tertiary body text, subdued labels, disabled-ish state |
+| Slate Mute | `#a2a4a9` | `--color-slate-mute` | Nav borders, inactive nav text, structural dividers in chrome |
+| Cinder | `#60606c` | `--color-cinder` | Deep muted text, low-priority links, icon rest state |
+| Phosphor Mint | `#70dcd3` | `--color-phosphor-mint` | Accent card fill, highlight surfaces — the signature brand glow, reserved for featured cards and stat panels |
+| Signal Blue | `#0092e4` | `--color-signal-blue` | Link borders, active link text, focus accents — the interface's action stroke |
+| Ice Blue | `#a6e5f2` | `--color-ice-blue` | Decorative soft borders, light accent strokes on cards |
+| Current Blue | `#00ade4` | `--color-current-blue` | Active nav state, selected menu items, current-page indicator |
+| Deep Signal | `#0677d4` | `--color-deep-signal` | Input focus border, form active state, info semantic stroke |
+| Verdant Edge | `#75ae4c` | `--color-verdant-edge` | Green accent for outlined action borders, linked labels, and lightweight interactive emphasis. Use as a supporting accent, not as a status color |
+| Steel Iris | `#929dbd` | `--color-steel-iris` | Card decorative borders with cool blue-gray tint, secondary card outlines |
 
 ## Tokens — Typography
 
-### Whyte Inktrap — Primary workhorse — body, nav, buttons, links, and most headings. The inktrap corners (the tiny cuts where straight strokes meet) are the signature; they give the geometry warmth without losing precision. Weight 300 carries the larger sizes and creates the editorial lightness that pairs with the GrandSlang italic. · `--font-whyte-inktrap`
-- **Substitute:** Inter, General Sans
-- **Weights:** 300, 400, 500, 700
-- **Sizes:** 10, 12, 14, 16, 18, 20, 24, 28, 32, 40, 48, 50, 64, 80, 88
-- **Line height:** 1.0–1.6
-- **Letter spacing:** Tight on display: -0.04em at 64px, -0.03em at 48px, -0.01em at 20px, 0 at 16px, wide on labels: 0.07em at 12px uppercase, 0.18em at 10px uppercase
-- **Role:** Primary workhorse — body, nav, buttons, links, and most headings. The inktrap corners (the tiny cuts where straight strokes meet) are the signature; they give the geometry warmth without losing precision. Weight 300 carries the larger sizes and creates the editorial lightness that pairs with the GrandSlang italic.
+### Geist — Body, UI, and navigation typeface. Geist handles all functional text: body copy at 16px/1.50, nav items at 14-15px, button labels at 14-16px, captions at 12px. Tight negative tracking (-0.017em to -0.020em) at display sizes creates density; positive tracking (0.042-0.094em) at 8-10px gives badge and micro-text an uppercase stencil feel. · `--font-geist`
+- **Substitute:** Inter, or system-ui as fallback
+- **Weights:** 300, 400, 500, 600
+- **Sizes:** 8, 10, 12, 14, 15, 16, 18, 20, 22, 24, 40
+- **Line height:** 0.88, 1.00, 1.13, 1.20, 1.22, 1.37, 1.38, 1.44, 1.50, 1.57
+- **Letter spacing:** -0.020em at large sizes, -0.017em at 24-40px, 0.016-0.018em at 14-16px body, 0.042-0.094em at 8-12px captions/badges
+- **OpenType features:** `"liga" on`
+- **Role:** Body, UI, and navigation typeface. Geist handles all functional text: body copy at 16px/1.50, nav items at 14-15px, button labels at 14-16px, captions at 12px. Tight negative tracking (-0.017em to -0.020em) at display sizes creates density; positive tracking (0.042-0.094em) at 8-10px gives badge and micro-text an uppercase stencil feel.
 
-### Whyte Inktrap Mono — The stamped-letterhead voice: 74px uppercase sections like 'SSL INSPECTION' and 'URL FILTERING' with 0.2em tracking. The mono is intentionally mechanical against the humanist Whyte to create the boarding-pass rhythm. This font does the section signposting. · `--font-whyte-inktrap-mono`
-- **Substitute:** JetBrains Mono, IBM Plex Mono
-- **Weights:** 400
-- **Sizes:** 14, 74
-- **Line height:** 0.9–1.5
-- **Letter spacing:** 0.2em constant — the breath between letters is the design
-- **OpenType features:** `"ss01" on (if available, for the alternate inktrap cuts)`
-- **Role:** The stamped-letterhead voice: 74px uppercase sections like 'SSL INSPECTION' and 'URL FILTERING' with 0.2em tracking. The mono is intentionally mechanical against the humanist Whyte to create the boarding-pass rhythm. This font does the section signposting.
+### Calsans — Display and heading typeface. Calsans is a condensed, geometric sans with positive tracking (0.056em) that makes headlines feel engineered rather than editorial — letters spread apart like instrument panel labels. Weight 300 used at largest sizes creates an anti-confident presence: massive, airy, never shouting. Weight 600 appears in mid-size headings for grounding. · `--font-calsans`
+- **Substitute:** Space Grotesk, or any wide-tracked geometric sans
+- **Weights:** 300, 600
+- **Sizes:** 18, 24, 32, 34, 56, 64, 72, 88
+- **Line height:** 0.96, 1.00, 1.10, 1.15, 1.20, 1.37
+- **Letter spacing:** 0.056em at all sizes (~4.9px at 88px, ~3.1px at 56px, ~1.8px at 32px)
+- **OpenType features:** `"liga" on`
+- **Role:** Display and heading typeface. Calsans is a condensed, geometric sans with positive tracking (0.056em) that makes headlines feel engineered rather than editorial — letters spread apart like instrument panel labels. Weight 300 used at largest sizes creates an anti-confident presence: massive, airy, never shouting. Weight 600 appears in mid-size headings for grounding.
 
-### GrandSlang — The italic display serif reserved for the hero and its echoes — 'Your new', 'with AI DLP'. Its warm brush-italic swells make the brand feel human and confident where the rest of the system is clinical. This is the one font that should never be used for body or nav. · `--font-grandslang`
-- **Substitute:** Tiempos Headline, Lora Italic
-- **Weights:** 300, 400
-- **Sizes:** 32, 50, 64, 88, 146
-- **Line height:** 0.8–1.5
-- **Letter spacing:** -0.03em — pulled in tight so the italic's natural flare reads as generous
-- **OpenType features:** `"liga" on, "dlig" on`
-- **Role:** The italic display serif reserved for the hero and its echoes — 'Your new', 'with AI DLP'. Its warm brush-italic swells make the brand feel human and confident where the rest of the system is clinical. This is the one font that should never be used for body or nav.
-
-### system-ui — system-ui — detected in extracted data but not described by AI · `--font-system-ui`
-- **Weights:** 600
-- **Sizes:** 16px
-- **Line height:** 1.5
-- **Role:** system-ui — detected in extracted data but not described by AI
-
-### Karla — Karla — detected in extracted data but not described by AI · `--font-karla`
-- **Weights:** 700
-- **Sizes:** 16px
-- **Line height:** 1, 1.2
-- **Role:** Karla — detected in extracted data but not described by AI
+### Helvetica — Helvetica — detected in extracted data but not described by AI · `--font-helvetica`
+- **Weights:** 400, 600
+- **Sizes:** 13px
+- **Line height:** 1.69
+- **OpenType features:** `"liga"`
+- **Role:** Helvetica — detected in extracted data but not described by AI
 
 ### Type Scale
 
 | Role | Family | Weight | Size | Line Height | Letter Spacing | Token |
 |------|--------|--------|------|-------------|----------------|-------|
-| caption | — | — | 10px | 1 | 1.8px | `--text-caption` |
-| body-sm | — | — | 14px | 1.5 | 0px | `--text-body-sm` |
-| body | — | — | 16px | 1.5 | 0px | `--text-body` |
-| subheading | — | — | 20px | 1 | -0.2px | `--text-subheading` |
-| heading-sm | — | — | 32px | 1.2 | -0.32px | `--text-heading-sm` |
-| heading | — | — | 48px | 1.2 | -0.48px | `--text-heading` |
-| heading-lg | — | — | 64px | 1.2 | -0.64px | `--text-heading-lg` |
-| section-stamp | — | — | 74px | 0.9 | 14.8px | `--text-section-stamp` |
-| display | — | — | 88px | 0.8 | -2.64px | `--text-display` |
+| caption | — | — | 12px | 1.22 | 0.5px | `--text-caption` |
+| body-sm | — | — | 14px | 1.44 | 0.25px | `--text-body-sm` |
+| body | — | — | 16px | 1.5 | 0.27px | `--text-body` |
+| subheading | — | — | 20px | 1.5 | -0.34px | `--text-subheading` |
+| heading-sm | — | — | 32px | 1.1 | 1.8px | `--text-heading-sm` |
+| heading | — | — | 56px | 1.1 | 3.1px | `--text-heading` |
+| heading-lg | — | — | 72px | 1 | 4px | `--text-heading-lg` |
+| display | — | — | 88px | 0.96 | 4.9px | `--text-display` |
 
 ## Tokens — Spacing & Shapes
 
-**Base unit:** 4px
+**Base unit:** 8px
 
 **Density:** comfortable
 
@@ -85,177 +81,178 @@ dope.security is a midnight terminal aesthetic: near-black canvas, a single vivi
 
 | Name | Value | Token |
 |------|-------|-------|
-| 4 | 4px | `--spacing-4` |
 | 8 | 8px | `--spacing-8` |
-| 12 | 12px | `--spacing-12` |
 | 16 | 16px | `--spacing-16` |
-| 20 | 20px | `--spacing-20` |
 | 24 | 24px | `--spacing-24` |
 | 32 | 32px | `--spacing-32` |
 | 40 | 40px | `--spacing-40` |
-| 48 | 48px | `--spacing-48` |
-| 64 | 64px | `--spacing-64` |
-| 72 | 72px | `--spacing-72` |
+| 56 | 56px | `--spacing-56` |
 | 80 | 80px | `--spacing-80` |
-| 96 | 96px | `--spacing-96` |
-| 128 | 128px | `--spacing-128` |
-| 136 | 136px | `--spacing-136` |
-| 160 | 160px | `--spacing-160` |
 
 ### Border Radius
 
 | Element | Value |
 |---------|-------|
-| cards | 19.2px |
-| pills | 1584px |
-| buttons | 8px |
-| smallControls | 6px |
+| cards | 20px |
+| badges | 800px |
+| inputs | 5px |
+| buttons | 800px |
+| nestedCards | 16px |
 
 ### Shadows
 
 | Name | Value | Token |
 |------|-------|-------|
-| subtle | `rgba(16, 24, 40, 0.05) 0px 1px 2px 0px` | `--shadow-subtle` |
+| subtle | `rgba(0, 0, 0, 0.05) 2px 2px 0px 0px` | `--shadow-subtle` |
+| subtle-2 | `rgb(255, 255, 255) 0px -1px 0px 0px inset, rgb(255, 255, ...` | `--shadow-subtle-2` |
 
 ### Layout
 
 - **Page max-width:** 1200px
-- **Section gap:** 120px
-- **Card padding:** 40px
+- **Section gap:** 80px
+- **Card padding:** 24px
 - **Element gap:** 16px
 
 ## Components
 
-### Hero Boarding Pass
-**Role:** Full-bleed hero panel with a translucent glass card on the right
+### Hero Headline (Calsans Display)
+**Role:** Primary page headline
 
-Full-viewport dark hero on the atmospheric sky photograph. Left column: GrandSlang italic at 146px for 'Your new', Whyte Inktrap weight 400 at 64px for the main 'Secure Web Gateway', GrandSlang italic again for 'with AI DLP'. Body subhead in Whyte Inktrap 20px weight 300, muted Almost White. Right column: 19.2px radius card with rgba(237,195,196,0.05) fill, 1px white border, 'Boarding Pass' label, 'LEGACY → DS' origin/destination line, and a vertical barcode. Two pill CTA buttons inside: 1584px radius, 20px 32px padding, white text on the faint pink wash.
+Calsans weight 300 at 88px/0.96 line-height, color #ffffff, letter-spacing 0.056em (~4.9px). The positive tracking on massive type is signature — headlines feel like instrument panel readouts, not editorial. Two-tone color treatment on hero: 'The End-To-End' in pure white, with a secondary line optionally in Phosphor Mint (#70dcd3) for the opening phrase.
 
-### Stamped Section Heading
-**Role:** Full-width section signpost that replaces H2s on feature blocks
+### Filled Pill Button (Primary)
+**Role:** Primary action CTA
 
-Whyte Inktrap Mono 74px weight 400, uppercase, 0.2em letter-spacing, Soft White (#f0f0f0). Rendered as a single line that fills the container. Each letter spaced far enough apart to read as a stamp, not a heading. No underline, no decoration — the tracking IS the design. Example: 'S S L   I N S P E C T I O N'.
+Background #ffffff, text #070707, border-radius 800px (full pill), padding 12px 24px, font Geist 500 at 16px. Dark text on white fill — the inversion of the dark interface makes the button physically pop. Subtle inset highlight: rgb(255,255,255) inset shadows on the top/sides create a light edge against the white fill, giving the pill a slightly embossed quality.
 
-### Filled Action Button
-**Role:** Primary dark button with white outline
+### Ghost Pill Button (Secondary)
+**Role:** Secondary or navigational action
 
-Background #090909, 1px solid #f7f9fa border, 8px radius, 16px all-around padding, white text in Whyte Inktrap 16px weight 400. Used for 'Book a Demo' and 'Log In' in the nav. The button is almost the same color as the page — the border does the work.
+Transparent background, border 1px solid #ffffff, text #ffffff, border-radius 800px, padding 12px 24px, Geist 400 at 16px. The border is bright white at full opacity — the button's identity comes from the outline, not the fill.
 
-### Ghost Pill Button
-**Role:** Soft-tint pill used for secondary actions inside cards
+### Dark Surface Card
+**Role:** Primary content container
 
-Background rgba(237,195,196,0.05), no border, 1584px radius (effectively full pill), 20px 32px padding, text #f7f9fa. Example: 'Try now with Google' and 'Try now with Microsoft'. A small brand-color logo glyph sits left of the label.
+Background #0d0e12, border 1px solid #d9dae5 (light border on dark surface), border-radius 20px, padding 24px. The counterintuitive light border defines the card edge against the dark canvas — this is the system-defining move. No shadow; the border is the elevation.
 
-### Compact Outlined Button
-**Role:** Small white-bordered control for inline actions
+### Phosphor Accent Card
+**Role:** Featured/highlight card
 
-Background rgba(247,249,250,0.08), 1px solid #f7f9fa border, 6px radius, 9px 15px padding. Lighter density than the filled button — used in compact toolbars and table rows.
+Background #70dcd3 (the mint), no border or subtle #d9dae5 border, border-radius 20px, padding 24px. Used sparingly — one per viewport maximum. The teal fill makes the card look lit from within, like a phosphor screen.
 
-### Text-Only Nav Link
-**Role:** Unbordered link in the main navigation
+### Code/Syntax Surface
+**Role:** Code blocks, terminal output
 
-Transparent background, 0px radius, 10.4px vertical padding, text in #475467 (muted steel). Underline appears on hover. This is the lightest-weight interactive in the system — quiet enough to recede into the nav bar.
+Background #141418 (Obsidian), border-radius 16px, padding 16-20px, Geist Mono (or Geist fallback) at 13-14px, text #aeaeb7 with syntax highlighting. Sits nested inside Carbon Plate cards.
 
-### Frosted Nav Bar
-**Role:** Sticky top navigation with backdrop blur
+### Navigation Bar
+**Role:** Top site navigation
 
-Fixed top bar, background rgba(51,50,72,0.7) (--nav-bg-color), backdrop-filter: blur(10px), 1px bottom border in #6b6b6b. Brand wordmark on the left in Whyte Inktrap weight 500. Nav items in Whyte Inktrap 12px uppercase with 0.07em tracking. The blur is the design — it lets the atmospheric hero breathe through.
+Background #070707 (transparent over canvas), height ~64px, logo left, links centered in Geist 14px, #ffffff text with #a2a4a9 for inactive items, border-bottom 1px solid #a2a4a9 (again, light borders on dark). Right side: contact link + filled pill CTA. Sticky, no background blur needed against solid dark canvas.
 
-### Comparison Card
-**Role:** Side-by-side competitive comparison tile
+### Activity Row (PR/Commit List)
+**Role:** Git activity feed item
 
-19.2px radius, full-bleed gradient or violet bloom background, 40px padding, no border, no shadow. Each card carries a faint oversized number (01–04) behind a small label like 'COMPLEX 15-STEP CONFIGURATION' and a white 'vs. Competitor →' link. The cards are connected by a horizontal line and circular node markers between them, like a flight route.
+Horizontal row: avatar circle (32px) + commit message in Geist 14px weight 500 (#ffffff) + metadata in Geist 12px (#aeaeb7) + status dot (8px circle) in Phosphor Mint (#70dcd3) for pass, Verdant Edge (#75ae4c) for success, or a warm tone for warning. Padding 10px 0, separated by 1px #2e3038 dividers.
 
-### Feature Row Card
-**Role:** Single feature block with description and link
+### Input Field
+**Role:** Form text input
 
-Transparent background, 19.2px radius, no padding. Left: 20px link 'Learn More'. Right: Whyte Inktrap 18px weight 400 body copy. The card IS the row — no visible container, the spacing creates the boundary.
+Background #0d0e12, border 1px solid #2e3038 (rest) or #0677d4 (focus), border-radius 5px, padding 12px, text Geist 14px #ffffff, placeholder #60606c. Focus adds a 1px Deep Signal border — no glow ring, just a sharp color change.
 
-### Violet Bloom Card
-**Role:** Accent card that breaks the monochrome
+### Status Badge
+**Role:** Inline status indicator
 
-Background #af50ff or radial-gradient violet bloom, 19.2px radius, 40px padding. Used sparingly for the 'See how in 140s' play CTA or the 'dope.swg' badge. The violet is rationed to one or two cards per page — when it appears, it should feel like a signal, not a theme.
+Border-radius 800px (pill), padding 2px 8px, Geist 11-12px with 0.042-0.094em tracking. Variants: success = border 1px #75ae4c with text #75ae4c, info = border 1px #0677d4 with text #0677d4. Outlined style, never filled.
 
-### Coordinate Footer
-**Role:** Minimal page footer with geographic stamp
+### Section Header (Eyebrow + Title)
+**Role:** Section introduction
 
-Full-bleed dark band, no background fill, 0px padding. Left: small '+' icon, 'Fly Direct' and 'Secure Web Gateway' labels in Whyte Inktrap 14px. Right: a live-updating GPS coordinate in Whyte Inktrap 14px + a heart icon. This is the signature: the brand writes its footer as if signing a postcard from a city.
+Eyebrow label in Geist 12px uppercase with 0.094em tracking, color #a6e5f2 or #929dbd, above a Calsans heading at 56px/1.1 weight 300. The uppercase eyebrow with wide tracking is the section's quiet signal.
 
-### Hairline Divider
-**Role:** Section separator with no weight
+### 3D Product Visual Block
+**Role:** Hero and feature illustration
 
-0.5px or 1px solid stroke in #f7f9fa at 10-20% opacity. Replaces shadows and heavy borders everywhere. The system trusts line weight, not depth, to create rhythm.
+Full-bleed rendered product imagery with neon-lit 3D objects on a dark gradient ground. The image is not a flat screenshot — it has dimensional lighting, glowing edges, and a horizon line. Blends into the #070707 canvas with no hard mask.
+
+### Footer Link Column
+**Role:** Footer navigation section
+
+Column heading in Geist 14px weight 500 #ffffff, links in Geist 13-14px weight 400 #aeaeb7 with no underline. 8-16px vertical gap between items. Four-column grid with generous column gaps (32-40px).
 
 ## Do's and Don'ts
 
 ### Do
-- Use Signal Violet (#af50ff) only for one feature card glow, one filled action, and one accent stroke per page — treat it as signal lighting, not theme color
-- Set section headings in Whyte Inktrap Mono 74px uppercase with 0.2em tracking; the letterspaced breath is the heading style
-- Default all cards to 19.2px radius and 0 padding internally — let layout create the boundary, not a fill or border
-- Use 1px or 0.5px solid #f7f9fa borders at low opacity for separation instead of shadows or fills
-- Reach for GrandSlang italic at 88–146px for the two or three largest display moments on a page — never for body or nav
-- Use the frosted nav pattern: rgba(51,50,72,0.7) background + backdrop-filter blur(10px) + 1px bottom border
-- End pages with a coordinate stamp footer in Whyte Inktrap 14px — it is the brand's signature closing gesture
+- Use Calsans for all headlines at 56px or larger with its native positive tracking (0.056em)
+- Define card edges with a 1px #d9dae5 light border, not shadows or background contrast alone
+- Use the filled white pill (800px radius, #ffffff fill, #070707 text) for the single primary action on any screen
+- Apply the Phosphor Mint (#70dcd3) accent to no more than one card or panel per viewport
+- Use 20px radius for cards and 800px (pill) for all interactive controls
+- Keep body text at 16px Geist weight 400 with -0.017em tracking; use weight 500 only for emphasized labels
+- Anchor all dark surfaces to the Void Canvas (#070707) as the base; stack upward through #0d0e12 → #141418
 
 ### Don't
-- Don't apply box-shadows beyond the nav's single 1px hairline — the system is shadowless by design
-- Don't use Signal Violet for borders, text, or body backgrounds — it is reserved for fills and glows only
-- Don't use GrandSlang italic for anything smaller than 32px — the warmth of the brush-italic collapses at small sizes
-- Don't mix Whyte Inktrap Mono with GrandSlang on the same line — the mechanical stamp voice must stay in its own band
-- Don't introduce a new accent color — the palette is 95% achromatic and one violet, adding a third color breaks the system
-- Don't center body copy or use multi-column text layouts — the page rhythm is left-aligned with generous side margins
-- Don't round buttons to 0px or 4px; the system uses 8px for control buttons and 1584px for pill CTAs — those are the only two button radii
+- Don't use drop shadows on cards or panels — the system defines elevation through light borders and surface luminance steps
+- Don't fill buttons with color — the only filled button is white, everything else is ghost/outlined
+- Don't use multiple accent colors in one section — Phosphor Mint and Signal Blue should not co-occur on the same surface
+- Don't set body text below 14px or above 18px — the reading range is narrow and confident
+- Don't apply negative letter-spacing to Calsans — its positive tracking is structural to the typeface's identity
+- Don't use dark borders on cards; the system uses light (#d9dae5) borders to define edges on dark surfaces
+- Don't break the dark theme with light sections — the entire page lives in the dark spectrum
 
 ## Surfaces
 
 | Level | Name | Value | Purpose |
 |-------|------|-------|---------|
-| 0 | Void Canvas | `#090909` | Full-bleed page background — every section sits directly on this |
-| 1 | Translucent Panel | `#333248b3` | Floating nav with backdrop blur — a frosted glass strip pinned to the top |
-| 2 | Iron Wash | `#423738` | Ghost button fills and subtle card washes that need to read as a surface without leaving the void |
-| 3 | Violet Bloom | `#af50ff` | Feature card backgrounds and radial glows — the one place the palette breaks monochrome |
+| 0 | Void Canvas | `#070707` | Page background, the base layer |
+| 1 | Carbon Plate | `#0d0e12` | Primary cards, hero feature panels, content blocks |
+| 2 | Obsidian | `#141418` | Nested cards, code surfaces, secondary panels within cards |
+| 3 | Iron Edge | `#2e3038` | Hover states, active overlays, raised interactive surfaces |
 
 ## Elevation
 
-- **Nav Bar:** `rgba(16, 24, 40, 0.05) 0px 1px 2px 0px`
+- **Dark Surface Card:** `none (relies on 1px #d9dae5 border for definition)`
+- **Filled Pill Button:** `rgba(0, 0, 0, 0.05) 2px 2px 0px 0px, rgb(255, 255, 255) 0px -1px 0px 0px inset, rgb(255, 255, 255) 1px 0px 0px 0px inset, rgb(255, 255, 255) -1px 0px 0px 0px inset, rgb(255, 255, 255) 0px 1px 0px 0px inset`
+- **Input Field:** `rgba(0, 0, 0, 0.05) 2px 2px 0px 0px`
 
 ## Imagery
 
-Photography is treated as a single dramatic hero asset: a wide-format twilight sky with purple and lavender clouds over a glowing horizon, a single airplane light streaking across. The image is not cropped or masked — it fills the full viewport and the text sits directly on it. After the hero, the page goes almost entirely iconographic: no product screenshots, no lifestyle photos, no stock imagery. The comparison section uses soft radial gradient blooms (blue, pink, purple) as card backgrounds, acting as abstract color studies rather than literal images. Icons are minimal line glyphs (heart, +, arrow) drawn in #f7f9fa. The overall ratio is text-and-rule dominant: imagery occupies less than 15% of the page.
+Hero and feature sections use 3D-rendered product visuals: curved tracks, flowing light ribbons, abstract geometric objects lit with neon edge-light. These renders sit on dark gradient grounds (linear-gradient from rgb(22,48,82) to rgb(13,14,18)) and blend seamlessly into the #070707 canvas. No photography, no flat illustration — the visual language is CGI/dimensional. Icons in the UI are minimal and appear as simple line glyphs in #ffffff or muted grays. The only flat content imagery is the activity feed with circular avatars and status dots.
 
 ## Layout
 
-Full-bleed sections with a 1200px content max-width centered inside. The hero is a split composition: roughly 55/45 text-to-card, with a transparent boarding-pass card overlaying the right side of the atmospheric photograph. Below the hero, the system shifts to edge-to-edge dark bands with no visual dividers between them — rhythm comes from generous sectionGap (~120px) and the stamped 74px section labels. The 'Features' section uses a stacked monospace heading above a list of rows; the comparison block uses a 4-column card grid connected by a horizontal route line. Navigation is a single sticky frosted bar with brand left, links center, two buttons right. Density is comfortable — every section breathes. The page never uses multi-column text or card grids denser than 4 across.
+Max-width 1200px centered content. Hero is split 50/50: headline and subtext left-aligned, 3D visual bleeding to right edge. Subsequent sections are full-bleed dark bands with centered content. Feature sections alternate between 2-column text+visual layouts and centered headline + card grid. Card grids are typically 2-3 columns with 20-24px gaps. Section gaps are generous (64-80px). Navigation is a single sticky top bar, no sidebar. The page rhythm is: dark hero → dark feature section → dark accent section → dark footer — it never breaks from the dark theme.
 
 ## Agent Prompt Guide
 
 **Quick Color Reference**
-- text: #f7f9fa
-- background: #090909
-- border: rgba(247,249,250,0.2)
-- accent / brand signal: #af50ff
-- muted text: #828384
-- primary action: #af50ff (filled action)
+- canvas: #070707
+- card surface: #0d0e12
+- primary text: #ffffff
+- secondary text: #aeaeb7 / #c8cad0
+- border: #d9dae5 (light on dark)
+- accent: #70dcd3 (mint)
+- link/active: #0092e4 (blue)
+- primary action: #ffffff (filled action)
 
 **Example Component Prompts**
 
-1. *Stamped Section Heading:* Render 'SSL INSPECTION' as a single line in Whyte Inktrap Mono, 74px, weight 400, uppercase, letter-spacing 0.2em, color #f0f0f0, on a #090909 background. No underline, no decoration.
+1. Create a Primary Action Button: #ffffff background, #070707 text, 9999px radius, compact pill padding. Use this filled treatment for the main CTA.
 
-2. *Hero Boarding Pass Card:* Create a right-aligned card on the hero, 19.2px radius, background rgba(237,195,196,0.05), 1px solid rgba(247,249,250,0.2) border, 40px padding. Inside: a small icon + 'Boarding Pass' label in Whyte Inktrap 12px uppercase, an 'ORIGIN LEGACY → DESTINATION DS' line in 14px, a Whyte Inktrap 32px heading 'Deploys on device in minutes', and two pill buttons (1584px radius, 20px 32px padding, white text, faint pink wash background) reading 'Try now with Google' and 'Try now with Microsoft'.
+2. **Feature Card Grid**: 3-column grid on #070707 background, 20px gaps. Each card: background #0d0e12, border 1px solid #d9dae5, border-radius 20px, padding 24px. Icon in #70dcd3 at 24px. Title in Calsans 32px weight 300, color #ffffff, letter-spacing 0.056em. Body in Geist 16px weight 400, color #aeaeb7.
 
-3. *Filled Action Button:* Build a 8px-radius button with #090909 background, 1px solid #f7f9fa border, 16px padding, white 'Book a Demo' text in Whyte Inktrap 16px weight 400.
+3. **Activity Feed Row**: Background #0d0e12 card with 1px #d9dae5 border, 20px radius. Each row: 32px circular avatar + Geist 14px weight 500 text in #ffffff + Geist 12px metadata in #aeaeb7 + 8px status dot in #70dcd3. Rows separated by 1px #2e3038 dividers. Row padding 10px 0.
 
-4. *Violet Bloom Feature Card:* A 19.2px-radius card filled with #af50ff, 40px padding, containing Whyte Inktrap 32px weight 400 white heading 'dope.swg' and a 14px body line. One per page maximum.
 
-5. *Coordinate Footer:* A full-width band on #090909 with a '+' icon, 'Fly Direct' and 'Secure Web Gateway' labels in Whyte Inktrap 14px on the left, a live GPS coordinate in 14px on the right, and a small heart icon in #f7f9fa.
+5. **Footer Link Grid**: 4-column grid on #070707 background. Column headers in Geist 14px weight 500, #ffffff. Links in Geist 14px weight 400, #aeaeb7, no underline. 12px row gap, 40px column gap. Bottom bar: copyright in Geist 13px #60606c, social icons (32px) in #a2a4a9.
 
 ## Similar Brands
 
-- **Linear** — Same dark monochrome canvas with a single saturated accent color rationed across the interface
-- **Vercel** — Identical shadowless discipline — flat surfaces, hairline borders, generous dark space — paired with a minimal typographic system
-- **Arc Browser** — Same editorial display serif + geometric sans pairing, same luxury-product restraint on a dark canvas
-- **Stripe Press** — Same boarding-pass / travel-coded editorial language, same extreme letter-spacing on uppercase stamps
-- **Nothing.tech** — Same dot-matrix mono typography and inktrap geometric sans, same monochrome-with-one-glow color strategy
+- **Linear** — Same near-black canvas, high-contrast white text, pill-shaped controls, and minimal use of color as functional punctuation rather than decoration
+- **Vercel** — Dark-mode devtools aesthetic with geometric sans display type, generous spacing, and a single accent color used sparingly
+- **Supabase** — Deep dark surfaces with a distinct teal/green accent for featured elements, and light hairline borders defining card edges on dark backgrounds
+- **Railway** — Near-black canvas with stacked neutral surface levels, pill controls, and a restrained palette where color appears only as small functional accents
+- **Resend** — Dark devtools surface with oversized display type, white pill CTAs on dark backgrounds, and quiet use of a single accent color
 
 ## Quick Start
 
@@ -264,106 +261,106 @@ Full-bleed sections with a 1200px content max-width centered inside. The hero is
 ```css
 :root {
   /* Colors */
-  --color-near-black: #090909;
-  --color-almost-white: #f7f9fa;
-  --color-soft-white: #f0f0f0;
-  --color-steel: #828384;
-  --color-graphite: #474747;
-  --color-iron: #423738;
-  --color-ash: #6b6b6b;
-  --color-signal-violet: #af50ff;
-  --color-lavender-mist: #e1bdff;
+  --color-void-canvas: #070707;
+  --color-carbon-plate: #0d0e12;
+  --color-obsidian: #141418;
+  --color-iron-edge: #2e3038;
+  --color-steel-border: #22222a;
+  --color-pure-white: #ffffff;
+  --color-cloud-mist: #f0f0f0;
+  --color-fog: #d9dae5;
+  --color-ash: #c8cad0;
+  --color-graphite: #aeaeb7;
+  --color-slate-mute: #a2a4a9;
+  --color-cinder: #60606c;
+  --color-phosphor-mint: #70dcd3;
+  --color-signal-blue: #0092e4;
+  --color-ice-blue: #a6e5f2;
+  --color-current-blue: #00ade4;
+  --color-deep-signal: #0677d4;
+  --color-verdant-edge: #75ae4c;
+  --color-steel-iris: #929dbd;
 
   /* Typography — Font Families */
-  --font-whyte-inktrap: 'Whyte Inktrap', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-  --font-whyte-inktrap-mono: 'Whyte Inktrap Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-  --font-grandslang: 'GrandSlang', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-  --font-system-ui: 'system-ui', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-  --font-karla: 'Karla', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-geist: 'Geist', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-calsans: 'Calsans', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-helvetica: 'Helvetica', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
 
   /* Typography — Scale */
-  --text-caption: 10px;
-  --leading-caption: 1;
-  --tracking-caption: 1.8px;
+  --text-caption: 12px;
+  --leading-caption: 1.22;
+  --tracking-caption: 0.5px;
   --text-body-sm: 14px;
-  --leading-body-sm: 1.5;
-  --tracking-body-sm: 0px;
+  --leading-body-sm: 1.44;
+  --tracking-body-sm: 0.25px;
   --text-body: 16px;
   --leading-body: 1.5;
-  --tracking-body: 0px;
+  --tracking-body: 0.27px;
   --text-subheading: 20px;
-  --leading-subheading: 1;
-  --tracking-subheading: -0.2px;
+  --leading-subheading: 1.5;
+  --tracking-subheading: -0.34px;
   --text-heading-sm: 32px;
-  --leading-heading-sm: 1.2;
-  --tracking-heading-sm: -0.32px;
-  --text-heading: 48px;
-  --leading-heading: 1.2;
-  --tracking-heading: -0.48px;
-  --text-heading-lg: 64px;
-  --leading-heading-lg: 1.2;
-  --tracking-heading-lg: -0.64px;
-  --text-section-stamp: 74px;
-  --leading-section-stamp: 0.9;
-  --tracking-section-stamp: 14.8px;
+  --leading-heading-sm: 1.1;
+  --tracking-heading-sm: 1.8px;
+  --text-heading: 56px;
+  --leading-heading: 1.1;
+  --tracking-heading: 3.1px;
+  --text-heading-lg: 72px;
+  --leading-heading-lg: 1;
+  --tracking-heading-lg: 4px;
   --text-display: 88px;
-  --leading-display: 0.8;
-  --tracking-display: -2.64px;
+  --leading-display: 0.96;
+  --tracking-display: 4.9px;
 
   /* Typography — Weights */
   --font-weight-light: 300;
   --font-weight-regular: 400;
   --font-weight-medium: 500;
   --font-weight-semibold: 600;
-  --font-weight-bold: 700;
 
   /* Spacing */
-  --spacing-unit: 4px;
-  --spacing-4: 4px;
+  --spacing-unit: 8px;
   --spacing-8: 8px;
-  --spacing-12: 12px;
   --spacing-16: 16px;
-  --spacing-20: 20px;
   --spacing-24: 24px;
   --spacing-32: 32px;
   --spacing-40: 40px;
-  --spacing-48: 48px;
-  --spacing-64: 64px;
-  --spacing-72: 72px;
+  --spacing-56: 56px;
   --spacing-80: 80px;
-  --spacing-96: 96px;
-  --spacing-128: 128px;
-  --spacing-136: 136px;
-  --spacing-160: 160px;
 
   /* Layout */
   --page-max-width: 1200px;
-  --section-gap: 120px;
-  --card-padding: 40px;
+  --section-gap: 80px;
+  --card-padding: 24px;
   --element-gap: 16px;
 
   /* Border Radius */
-  --radius-lg: 8px;
-  --radius-lg-2: 10.8px;
-  --radius-2xl: 19.2px;
-  --radius-full: 99px;
-  --radius-full-2: 1584px;
-  --radius-full-3: 10000px;
+  --radius-sm: 1px;
+  --radius-md: 5px;
+  --radius-2xl: 16px;
+  --radius-2xl-2: 20px;
+  --radius-3xl: 24px;
+  --radius-3xl-2: 32px;
+  --radius-3xl-3: 40px;
+  --radius-full: 50px;
+  --radius-full-2: 800px;
 
   /* Named Radii */
-  --radius-cards: 19.2px;
-  --radius-pills: 1584px;
-  --radius-buttons: 8px;
-  --radius-smallcontrols: 6px;
+  --radius-cards: 20px;
+  --radius-badges: 800px;
+  --radius-inputs: 5px;
+  --radius-buttons: 800px;
+  --radius-nestedcards: 16px;
 
   /* Shadows */
-  --shadow-subtle: rgba(16, 24, 40, 0.05) 0px 1px 2px 0px;
+  --shadow-subtle: rgba(0, 0, 0, 0.05) 2px 2px 0px 0px;
+  --shadow-subtle-2: rgb(255, 255, 255) 0px -1px 0px 0px inset, rgb(255, 255, 255) 1px 0px 0px 0px inset, rgb(255, 255, 255) -1px 0px 0px 0px inset, rgb(255, 255, 255) 0px 1px 0px 0px inset;
 
   /* Surfaces */
-  --surface-void-canvas: #090909;
-  --surface-translucent-panel: #333248b3;
-  --surface-iron-wash: #423738;
-  --surface-violet-bloom: #af50ff;
+  --surface-void-canvas: #070707;
+  --surface-carbon-plate: #0d0e12;
+  --surface-obsidian: #141418;
+  --surface-iron-edge: #2e3038;
 }
 ```
 
@@ -372,79 +369,79 @@ Full-bleed sections with a 1200px content max-width centered inside. The hero is
 ```css
 @theme {
   /* Colors */
-  --color-near-black: #090909;
-  --color-almost-white: #f7f9fa;
-  --color-soft-white: #f0f0f0;
-  --color-steel: #828384;
-  --color-graphite: #474747;
-  --color-iron: #423738;
-  --color-ash: #6b6b6b;
-  --color-signal-violet: #af50ff;
-  --color-lavender-mist: #e1bdff;
+  --color-void-canvas: #070707;
+  --color-carbon-plate: #0d0e12;
+  --color-obsidian: #141418;
+  --color-iron-edge: #2e3038;
+  --color-steel-border: #22222a;
+  --color-pure-white: #ffffff;
+  --color-cloud-mist: #f0f0f0;
+  --color-fog: #d9dae5;
+  --color-ash: #c8cad0;
+  --color-graphite: #aeaeb7;
+  --color-slate-mute: #a2a4a9;
+  --color-cinder: #60606c;
+  --color-phosphor-mint: #70dcd3;
+  --color-signal-blue: #0092e4;
+  --color-ice-blue: #a6e5f2;
+  --color-current-blue: #00ade4;
+  --color-deep-signal: #0677d4;
+  --color-verdant-edge: #75ae4c;
+  --color-steel-iris: #929dbd;
 
   /* Typography */
-  --font-whyte-inktrap: 'Whyte Inktrap', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-  --font-whyte-inktrap-mono: 'Whyte Inktrap Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-  --font-grandslang: 'GrandSlang', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-  --font-system-ui: 'system-ui', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-  --font-karla: 'Karla', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-geist: 'Geist', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-calsans: 'Calsans', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-helvetica: 'Helvetica', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
 
   /* Typography — Scale */
-  --text-caption: 10px;
-  --leading-caption: 1;
-  --tracking-caption: 1.8px;
+  --text-caption: 12px;
+  --leading-caption: 1.22;
+  --tracking-caption: 0.5px;
   --text-body-sm: 14px;
-  --leading-body-sm: 1.5;
-  --tracking-body-sm: 0px;
+  --leading-body-sm: 1.44;
+  --tracking-body-sm: 0.25px;
   --text-body: 16px;
   --leading-body: 1.5;
-  --tracking-body: 0px;
+  --tracking-body: 0.27px;
   --text-subheading: 20px;
-  --leading-subheading: 1;
-  --tracking-subheading: -0.2px;
+  --leading-subheading: 1.5;
+  --tracking-subheading: -0.34px;
   --text-heading-sm: 32px;
-  --leading-heading-sm: 1.2;
-  --tracking-heading-sm: -0.32px;
-  --text-heading: 48px;
-  --leading-heading: 1.2;
-  --tracking-heading: -0.48px;
-  --text-heading-lg: 64px;
-  --leading-heading-lg: 1.2;
-  --tracking-heading-lg: -0.64px;
-  --text-section-stamp: 74px;
-  --leading-section-stamp: 0.9;
-  --tracking-section-stamp: 14.8px;
+  --leading-heading-sm: 1.1;
+  --tracking-heading-sm: 1.8px;
+  --text-heading: 56px;
+  --leading-heading: 1.1;
+  --tracking-heading: 3.1px;
+  --text-heading-lg: 72px;
+  --leading-heading-lg: 1;
+  --tracking-heading-lg: 4px;
   --text-display: 88px;
-  --leading-display: 0.8;
-  --tracking-display: -2.64px;
+  --leading-display: 0.96;
+  --tracking-display: 4.9px;
 
   /* Spacing */
-  --spacing-4: 4px;
   --spacing-8: 8px;
-  --spacing-12: 12px;
   --spacing-16: 16px;
-  --spacing-20: 20px;
   --spacing-24: 24px;
   --spacing-32: 32px;
   --spacing-40: 40px;
-  --spacing-48: 48px;
-  --spacing-64: 64px;
-  --spacing-72: 72px;
+  --spacing-56: 56px;
   --spacing-80: 80px;
-  --spacing-96: 96px;
-  --spacing-128: 128px;
-  --spacing-136: 136px;
-  --spacing-160: 160px;
 
   /* Border Radius */
-  --radius-lg: 8px;
-  --radius-lg-2: 10.8px;
-  --radius-2xl: 19.2px;
-  --radius-full: 99px;
-  --radius-full-2: 1584px;
-  --radius-full-3: 10000px;
+  --radius-sm: 1px;
+  --radius-md: 5px;
+  --radius-2xl: 16px;
+  --radius-2xl-2: 20px;
+  --radius-3xl: 24px;
+  --radius-3xl-2: 32px;
+  --radius-3xl-3: 40px;
+  --radius-full: 50px;
+  --radius-full-2: 800px;
 
   /* Shadows */
-  --shadow-subtle: rgba(16, 24, 40, 0.05) 0px 1px 2px 0px;
+  --shadow-subtle: rgba(0, 0, 0, 0.05) 2px 2px 0px 0px;
+  --shadow-subtle-2: rgb(255, 255, 255) 0px -1px 0px 0px inset, rgb(255, 255, 255) 1px 0px 0px 0px inset, rgb(255, 255, 255) -1px 0px 0px 0px inset, rgb(255, 255, 255) 0px 1px 0px 0px inset;
 }
 ```

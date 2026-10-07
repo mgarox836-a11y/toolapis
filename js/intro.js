@@ -244,7 +244,7 @@ function setNavActive(id) {
  * "#overview" links — brand mark, nav, footer, hero scroll cue — mean
  * "take me to the top", not "take me to the cards". Everything else keeps
  * the browser's native anchor behaviour (html has scroll-smooth and
- * style.css sets scroll-margin-top).
+ * css/base.css sets scroll-margin-top).
  *
  * While the intro still owns the screen, NO in-page anchor is honoured. The
  * curtain is up, the scroll is locked, and a native anchor jump would move a

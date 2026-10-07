@@ -1,470 +1,400 @@
-   tailwind.config = {
-      darkMode: 'class',
-      theme: {
-        extend: {
-          fontFamily: {
-            display: ['Space Grotesk', 'sans-serif'],
-            sans: ['DM Sans', 'sans-serif'],
-          },
-          colors: {
-            surface: {
-              DEFAULT: '#0B0F12',
-              card: '#13191D',
-              border: '#232D34',
-            },
-            accent: {
-              mint: '#A3E635',
-              'mint-hover': '#BEF264',
-            }
-          },
-          boxShadow: {
-            'mint': '0 0 24px rgba(163, 230, 53, 0.18)',
-          }
-        }
-      }
-    }
+/* =============================================================================
+   script.js — TOOLAPIS · page behaviour
+   -----------------------------------------------------------------------------
+   Everything that is not motion policy, not the intro, not the scroll reveal and
+   not the 3D layer lives here: the page-transition plate, cursor spotlight,
+   scroll progress, scrollspy, the mobile menu, the copy-to-clipboard helper and
+   the toast.
 
-    document.documentElement.classList.add('js');
+   WHAT CHANGED IN THE REDESIGN
+   -----------------------------------------------------------------------------
+   This file used to open by assigning a `tailwind.config`, because the site was
+   built on the Tailwind CDN and every colour, radius and width in the markup was
+   a utility class. The redesign replaces that with css/tokens.css + real
+   stylesheets, so:
 
-    // Motion preference: animations always run by default, regardless of
-    // the OS "prefers-reduced-motion" setting. localStorage "toolapis-motion":
-    //   "off" -> disable animations explicitly
-    //   unset/"on" -> animations stay ON
-    const motionPref = (() => { try { return localStorage.getItem('toolapis-motion') || ''; } catch (err) { return ''; } })();
-    const reduceMotion = motionPref === 'off';
-    document.documentElement.classList.toggle('reduced-motion', reduceMotion);
-    const finePointer = window.matchMedia('(pointer: fine)').matches;
+     * the `tailwind.config` block and the CDN <script> are gone, and with them
+       the whole class of bug where a CDN-injected <style> lands after our sheets
+       and wins on source order;
+     * the handful of places that used Tailwind utility classes as STATE
+       (`opacity-0/100`, `translate-y-20/0`) now toggle a single semantic class
+       (`is-live`) that css/base.css and css/components.css define;
+     * every selector below is the same one it always was, so the behaviour is
+       unchanged — only the class names it flips are.
 
-    // ---------------------------------------------------------------
-    // Page transition: fade-in on load, fade-out 400ms before nav
-    // ---------------------------------------------------------------
-    const pageTransition = document.getElementById('page-transition');
-    if (pageTransition) {
-      pageTransition.style.transition = 'none';
-      pageTransition.classList.add('active');
-      void pageTransition.offsetHeight;
-      pageTransition.style.transition = '';
-      const hideTransition = () => pageTransition.classList.remove('active');
-      if (document.readyState === 'loading' || document.readyState === 'interactive') {
-        document.addEventListener('DOMContentLoaded', hideTransition, { once: true });
-      } else {
-        requestAnimationFrame(hideTransition);
-      }
+   The script is deliberately written to be its own failsafe: every block is
+   guarded, and a failure in one leaves the rest of the page working.
+   ========================================================================== */
 
-      let transitionLocked = false;
-      document.addEventListener('click', (e) => {
-        if (transitionLocked || e.defaultPrevented) return;
-        if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
-        const link = e.target.closest('a');
-        if (!link) return;
-        const href = link.getAttribute('href');
-        if (!href || href.charAt(0) === '#') return;
-        if (link.target === '_blank' || link.hasAttribute('download')) return;
-        let url;
-        try { url = new URL(href, window.location.href); }
-        catch (err) { return; }
-        if (url.protocol !== 'http:' && url.protocol !== 'https:') return;
-        if (url.origin === window.location.origin &&
-            url.pathname === window.location.pathname &&
-            url.search === window.location.search) return;
-        e.preventDefault();
-        transitionLocked = true;
-        pageTransition.classList.add('active');
-        window.setTimeout(() => { window.location.href = link.href; }, reduceMotion ? 0 : 400);
-      });
-    }
+(function () {
+  'use strict';
 
-    // ---------------------------------------------------------------
-    // 3D Tilt Cards + Spotlight Border
-    // ---------------------------------------------------------------
-    if (finePointer && !reduceMotion) {
-      document.querySelectorAll('.tilt').forEach(card => {
-        card.addEventListener('pointermove', (e) => {
-          const r = card.getBoundingClientRect();
-          const px = (e.clientX - r.left) / r.width;
-          const py = (e.clientY - r.top) / r.height;
-          const rx = (0.5 - py) * Number(card.dataset.tilt || 8);
-          const ry = (px - 0.5) * Number(card.dataset.tilt || 8) * 1.4;
-          card.style.transform = 'perspective(900px) rotateX(' + rx.toFixed(2) + 'deg) rotateY(' + ry.toFixed(2) + 'deg) translateY(-4px)';
-          card.style.setProperty('--mx', (px * 100).toFixed(1) + '%');
-          card.style.setProperty('--my', (py * 100).toFixed(1) + '%');
-        });
-        card.addEventListener('pointerleave', () => {
-          card.style.transform = '';
-        });
-      });
-    }
+  document.documentElement.classList.add('js');
 
-    // ---------------------------------------------------------------
-    // Magnetic Buttons (slight pull toward cursor)
-    // ---------------------------------------------------------------
-    if (finePointer && !reduceMotion) {
-      document.querySelectorAll('[data-magnetic]').forEach(el => {
-        el.addEventListener('pointermove', (e) => {
-          const r = el.getBoundingClientRect();
-          const dx = (e.clientX - r.left - r.width / 2) * 0.12;
-          const dy = (e.clientY - r.top - r.height / 2) * 0.2;
-          el.style.transform = 'translate(' + dx.toFixed(1) + 'px, ' + dy.toFixed(1) + 'px)';
-        });
-        el.addEventListener('pointerleave', () => { el.style.transform = ''; });
-      });
-    }
+  /* Motion preference. localStorage "toolapis-motion":
+     "off" -> static, unset/"on" -> animate. The modules in js/ own the real
+     policy (they also consult prefers-reduced-motion); this read only keeps the
+     vanilla half of the page in agreement. */
+  const motionPref = (() => { try { return localStorage.getItem('toolapis-motion') || ''; } catch (err) { return ''; } })();
+  const reduceMotion = motionPref === 'off';
+  document.documentElement.classList.toggle('reduced-motion', reduceMotion);
+  const finePointer = window.matchMedia && window.matchMedia('(pointer: fine)').matches;
 
-    // ---------------------------------------------------------------
-    // Staggered reveal: children of .reveal-group auto-cascade one by one
-    // ---------------------------------------------------------------
-    const autoStagger = () => {
-      document.querySelectorAll('.reveal-group').forEach((group) => {
-        const step = group.hasAttribute('data-delay-step')
-          ? Math.max(0, Number(group.dataset.delayStep) || 0)
-          : 130;
-        let i = 0;
-        Array.from(group.children).forEach((el) => {
-          if (el.matches('.reveal') && !el.dataset.delay) {
-            el.dataset.delay = String(i * step);
-            i += 1;
-          }
-        });
-      });
-    };
-    autoStagger();
-
-    // ---------------------------------------------------------------
-    // Scroll Reveal (IntersectionObserver): .reveal + .active
-    // ---------------------------------------------------------------
-    const revealEls = document.querySelectorAll('.reveal');
-    const revealed = new WeakSet();
-    const revealTarget = (el) => {
-      if (revealed.has(el)) return;
-      revealed.add(el);
-      if (el.dataset.delay) el.style.transitionDelay = el.dataset.delay + 'ms';
-      el.classList.add('is-visible', 'active');
-      window.setTimeout(() => { el.style.transitionDelay = ''; }, Number(el.dataset.delay || 0) + 750);
-    };
-    if (reduceMotion || !('IntersectionObserver' in window)) {
-      revealEls.forEach(revealTarget);
+  /* ---------------------------------------------------------------------
+     Page transition: fade in on load, fade out just before navigation.
+     --------------------------------------------------------------------- */
+  const pageTransition = document.getElementById('page-transition');
+  if (pageTransition) {
+    pageTransition.style.transition = 'none';
+    pageTransition.classList.add('active');
+    void pageTransition.offsetHeight;
+    pageTransition.style.transition = '';
+    const hideTransition = () => pageTransition.classList.remove('active');
+    if (document.readyState === 'loading' || document.readyState === 'interactive') {
+      document.addEventListener('DOMContentLoaded', hideTransition, { once: true });
     } else {
-      const io = new IntersectionObserver((entries, obs) => {
-        entries.forEach(en => {
-          if (en.isIntersecting) { revealTarget(en.target); obs.unobserve(en.target); }
-        });
-      }, { threshold: 0.15 });
-      revealEls.forEach(el => io.observe(el));
-
-      // Safe net: once layout is stable (fonts + Tailwind CDN applied),
-      // reveal anything already in view. Idempotent; IO is still the main
-      // trigger and self-corrects as the layout settles.
-      const passVisible = () => {
-        revealEls.forEach(el => {
-          if (revealed.has(el)) return;
-          const r = el.getBoundingClientRect();
-          if (r.top <= window.innerHeight && r.bottom > 0) revealTarget(el);
-        });
-      };
-      window.addEventListener('load', () => requestAnimationFrame(passVisible), { once: true });
-
-      // Belt-and-braces: passive scroll + resize fallback.
-      let ticking = false;
-      const onLayoutChange = () => {
-        if (ticking) return;
-        ticking = true;
-        requestAnimationFrame(() => { passVisible(); ticking = false; });
-      };
-      window.addEventListener('scroll', onLayoutChange, { passive: true });
-      window.addEventListener('resize', onLayoutChange, { passive: true });
+      requestAnimationFrame(hideTransition);
     }
 
-    // ---------------------------------------------------------------
-    // Navbar Solid State + Back-to-top visibility
-    // ---------------------------------------------------------------
-    const sentinel = document.getElementById('nav-sentinel');
-    const navbar = document.getElementById('navbar');
-    const backToTop = document.getElementById('back-to-top');
-    const backHandler = backToTop
-      ? () => window.scrollTo({ top: 0, behavior: reduceMotion ? 'auto' : 'smooth' })
-      : () => {};
-    if (backToTop) backToTop.addEventListener('click', backHandler);
-    if (sentinel && 'IntersectionObserver' in window) {
-      new IntersectionObserver((entries) => {
-        entries.forEach(en => {
-          const scrolled = !en.isIntersecting;
-          navbar.classList.toggle('nav-solid', scrolled);
-          if (backToTop) backToTop.classList.toggle('visible', scrolled);
-        });
-      }, { threshold: 0 }).observe(sentinel);
-    }
+    let transitionLocked = false;
+    document.addEventListener('click', (e) => {
+      if (transitionLocked || e.defaultPrevented) return;
+      if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+      const link = e.target.closest('a');
+      if (!link) return;
+      const href = link.getAttribute('href');
+      if (!href || href.charAt(0) === '#') return;
+      if (link.target === '_blank' || link.hasAttribute('download')) return;
+      let url;
+      try { url = new URL(href, window.location.href); } catch (err) { return; }
+      if (url.protocol !== 'http:' && url.protocol !== 'https:') return;
+      if (url.origin === window.location.origin &&
+          url.pathname === location.pathname &&
+          url.search === location.search) return;
+      e.preventDefault();
+      transitionLocked = true;
+      pageTransition.classList.add('active');
+      window.setTimeout(() => { window.location.href = link.href; }, reduceMotion ? 0 : 400);
+    });
+  }
 
-    // ---------------------------------------------------------------
-    // Scroll progress bar
-    // ---------------------------------------------------------------
-    const progressBar = document.getElementById('scroll-progress');
-    if (progressBar) {
-      const updateProgress = () => {
-        const doc = document.documentElement;
-        const total = doc.scrollHeight - doc.clientHeight;
-        const p = total > 0 ? doc.scrollTop / total : 0;
-        progressBar.style.transform = 'scaleX(' + p + ')';
-      };
-      updateProgress();
-      window.addEventListener('scroll', updateProgress, { passive: true });
-      window.addEventListener('resize', updateProgress, { passive: true });
-    }
+  /* ---------------------------------------------------------------------
+     Cursor spotlight. Phosphor mint, tracked with one passive listener and
+     written as a CSS custom property, so the gradient itself lives in the
+     stylesheet with every other colour.
+     --------------------------------------------------------------------- */
+  const spotlight = document.getElementById('spotlight');
+  if (spotlight && finePointer) {
+    let spotRaf = null;
+    let spotX = 0, spotY = 0;
+    window.addEventListener('pointermove', (e) => {
+      spotX = e.clientX; spotY = e.clientY;
+      if (spotRaf) return;
+      spotRaf = requestAnimationFrame(() => {
+        spotRaf = null;
+        spotlight.style.setProperty('--spot-x', spotX + 'px');
+        spotlight.style.setProperty('--spot-y', spotY + 'px');
+        spotlight.classList.add('is-live');
+      });
+    }, { passive: true });
+  }
 
-    // ---------------------------------------------------------------
-    // Hero glow blobs: gentle cursor parallax
-    // ---------------------------------------------------------------
-    const glowField = document.getElementById('glow-field');
-    if (glowField && finePointer && !reduceMotion) {
-      let px = 0, py = 0, cx = 0, cy = 0;
-      let rafParallax = null;
-      const tick = () => {
-        rafParallax = null;
-        cx += (px - cx) * 0.05;
-        cy += (py - cy) * 0.05;
-        glowField.style.transform = 'translate3d(' + cx.toFixed(2) + 'px,' + cy.toFixed(2) + 'px,0)';
-        if (Math.abs(px - cx) > 0.05 || Math.abs(py - cy) > 0.05) {
-          rafParallax = requestAnimationFrame(tick);
+  /* ---------------------------------------------------------------------
+     Magnetic controls. DESIGN.md's filled pill lifts 1px on hover and the
+     ghost fills 8% white; a magnetic pull is kept but at a much smaller
+     amplitude than before, so it reads as a nudge rather than a toy.
+     --------------------------------------------------------------------- */
+  if (finePointer && !reduceMotion) {
+    document.querySelectorAll('[data-magnetic]').forEach(el => {
+      el.addEventListener('pointermove', (e) => {
+        const r = el.getBoundingClientRect();
+        const dx = (e.clientX - r.left - r.width / 2) * 0.06;
+        const dy = (e.clientY - r.top - r.height / 2) * 0.12;
+        el.style.transform = 'translate(' + dx.toFixed(1) + 'px,' + dy.toFixed(1) + 'px)';
+      });
+      el.addEventListener('pointerleave', () => { el.style.transform = ''; });
+    });
+  }
+
+  /* ---------------------------------------------------------------------
+     Staggered reveal: children of .reveal-group auto-cascade.
+     --------------------------------------------------------------------- */
+  const autoStagger = () => {
+    document.querySelectorAll('.reveal-group').forEach((group) => {
+      const step = group.hasAttribute('data-delay-step')
+        ? Math.max(0, Number(group.dataset.delayStep) || 0)
+        : 80;
+      let i = 0;
+      Array.from(group.children).forEach((el) => {
+        if (el.matches('.reveal') && !el.dataset.delay) {
+          el.dataset.delay = String(i * step);
+          i += 1;
         }
-      };
-      window.addEventListener('pointermove', (e) => {
-        px = (e.clientX / window.innerWidth - 0.5) * 26;
-        py = (e.clientY / window.innerHeight - 0.5) * 18;
-        if (!rafParallax) rafParallax = requestAnimationFrame(tick);
-      }, { passive: true });
-    }
+      });
+    });
+  };
+  autoStagger();
 
-    // ---------------------------------------------------------------
-    // Scrollspy: highlight current section in the nav
-    // ---------------------------------------------------------------
-    const navLinks = Array.from(document.querySelectorAll('.nav-link'));
-    const sections = ['overview', 'features', 'flow', 'clarity']
-      .map(id => document.getElementById(id))
-      .filter(Boolean);
-    if (navLinks.length && sections.length && 'IntersectionObserver' in window) {
-      const spy = new IntersectionObserver((entries) => {
+  /* ---------------------------------------------------------------------
+     Scroll reveal (IntersectionObserver): .reveal + .is-visible
+     --------------------------------------------------------------------- */
+  const revealEls = document.querySelectorAll('.reveal');
+  const revealed = new WeakSet();
+  const revealTarget = (el) => {
+    if (revealed.has(el)) return;
+    revealed.add(el);
+    if (el.dataset.delay) el.style.transitionDelay = el.dataset.delay + 'ms';
+    el.classList.add('is-visible', 'active');
+    window.setTimeout(() => { el.style.transitionDelay = ''; }, Number(el.dataset.delay || 0) + 800);
+  };
+  if (reduceMotion || !('IntersectionObserver' in window)) {
+    revealEls.forEach(revealTarget);
+  } else {
+    const io = new IntersectionObserver((entries, obs) => {
+      entries.forEach(en => {
+        if (en.isIntersecting) { revealTarget(en.target); obs.unobserve(en.target); }
+      });
+    }, { threshold: 0.15 });
+    revealEls.forEach(el => io.observe(el));
+
+    /* Safe net: once layout is stable (fonts, CSS), reveal anything already in
+       view. Idempotent; IO is still the main trigger. */
+    const passVisible = () => {
+      revealEls.forEach(el => {
+        if (revealed.has(el)) return;
+        const r = el.getBoundingClientRect();
+        if (r.top <= window.innerHeight && r.bottom > 0) revealTarget(el);
+      });
+    };
+    window.addEventListener('load', () => requestAnimationFrame(passVisible), { once: true });
+
+    let ticking = false;
+    const onLayoutChange = () => {
+      if (ticking) return;
+      ticking = true;
+      requestAnimationFrame(() => { passVisible(); ticking = false; });
+    };
+    window.addEventListener('scroll', onLayoutChange, { passive: true });
+    window.addEventListener('resize', onLayoutChange, { passive: true });
+  }
+
+  /* ---------------------------------------------------------------------
+     Navbar scrolled state + back-to-top visibility.
+     `.nav-solid` is the single switch: it turns the navbar's bottom hairline on
+     and lets the 3D solver reserve the bar's band.
+     --------------------------------------------------------------------- */
+  const sentinel = document.getElementById('nav-sentinel');
+  const navbar = document.getElementById('navbar');
+  const backToTop = document.getElementById('back-to-top');
+  if (backToTop) {
+    backToTop.addEventListener('click', () => {
+      window.scrollTo({ top: 0, behavior: reduceMotion ? 'auto' : 'smooth' });
+    });
+  }
+  if (sentinel && navbar && 'IntersectionObserver' in window) {
+    new IntersectionObserver((entries) => {
+      entries.forEach(en => {
+        const scrolled = !en.isIntersecting;
+        navbar.classList.toggle('nav-solid', scrolled);
+        if (backToTop) backToTop.classList.toggle('visible', scrolled);
+      });
+    }, { threshold: 0 }).observe(sentinel);
+  }
+
+  /* ---------------------------------------------------------------------
+     Scroll progress bar.
+     --------------------------------------------------------------------- */
+  const progressBar = document.getElementById('scroll-progress');
+  if (progressBar) {
+    const updateProgress = () => {
+      const doc = document.documentElement;
+      const total = doc.scrollHeight - doc.clientHeight;
+      const p = total > 0 ? doc.scrollTop / total : 0;
+      progressBar.style.transform = 'scaleX(' + p + ')';
+    };
+    updateProgress();
+    window.addEventListener('scroll', updateProgress, { passive: true });
+    window.addEventListener('resize', updateProgress, { passive: true });
+  }
+
+  /* ---------------------------------------------------------------------
+     Scrollspy: highlight the current section in the nav.
+     --------------------------------------------------------------------- */
+  const navLinks = Array.from(document.querySelectorAll('.nav-link'));
+  const sections = ['overview', 'features', 'flow', 'clarity']
+    .map(id => document.getElementById(id))
+    .filter(Boolean);
+  if (navLinks.length && sections.length && 'IntersectionObserver' in window) {
+    const spy = new IntersectionObserver((entries) => {
+      entries.forEach(en => {
+        if (!en.isIntersecting) return;
+        const id = '#' + en.target.id;
+        navLinks.forEach(link => link.classList.toggle('active', link.getAttribute('href') === id));
+      });
+    }, { rootMargin: '-40% 0px -55% 0px' });
+    sections.forEach(sec => spy.observe(sec));
+  }
+
+  /* ---------------------------------------------------------------------
+     Mobile navigation.
+     --------------------------------------------------------------------- */
+  const navToggle = document.getElementById('nav-toggle');
+  const mobileMenu = document.getElementById('mobile-menu');
+  const navIcon = document.getElementById('nav-icon');
+  if (navToggle && mobileMenu) {
+    /* The icon is a sprite <use>, so swapping the glyph means repointing the
+       href — the class list stays put because it carries the layout rules. */
+    const navGlyph = (name) => {
+      if (!navIcon) return;
+      const use = navIcon.querySelector('use');
+      if (use) use.setAttribute('href', '#i-' + name);
+      else navIcon.innerHTML = '<use href="#i-' + name + '"></use>';
+    };
+    const closeMenu = () => {
+      mobileMenu.classList.remove('open', 'pointer-events-auto');
+      mobileMenu.classList.add('pointer-events-none');
+      mobileMenu.setAttribute('aria-hidden', 'true');
+      navToggle.setAttribute('aria-expanded', 'false');
+      navGlyph('list');
+    };
+    const openMenu = () => {
+      mobileMenu.classList.add('open', 'pointer-events-auto');
+      mobileMenu.classList.remove('pointer-events-none');
+      mobileMenu.setAttribute('aria-hidden', 'false');
+      navToggle.setAttribute('aria-expanded', 'true');
+      navGlyph('x');
+    };
+    navToggle.addEventListener('click', () => {
+      mobileMenu.classList.contains('open') ? closeMenu() : openMenu();
+    });
+    mobileMenu.querySelectorAll('a').forEach(a => a.addEventListener('click', closeMenu));
+    document.addEventListener('click', (e) => {
+      if (!e.target.closest('#navbar') && !e.target.closest('#mobile-menu')) closeMenu();
+    });
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && mobileMenu.classList.contains('open')) {
+        closeMenu();
+        navToggle.focus();
+      }
+    });
+  }
+
+  /* ---------------------------------------------------------------------
+     Copy to clipboard (with a fallback for non-secure contexts).
+     Exposed on window because index.html calls it from an inline onclick on
+     the "Copy enhancer link" button.
+     --------------------------------------------------------------------- */
+  function showToast(message) {
+    const toast = document.getElementById('toast');
+    const toastMsg = document.getElementById('toast-message');
+    if (!toast || !toastMsg) return;
+    toastMsg.innerText = message;
+    toast.classList.add('is-live');
+    if (toast._tlTimer) clearTimeout(toast._tlTimer);
+    toast._tlTimer = setTimeout(() => toast.classList.remove('is-live'), 3000);
+  }
+
+  function copyToClipboard(text, message) {
+    const success = () => showToast(message);
+    const fallback = () => {
+      try {
+        const ta = document.createElement('textarea');
+        ta.value = text;
+        ta.setAttribute('readonly', '');
+        ta.style.position = 'fixed';
+        ta.style.opacity = '0';
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand('copy');
+        document.body.removeChild(ta);
+        success();
+      } catch (err) {
+        console.error('Failed to copy: ', err);
+      }
+    };
+    if (navigator.clipboard && window.isSecureContext) {
+      navigator.clipboard.writeText(text).then(success).catch(fallback);
+    } else {
+      fallback();
+    }
+  }
+
+  window.copyToClipboard = copyToClipboard;
+
+  /* ---------------------------------------------------------------------
+     Motion Vanilla (optional). Progressive enhancement only: if the CDN is
+     down, nothing below runs and the CSS reveals carry the page on their own.
+     --------------------------------------------------------------------- */
+  (function initMotion() {
+    if (typeof Motion === 'undefined' || reduceMotion) return;
+    const ease = [0.22, 1, 0.36, 1];
+
+    const run = (el, keyframes, opts) => {
+      if (el._motionAnim) {
+        try { el._motionAnim.stop(); } catch (err) { /* noop */ }
+      }
+      const anim = Motion.animate(el, keyframes, opts);
+      el._motionAnim = anim;
+      /* Watchdog: some environments throttle WAAPI, so anim.finished may never
+         resolve. Never leave a component stuck at inline opacity:0. */
+      const budget = ((opts.delay || 0) + (opts.duration || 1)) * 1000 + 500;
+      el._motionWatchdog = window.setTimeout(() => {
+        if (el._motionAnim !== anim) return;
+        el._motionAnim = null;
+        el.style.opacity = '';
+        el.style.transform = '';
+      }, budget);
+      anim.finished.then(() => {
+        try { anim.stop(); } catch (err) { /* noop */ }
+        if (el._motionAnim === anim) el._motionAnim = null;
+        if (el._motionWatchdog) { window.clearTimeout(el._motionWatchdog); el._motionWatchdog = null; }
+        el.style.opacity = '';
+        el.style.transform = '';
+      }).catch(() => {
+        if (el._motionWatchdog) { window.clearTimeout(el._motionWatchdog); el._motionWatchdog = null; }
+        el.style.opacity = '';
+        el.style.transform = '';
+      });
+      return anim;
+    };
+
+    /* Micro-interaction: a 1px lift on the buttons that carry `data-magnetic`
+       is already CSS; this is the pointer-down press. */
+    const clickables = document.querySelectorAll('.btn:not([data-magnetic]), .back-to-top, .hero-pill-outline');
+    if (finePointer) {
+      clickables.forEach(el => {
+        el.addEventListener('pointerenter', () => {
+          run(el, { y: -1 }, { duration: 0.2, easing: ease });
+        });
+        el.addEventListener('pointerleave', () => {
+          run(el, { y: 0 }, { duration: 0.2, easing: ease });
+        });
+      });
+    }
+    clickables.forEach(el => {
+      el.addEventListener('pointerdown', () => {
+        run(el, { scale: 0.98 }, { duration: 0.08, easing: 'ease-out' });
+      }, { passive: true });
+      const release = () => { run(el, { scale: 1 }, { duration: 0.2, easing: ease }); };
+      el.addEventListener('pointerup', release, { passive: true });
+      el.addEventListener('pointercancel', release, { passive: true });
+    });
+
+    /* Section headings rise once as they arrive. The reveal system owns
+       everything else, so this deliberately touches only the h2s. */
+    const headings = Array.from(document.querySelectorAll('main h2'));
+    if (headings.length && 'IntersectionObserver' in window) {
+      const mio = new IntersectionObserver((entries, obs) => {
         entries.forEach(en => {
           if (!en.isIntersecting) return;
-          const id = '#' + en.target.id;
-          navLinks.forEach(link => link.classList.toggle('active', link.getAttribute('href') === id));
+          obs.unobserve(en.target);
+          const el = en.target;
+          el.style.opacity = '0';
+          el.style.transform = 'translateY(20px)';
+          run(el, { opacity: [0, 1], y: [20, 0] }, { duration: 0.75, easing: ease });
         });
-      }, { rootMargin: '-40% 0px -55% 0px' });
-      sections.forEach(sec => spy.observe(sec));
+      }, { threshold: 0.18 });
+      headings.forEach(el => mio.observe(el));
     }
-
-    // ---------------------------------------------------------------
-    // Spotlight Cursor Effect
-    // ---------------------------------------------------------------
-    const spotlight = document.getElementById('spotlight');
-    if (finePointer) {
-      spotlight.classList.remove('opacity-0');
-      spotlight.classList.add('opacity-100');
-      window.addEventListener('mousemove', (e) => {
-        spotlight.style.background = 'radial-gradient(600px circle at ' + e.clientX + 'px ' + e.clientY + 'px, rgba(175, 80, 255, 0.07), transparent 80%)';
-      }, { passive: true });
-    }
-
-    // ---------------------------------------------------------------
-    // Mobile Navigation
-    // ---------------------------------------------------------------
-    const navToggle = document.getElementById('nav-toggle');
-    const mobileMenu = document.getElementById('mobile-menu');
-    const navIcon = document.getElementById('nav-icon');
-    if (navToggle && mobileMenu) {
-      const closeMenu = () => {
-        mobileMenu.classList.remove('open');
-        mobileMenu.classList.remove('pointer-events-auto');
-        mobileMenu.classList.add('pointer-events-none');
-        navToggle.setAttribute('aria-expanded', 'false');
-        if (navIcon) navIcon.className = 'ph-bold ph-list text-lg pointer-events-none';
-      };
-      const openMenu = () => {
-        mobileMenu.classList.add('open');
-        mobileMenu.classList.remove('pointer-events-none');
-        mobileMenu.classList.add('pointer-events-auto');
-        navToggle.setAttribute('aria-expanded', 'true');
-        if (navIcon) navIcon.className = 'ph-bold ph-x text-lg pointer-events-none';
-      };
-      navToggle.addEventListener('click', () => {
-        const isOpen = mobileMenu.classList.contains('open');
-        isOpen ? closeMenu() : openMenu();
-      });
-      mobileMenu.querySelectorAll('a').forEach(a => a.addEventListener('click', closeMenu));
-      document.addEventListener('click', (e) => {
-        if (!e.target.closest('#navbar')) closeMenu();
-      });
-      document.addEventListener('keydown', (e) => {
-        if (e.key === 'Escape' && mobileMenu.classList.contains('open')) {
-          closeMenu();
-          navToggle.focus();
-        }
-      });
-    }
-
-    // ---------------------------------------------------------------
-    // Copy to Clipboard Utility (with fallback for non-secure contexts)
-    // ---------------------------------------------------------------
-    function copyToClipboard(text, message) {
-      const success = () => showToast(message);
-      const fallback = () => {
-        try {
-          const ta = document.createElement('textarea');
-          ta.value = text;
-          ta.setAttribute('readonly', '');
-          ta.style.position = 'fixed';
-          ta.style.opacity = '0';
-          document.body.appendChild(ta);
-          ta.select();
-          document.execCommand('copy');
-          document.body.removeChild(ta);
-          success();
-        } catch (err) {
-          console.error('Failed to copy: ', err);
-        }
-      };
-      if (navigator.clipboard && window.isSecureContext) {
-        navigator.clipboard.writeText(text).then(success).catch(fallback);
-      } else {
-        fallback();
-      }
-    }
-
-    // Toast Notification System
-    let toastTimer = null;
-    function showToast(message) {
-      const toast = document.getElementById('toast');
-      const toastMsg = document.getElementById('toast-message');
-      toastMsg.innerText = message;
-      toast.classList.remove('translate-y-20', 'opacity-0');
-      toast.classList.add('translate-y-0', 'opacity-100');
-      if (toastTimer) clearTimeout(toastTimer);
-      toastTimer = setTimeout(() => {
-        toast.classList.remove('translate-y-0', 'opacity-100');
-        toast.classList.add('translate-y-20', 'opacity-0');
-        toastTimer = null;
-      }, 3000);
-    }
-
-    // ---------------------------------------------------------------
-    // Motion Vanilla animations (progressive enhancement, optional)
-    // ---------------------------------------------------------------
-    (function initMotion() {
-      if (typeof Motion === 'undefined' || reduceMotion) return;
-      const ease = [0.16, 1, 0.3, 1];
-
-      const run = (el, keyframes, opts, persistent) => {
-        if (el._motionAnim) {
-          try { el._motionAnim.stop(); } catch (err) { /* noop */ }
-        }
-        const anim = Motion.animate(el, keyframes, opts);
-        el._motionAnim = anim;
-        // Safety watchdog: some environments throttle WAAPI/rAF so
-        // anim.finished may never resolve. Never leave a component stuck
-        // at inline opacity:0 (invisible). Force a hard cleanup once the
-        // animation budget passes.
-        const budget = ((opts.delay || 0) + (opts.duration || 1)) * 1000 + 450;
-        el._motionWatchdog = window.setTimeout(() => {
-          if (el._motionAnim !== anim) return;
-          el._motionAnim = null;
-          el.style.opacity = '';
-          el.style.transform = '';
-          el.style.transformOrigin = '';
-          el.style.touchAction = '';
-        }, budget);
-        if (!persistent) {
-          anim.finished.then(() => {
-            try { anim.stop(); } catch (err) { /* noop */ }
-            if (el._motionAnim === anim) el._motionAnim = null;
-            if (el._motionWatchdog) { window.clearTimeout(el._motionWatchdog); el._motionWatchdog = null; }
-            el.style.opacity = '';
-            el.style.transform = '';
-          }).catch(() => {
-            if (el._motionWatchdog) { window.clearTimeout(el._motionWatchdog); el._motionWatchdog = null; }
-            el.style.opacity = '';
-            el.style.transform = '';
-          });
-        }
-        return anim;
-      };
-
-      // Hero: scroll-cue fades in + slides up slightly after the headline reveals
-      const heroScroll = document.querySelector('.hero-scroll');
-      if (heroScroll) {
-        heroScroll.style.opacity = '0';
-        heroScroll.style.transform = 'translateY(-8px)';
-        run(heroScroll, {
-          opacity: [0, 1],
-          y: [-8, 0]
-        }, { duration: 0.7, easing: ease, delay: 0.9 }, false);
-      }
-
-      // Micro-interactions: light hover lift + click bounce
-      const clickables = document.querySelectorAll('.btn:not([data-magnetic]), .back-to-top');
-      if (finePointer) {
-        clickables.forEach(el => {
-          el.addEventListener('pointerenter', () => {
-            run(el, { scale: 1.05, y: -2 }, { duration: 0.22, easing: 'ease-out' }, true);
-          });
-          el.addEventListener('pointerleave', () => {
-            run(el, { scale: 1, y: 0 }, { duration: 0.18, easing: 'ease-in' }, false);
-          });
-        });
-      }
-      clickables.forEach(el => {
-        el.addEventListener('pointerdown', () => {
-          run(el, { scale: 0.95 }, { duration: 0.08, easing: 'ease-out' }, true);
-        }, { passive: true });
-        const release = () => {
-          run(el, { scale: 1 }, { type: 'spring', stiffness: 520, damping: 18 }, false);
-        };
-        el.addEventListener('pointerup', release, { passive: true });
-        el.addEventListener('pointercancel', release, { passive: true });
-      });
-
-      // Scroll reveal: headings fade up + underline draws in,
-      // tool-card icons pop in with a light stagger, footer rises softly
-      const motionTargets = Array.from(document.querySelectorAll('main h2')).map(el => ({ el, kind: 'heading' }));
-      document.querySelectorAll('.reveal > div:first-child').forEach(el => {
-        if (/\bw-12\b|\bw-14\b|\bw-16\b/.test(el.className)) motionTargets.push({ el, kind: 'icon' });
-      });
-      const footer = document.querySelector('footer');
-      if (footer) motionTargets.push({ el: footer, kind: 'block' });
-      if (motionTargets.length && 'IntersectionObserver' in window) {
-        let iconIndex = 0;
-        const mio = new IntersectionObserver((entries, obs) => {
-          entries.forEach(en => {
-            if (!en.isIntersecting) return;
-            obs.unobserve(en.target);
-            const el = en.target;
-            if (el.dataset.motionKind === 'icon') {
-              el.style.opacity = '0';
-              el.style.transform = 'scale(0.85)';
-              run(el, {
-                opacity: [0, 1],
-                scale: [0.85, 1]
-              }, { duration: 0.55, easing: 'ease-out', delay: Math.min(iconIndex++ * 80, 320) }, false);
-            } else if (el.dataset.motionKind === 'heading') {
-              el.classList.add('title-line');
-              el.classList.add('is-titled');
-              el.style.opacity = '0';
-              el.style.transform = 'translateY(22px)';
-              run(el, {
-                opacity: [0, 1],
-                y: [22, 0]
-              }, { duration: 0.75, easing: ease }, false);
-            } else {
-              el.style.opacity = '0';
-              el.style.transform = 'translateY(18px)';
-              run(el, {
-                opacity: [0, 1],
-                y: [18, 0]
-              }, { duration: 0.7, easing: ease }, false);
-            }
-          });
-        }, { threshold: 0.18 });
-        motionTargets.forEach(({ el, kind }) => {
-          el.dataset.motionKind = kind;
-          mio.observe(el);
-        });
-      }
-    })();
-  
+  })();
+})();

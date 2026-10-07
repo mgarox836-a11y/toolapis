@@ -352,7 +352,7 @@ export function createScrollEngine() {
 
   /**
    * The same pass, with the scroll reveal's entrance transforms switched off
-   * for its duration (css/reveal.css -> `html.rv-measuring`).
+   * for its duration (css/animations.css -> `html.rv-measuring`).
    *
    * WHY. Every entrance in the reveal system is a TRANSFORM, precisely so it
    * does not move the box: the hidden state is drawn 28px low and 12px soft,

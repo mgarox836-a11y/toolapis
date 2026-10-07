@@ -58,13 +58,15 @@ function render(btn, allowed) {
 
   const icon = btn.querySelector('.motion-toggle-icon');
   if (icon) {
-    /* Phosphor sets its glyph from a class on the <i>. Swapping the class is
-       the supported way; the CSS content hack in style.css is the fallback for
-       the icon font failing to load, which is why both exist. */
+    /* The glyph is a sprite <use>, so the state swap is a repointed href. The
+       old icon-font path swapped `ph-*` classes and needed a CSS `content`
+       fallback in case the webfont failed; with the sprite inline there is no
+       second way for it to fail, so that fallback is gone too. */
+    const use = icon.tagName.toLowerCase() === 'use' ? icon : icon.querySelector('use');
+    const glyph = allowed ? ICON_PLAY : ICON_PAUSE;
     try {
-      icon.classList.remove(`ph-${ICON_PLAY}`, `ph-fill-${ICON_PLAY}`);
-      icon.classList.remove(`ph-${ICON_PAUSE}`, `ph-fill-${ICON_PAUSE}`);
-      icon.classList.add(`ph-${allowed ? ICON_PLAY : ICON_PAUSE}`);
+      if (use) use.setAttribute('href', '#i-' + glyph);
+      else icon.innerHTML = '<use href="#i-' + glyph + '"></use>';
     } catch (e) {}
   }
 }

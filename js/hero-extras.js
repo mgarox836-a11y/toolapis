@@ -1,106 +1,79 @@
+/* =============================================================================
+   hero-extras.js — TOOLAPIS · hero-only extras
+   -----------------------------------------------------------------------------
+   The hero's moving parts that are not the headline and not the motion policy:
+
+     * a damped cursor parallax on the TOOL PASS card (6px x, 4px y);
+     * the drifting coordinate readout in the hero's stamped meta strip.
+
+   WHAT THIS FILE NO LONGER OWNS
+   -----------------------------------------------------------------------------
+   The previous build ran a full-bleed sky <video> and an animated contrail
+   behind the hero. DESIGN.md's imagery is neon-lit 3D geometry on a dark
+   gradient ground, and the 3D props are drawn by js/scene3d.js, so both were
+   removed with the markup. Their players and observers are gone rather than
+   left behind guarding elements that no longer exist — there is no video to
+   pause, and no contrail to draw.
+
+   The headline parallax lives in js/motion-fx.js now, alongside the rest of the
+   ambient motion, so all decorative motion is in one place.
+   ========================================================================== */
+
 (function () {
+  'use strict';
+
   const root = document.documentElement;
   const hero = document.getElementById('hero');
   if (!hero) return;
 
-  const video = hero.querySelector('.hero-video');
-  const card = hero.querySelector('.hero-boarding');
-  const contrail = hero.querySelector('.hero-contrail');
-
-  const reduceMotion = root.classList.contains('motion-reduced') || root.classList.contains('reduced-motion') || (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
-
-  function pauseVideo() {
-    if (video && !video.paused) {
-      video.pause();
-    }
-  }
-
-  function playVideo() {
-    if (video && video.paused && !reduceMotion) {
-      video.play().catch(function () {});
-    }
-  }
-
-  if (video) {
-    if (reduceMotion) {
-      video.pause();
-      video.removeAttribute('autoplay');
-    } else {
-      video.muted = true;
-      video.playsInline = true;
-      video.loop = true;
-    }
-  }
-
-  if (contrail && !reduceMotion) {
-    window.setTimeout(function () {
-      contrail.classList.add('is-drawn');
-      window.setTimeout(function () {
-        contrail.classList.add('is-loop');
-      }, 1600);
-    }, 1000);
-  } else if (contrail) {
-    contrail.classList.add('is-drawn', 'is-loop');
-  }
-
-  const io = new IntersectionObserver(function (entries) {
-    entries.forEach(function (entry) {
-      if (entry.isIntersecting) {
-        playVideo();
-      } else {
-        pauseVideo();
-      }
-    });
-  }, { threshold: 0.1 });
-
-  io.observe(hero);
-
-  const isTouch = window.matchMedia && window.matchMedia('(pointer: coarse)').matches;
-  let raf = null;
-
-  function onMouseMove(e) {
-    if (reduceMotion || isTouch) return;
-    const x = (e.clientX / window.innerWidth - 0.5) * 2;
-    const y = (e.clientY / window.innerHeight - 0.5) * 2;
-    if (raf) cancelAnimationFrame(raf);
-    raf = requestAnimationFrame(function () {
-      if (video) {
-        video.style.transform = 'scale(1.08) translate(' + (x * -6) + 'px, ' + (y * -4) + 'px)';
-      }
-      if (card) {
-        card.style.transform = 'translateY(' + (y * 4) + 'px) translateX(' + (x * 6) + 'px)';
-      }
-      root.style.setProperty('--hero-parallax-x', (x * 6) + 'px');
-      root.style.setProperty('--hero-parallax-y', (y * 4) + 'px');
-    });
-  }
-
-  function resetParallax() {
-    if (raf) cancelAnimationFrame(raf);
-    raf = null;
-    if (video) video.style.transform = 'scale(1.08)';
-    if (card) card.style.removeProperty('transform');
-    root.style.removeProperty('--hero-parallax-x');
-    root.style.removeProperty('--hero-parallax-y');
-  }
-
-  if (!reduceMotion && !isTouch) {
-    window.addEventListener('mousemove', onMouseMove, { passive: true });
-    window.addEventListener('mouseout', resetParallax);
-  }
-
+  const pass = hero.querySelector('.hero-boarding');
   const coordsEl = hero.querySelector('[data-coords]');
-  if (coordsEl) {
+
+  const reduced = root.classList.contains('motion-reduced')
+    || root.classList.contains('reduced-motion')
+    || (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+  const coarse = window.matchMedia && window.matchMedia('(pointer: coarse)').matches;
+
+  /* ---------------------------------------------------------------------
+     TOOL PASS parallax. Damped through a rAF loop, so the card trails the
+     pointer instead of tracking it, and it is transform-only — nothing here
+     can trigger layout.
+     --------------------------------------------------------------------- */
+  if (pass && !reduced && !coarse) {
+    let x = 0, y = 0, cx = 0, cy = 0, raf = null;
+
+    const tick = function () {
+      raf = null;
+      cx += (x - cx) * 0.06;
+      cy += (y - cy) * 0.06;
+      pass.style.transform = 'translate3d(' + cx.toFixed(2) + 'px,' + cy.toFixed(2) + 'px,0)';
+      if (Math.abs(x - cx) > 0.05 || Math.abs(y - cy) > 0.05) raf = requestAnimationFrame(tick);
+    };
+
+    window.addEventListener('pointermove', function (e) {
+      x = (e.clientX / window.innerWidth - 0.5) * 12;
+      y = (e.clientY / window.innerHeight - 0.5) * 8;
+      if (!raf) raf = requestAnimationFrame(tick);
+    }, { passive: true });
+
+    window.addEventListener('mouseout', function () {
+      x = 0; y = 0;
+      if (!raf) raf = requestAnimationFrame(tick);
+    });
+  }
+
+  /* ---------------------------------------------------------------------
+     Coordinate readout. A slow sine drift, so the strip reads as a live
+     instrument rather than as static text.
+     --------------------------------------------------------------------- */
+  if (coordsEl && !reduced) {
     const baseLat = 37.7681;
     const baseLon = -122.0039;
     let t = 0;
-    function updateCoords() {
-      if (reduceMotion) return;
+    window.setInterval(function () {
       t += 0.00008;
-      const lat = (baseLat + Math.sin(t) * 0.0004).toFixed(4);
-      const lon = (baseLon + Math.cos(t) * 0.0005).toFixed(4);
-      coordsEl.textContent = lat + '° N, ' + lon + '° W';
-    }
-    setInterval(updateCoords, 1200);
+      coordsEl.textContent = (baseLat + Math.sin(t) * 0.0004).toFixed(4)
+        + '° N, ' + (baseLon + Math.cos(t) * 0.0005).toFixed(4) + '° W';
+    }, 1200);
   }
 })();

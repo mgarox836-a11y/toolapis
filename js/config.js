@@ -12,11 +12,14 @@
 export const INTRO_DURATION = 5.0;
 
 /* ---------------------------------------------------------------------------
- * Palette — read from the CSS custom properties when they exist, otherwise
- * mirrored from the tokens the site actually ships:
- *   style.css        -> html/body/.hero-bg background-color: #0B0F12
- *   script.js        -> tailwind.config theme.extend.colors.surface
- *   style.css        -> .btn-accent background: #A3E635
+ * Palette — read from the CSS custom properties, which are the DESIGN.md
+ * tokens in css/tokens.css. The fallbacks below are those same token values,
+ * written out so this module still resolves if the stylesheet is missing:
+ *   --surface          -> --color-void-canvas    #070707  (canvas + 3D fog)
+ *   --surface-card     -> --color-carbon-plate  #0d0e12
+ *   --surface-border   -> --color-steel-border  #22222a
+ *   --accent-mint      -> --color-phosphor-mint #70dcd3  (THE accent)
+ *   --accent-mint-hover-> --color-ice-blue      #a6e5f2  (emissive highlight)
  * The surface value is the page background AND the fog colour; they must stay
  * identical or distant geometry stops dissolving into the page.
  * -------------------------------------------------------------------------*/
@@ -49,15 +52,15 @@ function toHex(value, fallback) {
 
 export const PALETTE = {
   /* Page background + fog. Near-black; the blacks are the design. */
-  bg:        toHex(readVar('--surface', '#0B0F12'), 0x0b0f12),
+  bg:        toHex(readVar('--surface', '#070707'), 0x070707),
   /* The only accent. Emissive edges, pulses, packets, sweep. */
-  accent:    toHex(readVar('--accent-mint', '#A3E635'), 0xa3e635),
-  accentHi:  toHex(readVar('--accent-mint-hover', '#BEF264'), 0xbef264),
-  /* Glass panel / border, for the darker props so they sit above the fog. */
-  card:      toHex(readVar('--surface-card', '#13191D'), 0x13191d),
-  border:    toHex(readVar('--surface-border', '#232D34'), 0x232d34),
-  /* Slightly lighter than `card` for the USB metal shell. */
-  metal:     0x2a3238,
+  accent:    toHex(readVar('--accent-mint', '#70dcd3'), 0x70dcd3),
+  accentHi:  toHex(readVar('--accent-mint-hover', '#a6e5f2'), 0xa6e5f2),
+  /* Carbon Plate / Steel Border, for the darker props so they sit above the fog. */
+  card:      toHex(readVar('--surface-card', '#0d0e12'), 0x0d0e12),
+  border:    toHex(readVar('--surface-border', '#22222a'), 0x22222a),
+  /* Iron Edge, slightly lighter than `card`, for the USB metal shell. */
+  metal:     0x2e3038,
   white:     0xffffff,
 };
 
@@ -70,15 +73,15 @@ export const OBJ_KEYS = ['hd', 'usb', 'network'];
 export const TUNING = {
   /* ==== Motion policy =====================================================
    * Whether the OS "prefers-reduced-motion: reduce" setting may switch motion
-   * off. FALSE by default: a visitor gets the full animation whatever their OS
-   * says, and the only opt-out is the footer's Motion button (or ?motion=off).
+   * off. TRUE: the redesign honours the OS setting, so a visitor who has asked
+   * their system for less motion gets none, and the footer's Motion button
+   * (and ?motion=on) can still override it in the other direction.
    *
-   * Set respectReducedMotion: true to follow the OS again — that single flag
-   * is the whole "revert to OS-following" switch; nothing else has to change,
-   * because js/motion.js is the only place that ever reads the media query.
+   * This flag must stay equal to RESPECT_REDUCED_MOTION in the inline <head>
+   * bootstrap in index.html, which applies the same classes before first paint.
    */
   motion: {
-    respectReducedMotion: false,
+    respectReducedMotion: true,
     allowUserToggle: true,
     storageKey: 'toolapis-reduce-motion',
   },
@@ -103,18 +106,21 @@ export const TUNING = {
        Painterly warmth arrives from below (kick) and from the mapped fill.
        The extra gloss the premium look needs comes from the studio env bake
        (`env`), so the real lights stay deliberately starved. */
-    keyColor: 0xa8c8dd,
+    /* Every light here is a token: Ice Blue for the key, Steel Iris for the
+       kicker and the hemisphere sky. The old build used a warm orange pair
+       (0xe8a06a / 0xd9b98a), which put a sunset cast into a page DESIGN.md
+       defines entirely in the dark spectrum with one phosphor accent. */
+    keyColor: 0xa6e5f2,   // --color-ice-blue
     key: 0.55,
-    lime: 9.0,    // accent point light
-    /* Low warm side kicker, oriented along X: the shadow side of a prop gets a
-       quiet warm lift so the blacks stay black without reading dead. */
-    kickColor: 0xe8a06a,
+    lime: 9.0,    // accent point light (PALETTE.accent = phosphor mint)
+    /* Low side kicker, oriented along X: the shadow side of a prop gets a
+       quiet lift so the blacks stay black without reading dead. */
+    kickColor: 0x929dbd,  // --color-steel-iris
     kick: 4.0,
     hemi: 0.08,   // shadow-side fill — anything higher greys out the blacks
-    /* The painterly 6200K the "dims" are mapped onto: used as the hemisphere
-       SKY colour, so the fill every dark side of a prop sits under is warm and
-       the fade bands read as a warm dissolve rather than a grey one. */
-    mappedColor: 0xd9b98a,
+    /* The hemisphere SKY colour, so the fill every dark side of a prop sits
+       under is cool rather than grey. */
+    mappedColor: 0x929dbd, // --color-steel-iris
     /* Scene-wide rim floor. Every material that ALREADY opts into a rim keeps
        its authored value unless it is below this, in which case it is lifted.
        Authored zero-rims (holes, plain plate) stay zero — the floor thickens

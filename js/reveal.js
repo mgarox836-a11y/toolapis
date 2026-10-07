@@ -4,7 +4,7 @@
  * ----------------------------------------------------------------------------
  * script.js owns the `.reveal` / `[data-reveal]` system: an IntersectionObserver
  * adds `.is-visible` + `.active`, `.reveal-group` children cascade through
- * `data-delay`, and css/reveal.css turns that into the blur + fade + rise.
+ * `data-delay`, and css/animations.css turns that into the fade + rise.
  * That file is not ours to touch.
  *
  * What it does NOT reach. Script.js's reveal observes the `.reveal` /
@@ -19,7 +19,7 @@
  *
  * This module tags exactly those with `.rv`, sets `--reveal-delay` per index
  * for the stagger, and observes them once each. It adds no animation of its
- * own: the visual is entirely in css/reveal.css, keyed on the same
+ * own: the visual is entirely in css/animations.css, keyed on the same
  * `.is-visible` class script.js uses, so the two systems are indistinguishable
  * on screen and cannot fight.
  *

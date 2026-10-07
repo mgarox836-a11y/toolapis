@@ -106,7 +106,20 @@ console.log('\n--- 2. loop survives a subsystem that throws every frame ---');
     eng.__realLayout = eng.layout;
     eng.layout = () => { throw new Error('injected layout fault'); };
   });
-  await wait(3000);
+  /* Wait for the CONDITION, not for a duration. The subsystem trips its
+     `maxSubsystemFailures` of 3 only once `placeObjects` has actually run three
+     times, and under swiftshader this compositor delivers roughly one frame per
+     5-7s. A fixed 3s wait therefore sampled `fails=0` and reported a working
+     fault-isolator as broken — and `elapsed` could even read lower afterwards,
+     because no frame had run to advance it. Poll until the subsystem has been
+     given every chance to trip, with a ceiling well past a few frame periods. */
+  await page.evaluate(async () => {
+    const S = window.__scene3d.state.subsystems.placeObjects;
+    const deadline = performance.now() + 60000;
+    while (S.fails < 3 && performance.now() < deadline) {
+      await new Promise((r) => setTimeout(r, 250));
+    }
+  });
   const after = await page.evaluate(() => {
     const d = window.__scene3d;
     const S = d.state.subsystems.placeObjects;
@@ -157,13 +170,26 @@ console.log('\n--- 3. resume + watchdog ---');
     if (d.state.rafId) cancelAnimationFrame(d.state.rafId);
     d.state.rafId = 0;
     d.state.lastFrameAt = performance.now() - 60000;
-    return new Promise((resolve) => {
-      setTimeout(() => resolve({ lastFrameAt: d.state.lastFrameAt, running: d.state.running }), 2500);
-    });
+    const wedged = d.state.lastFrameAt;
+    /* Wait generously rather than briefly. This compositor runs at roughly
+       0.2fps under swiftshader — measured elsewhere at one frame per 5-7s — so
+       a 2.5s wait was racing it and reporting a healthy watchdog as dead. The
+       signal that matters is that a NEW frame arrived after the wedge, not how
+       recently any frame happened to land. */
+    await new Promise((resolve) => setTimeout(resolve, 15000));
+    return {
+      wedged,
+      lastFrameAt: d.state.lastFrameAt,
+      running: d.state.running,
+    };
   });
+  /* Advancement, not recency: `lastFrameAt` must have moved past the wedged
+     value. A recency bound against wall-clock time cannot distinguish "the
+     watchdog is dead" from "the compositor is slow", and this page's whole
+     frame budget here is the slow kind. */
   check('watchdog restarted a loop whose frames stopped',
-    restarted.lastFrameAt > performance.now() - 3000 && restarted.running === true,
-    `age now ${Math.round(performance.now() - restarted.lastFrameAt)}ms`);
+    restarted.lastFrameAt > restarted.wedged && restarted.running === true,
+    `lastFrameAt advanced past the wedge, frame age now ${Math.round(restarted.lastFrameAt - restarted.wedged)}ms`);
 
   const stallWarns = countMatching(/frame loop stalled/);
   check('stall restart logged at least once', stallWarns >= 1, `${stallWarns}`);

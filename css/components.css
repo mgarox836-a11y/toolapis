@@ -1,0 +1,809 @@
+/* =============================================================================
+   COMPONENTS
+   -----------------------------------------------------------------------------
+   Every component below is the DESIGN.md "Components" entry of the same name,
+   rebuilt on the token set: light hairline borders on dark surfaces, pill
+   controls, exactly one white filled button and one Phosphor Mint accent card
+   per viewport, and NO drop shadows anywhere.
+
+   Where a legacy class name survives from the previous build (`.glass-panel`,
+   `.btn-outline`, `.tool-card`) it is kept deliberately: js/scroll.js measures
+   `.glass-panel, .spot-card` as card obstacles, and script.js looks for
+   `.btn`, `.back-to-top`, `.nav-link`, `.motion-toggle*`. Renaming them would
+   change behaviour, not looks — so they are kept and re-skinned instead.
+   ========================================================================== */
+
+/* =============================================================================
+   NAVIGATION BAR — DESIGN.md "Navigation Bar"
+   Sticky, ~64px, canvas background, and a LIGHT hairline under it. It becomes
+   visible only once script.js flips `.nav-solid` from the top sentinel, which
+   is what makes the border appear past 8px of scroll.
+   ========================================================================== */
+#navbar {
+  position: fixed;
+  top: 0; left: 0; right: 0;
+  z-index: 40;
+  height: var(--navbar-height);
+  display: flex;
+  align-items: center;
+  background-color: var(--color-void-canvas);
+  border-bottom: 1px solid transparent;
+  transition: border-color var(--duration-fast) var(--ease-out-quint),
+              background-color var(--duration-fast) var(--ease-out-quint);
+}
+#navbar.nav-solid {
+  border-bottom-color: var(--color-slate-mute);
+}
+
+#navbar > .shell {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-24);
+}
+
+/* Brand: TL mark + wordmark. The mark is a plain white disc on the void — the
+   one place the page's own white fill appears as an object rather than a
+   button. */
+.brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  flex: 0 0 auto;
+}
+.brand__mark {
+  display: grid;
+  place-items: center;
+  width: 32px; height: 32px;
+  border-radius: var(--radius-badges);
+  background: var(--color-pure-white);
+  color: var(--color-void-canvas);
+  font-family: var(--font-body);
+  font-size: 13px;
+  font-weight: var(--weight-semibold);
+  letter-spacing: 0.02em;
+  transition: transform var(--duration-fast) var(--ease-out-quint);
+}
+.brand:hover .brand__mark { transform: scale(1.06); }
+.brand__word {
+  font-family: var(--font-display);
+  font-size: 18px;
+  font-weight: var(--weight-semibold);
+  letter-spacing: var(--tracking-display-face);
+  color: var(--color-pure-white);
+  white-space: nowrap;
+}
+.brand__dot { color: var(--color-phosphor-mint); }
+
+/* Centre links. DESIGN.md: Geist 14px, white when active, #a2a4a9 when not,
+   with the current page marked in Current Blue. */
+#navbar .nav-link {
+  position: relative;
+  /* 44px tall: the brief's minimum touch target, even on a pointer device.
+     The bar is 64px, so this fits without crowding. */
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding-inline: 2px;
+  font-family: var(--font-body);
+  font-size: var(--text-body-sm);
+  font-weight: var(--weight-regular);
+  line-height: 1;
+  letter-spacing: 0.016em;
+  color: var(--color-slate-mute);
+  transition: color var(--duration-fast) var(--ease-out-quint);
+}
+#navbar .nav-link:hover { color: var(--color-pure-white); }
+#navbar .nav-link.active { color: var(--color-pure-white); }
+#navbar .nav-link.active::after {
+  content: "";
+  position: absolute;
+  left: 0; right: 0; bottom: 2px;
+  height: 1px;
+  background: var(--color-current-blue);
+}
+#navbar nav[aria-label="Primary"] {
+  display: none;
+  align-items: center;
+  gap: var(--spacing-32);
+}
+@media (min-width: 768px) {
+  #navbar nav[aria-label="Primary"] { display: flex; }
+}
+
+/* Right cluster: a ghost icon button (share) then the single filled pill. */
+.navbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: 0 0 auto;
+}
+.navbar-actions .desktop-only { display: none; }
+@media (min-width: 640px) {
+  .navbar-actions .desktop-only { display: inline-flex; }
+}
+
+/* The hamburger is mobile-only (it used to be Tailwind's `md:hidden`, which no
+   longer exists now the CDN is gone). The bar is 44px tall at every size, so
+   the touch target is the same either way. */
+#nav-toggle { display: inline-flex; }
+@media (min-width: 768px) { #nav-toggle { display: none; } }
+
+/* =============================================================================
+   BUTTONS — DESIGN.md "Filled Pill Button" / "Ghost Pill Button"
+   Both are pills (800px). The filled one is the only filled button in the page
+   and appears exactly once per viewport. DESIGN.md "Don't": no other button is
+   ever filled with colour.
+   ========================================================================== */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  min-height: 44px;               /* touch target, brief section 6 */
+  padding: 12px 24px;
+  border-radius: var(--radius-buttons);
+  font-family: var(--font-body);
+  font-size: var(--text-body-sm);
+  font-weight: var(--weight-medium);
+  line-height: 1;
+  letter-spacing: 0.016em;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background-color var(--duration-fast) var(--ease-out-quint),
+              border-color var(--duration-fast) var(--ease-out-quint),
+              color var(--duration-fast) var(--ease-out-quint),
+              box-shadow var(--duration-fast) var(--ease-out-quint),
+              transform var(--duration-fast) var(--ease-out-quint);
+}
+.btn:active { transform: translateY(1px); }
+
+/* Filled: white on void, with DESIGN.md's inset lighting. */
+.btn-accent {
+  background: var(--color-pure-white);
+  color: var(--color-void-canvas);
+  border: 1px solid var(--color-pure-white);
+  box-shadow: var(--shadow-subtle), var(--shadow-subtle-2);
+}
+.btn-accent:hover {
+  transform: translateY(-1px);
+  box-shadow: rgba(0, 0, 0, 0.08) 3px 3px 0 0, var(--shadow-subtle-2);
+}
+
+/* Ghost: transparent, 1px WHITE border — the border is the identity. */
+.btn-outline,
+.btn-glass {
+  background: transparent;
+  color: var(--color-pure-white);
+  border: 1px solid var(--color-pure-white);
+}
+.btn-outline:hover,
+.btn-glass:hover { background: rgba(255, 255, 255, 0.08); }
+
+/* The small variant is a size, not a target: it is still 44px tall so every
+   control in the bar clears the brief's minimum touch target. */
+.btn-sm { min-height: 44px; padding: 10px 18px; font-size: var(--text-caption); }
+
+/* Square-ish icon control in the bar. Still a pill: DESIGN.md makes every
+   interactive control 800px. */
+.social-btn,
+.btn-outline-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px; height: 44px;
+  border-radius: var(--radius-buttons);
+  background: transparent;
+  border: 1px solid var(--color-pure-white);
+  color: var(--color-pure-white);
+  transition: background-color var(--duration-fast) var(--ease-out-quint),
+              transform var(--duration-fast) var(--ease-out-quint);
+}
+.social-btn:hover,
+.btn-outline-icon:hover { background: rgba(255, 255, 255, 0.08); }
+.social-btn:active,
+.btn-outline-icon:active { transform: translateY(1px); }
+/* The glyph is the only thing in the pill, so it takes the optical centre and
+   an 18px cap — the old font-size:18px is now an explicit box. */
+.social-btn .icon,
+.btn-outline-icon .icon { width: 18px; height: 18px; }
+
+/* The arrow inside a button slides 4px on hover — the only icon motion a
+   button gets. */
+.btn .btn-arrow {
+  transition: transform var(--duration-fast) var(--ease-out-quint);
+}
+.btn:hover .btn-arrow { transform: translateX(4px); }
+
+/* =============================================================================
+   ICONS — the inline sprite that replaced the Phosphor icon font
+   -----------------------------------------------------------------------------
+   `<symbol>` defs live once, near the top of <body>, and every glyph is a
+   `<svg class="icon"><use href="#i-name"></use></svg>`. Two consequences:
+
+     * the sprite itself must never occupy layout or be painted. It is
+       position:absolute with zero size and clipped, not `display:none` —
+       a display:none sprite still resolves <use>, but keeping it out of flow
+       avoids a stray 150x0 inline box at the top of the document.
+     * each instance is sized by its context and tinted by `currentColor`,
+       which is what DESIGN.md asks for: "minimal line glyphs in #ffffff or
+       muted grays".
+   ========================================================================== */
+.icon-sprite {
+  position: absolute;
+  width: 0;
+  height: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+.icon {
+  display: inline-block;
+  width: 1em;
+  height: 1em;
+  flex: none;
+  vertical-align: -0.125em;
+  fill: currentColor;
+}
+
+/* =============================================================================
+   CARDS — DESIGN.md "Dark Surface Card" and "Phosphor Accent Card"
+   The system-defining move: a 1px #d9dae5 LIGHT hairline defines the edge on a
+   dark surface. No shadow, ever. Elevation comes from surface luminance.
+   ========================================================================== */
+.card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: var(--element-gap);
+  padding: var(--card-padding);
+  border-radius: var(--radius-cards);
+  background: var(--color-carbon-plate);
+  border: 1px solid var(--color-fog);
+  box-shadow: none;
+  transition: background-color var(--duration-fast) var(--ease-out-quint),
+              transform var(--duration-fast) var(--ease-out-quint),
+              border-color var(--duration-fast) var(--ease-out-quint);
+}
+.card:hover {
+  background: var(--color-obsidian);
+  transform: translateY(-4px);
+}
+
+/* Legacy alias: js/scroll.js measures `.glass-panel` as a card obstacle, so
+   the name stays. It is a flat dark plate now, not frosted glass — DESIGN.md
+   has no backdrop-filter anywhere. */
+.glass-panel {
+  background: var(--color-carbon-plate);
+  border: 1px solid var(--color-fog);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+.glass-panel:hover { background: var(--color-obsidian); }
+
+/* Phosphor Accent Card — the ONE accent surface per viewport. Used here for
+   the TOOL PASS card in the hero. */
+.card--accent {
+  background: var(--color-phosphor-mint);
+  border: 1px solid var(--color-phosphor-mint);
+  color: var(--color-void-canvas);
+}
+.card--accent:hover {
+  background: var(--color-phosphor-mint);
+  transform: translateY(-4px);
+}
+.card--accent .muted,
+.card--accent .copy,
+.card--accent .copy-sm { color: rgba(7, 7, 7, 0.72); }
+
+/* Nested panel inside a card. */
+.card__nested {
+  padding: var(--spacing-16);
+  border-radius: var(--radius-nested-cards);
+  background: var(--color-obsidian);
+  border: 1px solid var(--color-iron-edge);
+}
+
+/* Card icon: a 48px stroke glyph in Graphite/White. No coloured wash, no
+   glow — DESIGN.md's icons are minimal line glyphs. */
+.tool-card-icon {
+  display: grid;
+  place-items: center;
+  width: 48px; height: 48px;
+  border-radius: var(--radius-nested-cards);
+  background: transparent;
+  border: 1px solid var(--color-iron-edge);
+  color: var(--color-pure-white);
+  transition: border-color var(--duration-fast) var(--ease-out-quint),
+              color var(--duration-fast) var(--ease-out-quint);
+}
+.tool-card:hover .tool-card-icon { border-color: var(--color-fog); }
+.tool-card-icon .icon { width: 24px; height: 24px; }
+#overview .w-12.h-12 > svg.ph,
+#flow .w-12.h-12 > svg.ph { width: 24px; height: 24px; stroke-width: 2; }
+
+/* Stamped label above a card icon: mono, uppercase, wide tracking. */
+.tool-card-eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  line-height: 1;
+  letter-spacing: 0.094em;
+  text-transform: uppercase;
+  color: var(--color-cinder);
+}
+.tool-card-eyebrow i { font-style: normal; color: var(--color-graphite); }
+
+/* =============================================================================
+   STATUS BADGE — DESIGN.md "Status Badge"
+   Outlined, never filled. 800px radius, caption size, wide tracking.
+   ========================================================================== */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  align-self: flex-start;
+  padding: 2px 8px;
+  border-radius: var(--radius-badges);
+  border: 1px solid var(--color-verdant-edge);
+  color: var(--color-verdant-edge);
+  font-family: var(--font-body);
+  font-size: 12px;
+  font-weight: var(--weight-medium);
+  line-height: 1.4;
+  letter-spacing: 0.042em;
+}
+.badge--info {
+  border-color: var(--color-deep-signal);
+  color: var(--color-deep-signal);
+}
+
+/* =============================================================================
+   ACTIVITY ROW — DESIGN.md "Activity Row"
+   32px mark, 14px/500 message, 12px metadata, 8px status dot, 1px Iron Edge
+   divider. Used for the "how it works" stepper.
+   ========================================================================== */
+.activity {
+  display: flex;
+  align-items: center;
+  gap: var(--element-gap);
+  padding: 10px 0;
+  border-bottom: 1px solid var(--color-iron-edge);
+}
+.activity:last-child { border-bottom: 0; }
+.activity__mark {
+  flex: 0 0 32px;
+  display: grid;
+  place-items: center;
+  width: 32px; height: 32px;
+  border-radius: var(--radius-badges);
+  border: 1px solid var(--color-iron-edge);
+  color: var(--color-pure-white);
+}
+.activity__mark .icon { width: 16px; height: 16px; }
+.activity__body { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.activity__title {
+  font-size: var(--text-body-sm);
+  font-weight: var(--weight-medium);
+  line-height: var(--leading-body-sm);
+  color: var(--color-pure-white);
+}
+.activity__meta {
+  font-size: var(--text-caption);
+  line-height: var(--leading-caption);
+  color: var(--color-graphite);
+}
+.activity__dot {
+  flex: 0 0 8px;
+  width: 8px; height: 8px;
+  margin-left: auto;
+  border-radius: var(--radius-badges);
+  background: var(--color-phosphor-mint);
+}
+
+/* =============================================================================
+   CODE / TERMINAL SURFACE — DESIGN.md "Code/Syntax Surface"
+   Obsidian, 16px radius, mono 13–14px in Graphite. Nested inside a card.
+   ========================================================================== */
+.code {
+  padding: var(--spacing-16);
+  border-radius: var(--radius-nested-cards);
+  background: var(--color-obsidian);
+  border: 1px solid var(--color-iron-edge);
+  font-family: var(--font-mono);
+  font-size: 13px;
+  line-height: 1.7;
+  color: var(--color-graphite);
+  overflow-x: auto;
+}
+.code__prompt { color: var(--color-phosphor-mint); }
+.code__comment { color: var(--color-cinder); }
+
+/* =============================================================================
+   INPUTS & DROPZONE — DESIGN.md "Input Field"
+   Carbon Plate fill, Iron Edge border, Deep Signal border on focus, 5px
+   radius, Cinder placeholder. Focus is a colour change, never a glow ring.
+   ========================================================================== */
+.field {
+  width: 100%;
+  min-height: 44px;
+  padding: 12px;
+  border-radius: var(--radius-inputs);
+  background: var(--color-carbon-plate);
+  border: 1px solid var(--color-iron-edge);
+  color: var(--color-pure-white);
+  font-family: var(--font-body);
+  font-size: var(--text-body-sm);
+  line-height: var(--leading-body-sm);
+  transition: border-color var(--duration-fast) var(--ease-out-quint);
+}
+.field::placeholder { color: var(--color-cinder); }
+.field:focus-visible,
+.field:focus {
+  border-color: var(--color-deep-signal);
+  outline: none;
+}
+
+.dropzone {
+  display: grid;
+  place-items: center;
+  gap: 12px;
+  padding: var(--spacing-40) var(--spacing-24);
+  border-radius: var(--radius-inputs);
+  border: 1px dashed var(--color-iron-edge);
+  background: var(--color-carbon-plate);
+  color: var(--color-graphite);
+  text-align: center;
+  cursor: pointer;
+  transition: border-color var(--duration-fast) var(--ease-out-quint),
+              background-color var(--duration-fast) var(--ease-out-quint);
+}
+.dropzone:hover { border-style: solid; border-color: var(--color-fog); }
+
+/* =============================================================================
+   TOOL PASS CARD — the hero's single Phosphor Accent Card.
+   FROM -> TO, a barcode, and the two launch pills. Text is Void on mint.
+   ========================================================================== */
+.toolpass {
+  position: relative;
+  width: min(360px, 100%);
+  padding: var(--spacing-24);
+  border-radius: var(--radius-cards);
+  background: var(--color-phosphor-mint);
+  border: 1px solid var(--color-phosphor-mint);
+  color: var(--color-void-canvas);
+  overflow: hidden;
+  will-change: transform;
+}
+.toolpass__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--element-gap);
+}
+.toolpass__label {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 1;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: rgba(7, 7, 7, 0.72);
+}
+.toolpass__fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--spacing-16);
+  margin-block: var(--spacing-24);
+  padding: 12px;
+  border-radius: var(--radius-nested-cards);
+  border: 1px dashed rgba(7, 7, 7, 0.32);
+  background: rgba(7, 7, 7, 0.06);
+}
+.toolpass__field { display: flex; flex-direction: column; gap: 4px; }
+.toolpass__field-label {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  /* 0.66, not the 0.6 this started at: on the mint accent card 60% Void Canvas
+     composites to #2f5754 over #6acfc7, which is 4.35:1 — under the 4.5:1
+     floor for text this size. 0.66 clears it at 5.18:1 and still reads as a
+     recessive stamp against the accent, not as body copy. */
+  color: rgba(7, 7, 7, 0.66);
+}
+.toolpass__field-value {
+  font-family: var(--font-display);
+  font-size: 16px;
+  font-weight: var(--weight-semibold);
+  letter-spacing: var(--tracking-display-face);
+  color: var(--color-void-canvas);
+}
+.toolpass__title {
+  font-family: var(--font-display);
+  font-size: 24px;
+  font-weight: var(--weight-light);
+  letter-spacing: var(--tracking-display-face);
+  line-height: 1.1;
+  color: var(--color-void-canvas);
+  margin-bottom: var(--spacing-16);
+}
+.toolpass__actions { display: flex; flex-direction: column; gap: 10px; }
+
+/* On mint, a ghost pill is void-text on a void hairline — the inverse of the
+   white-outline ghost used on dark, and still not a filled button. */
+.toolpass .hero-pill-outline {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 44px;
+  padding: 11px 18px;
+  border-radius: var(--radius-buttons);
+  border: 1px solid var(--color-void-canvas);
+  background: transparent;
+  color: var(--color-void-canvas);
+  font-family: var(--font-body);
+  font-size: var(--text-caption);
+  font-weight: var(--weight-medium);
+  letter-spacing: 0.042em;
+  text-transform: uppercase;
+  transition: background-color var(--duration-fast) var(--ease-out-quint),
+              color var(--duration-fast) var(--ease-out-quint);
+}
+.toolpass .hero-pill-outline:hover {
+  background: var(--color-void-canvas);
+  color: var(--color-phosphor-mint);
+}
+
+/* Barcode: repeating vertical rules, with a scan line (see animations.css). */
+.hero-barcode {
+  position: relative;
+  width: 24px;
+  height: 64px;
+  border-radius: 4px;
+  overflow: hidden;
+  background-image: repeating-linear-gradient(
+    to bottom,
+    rgba(7, 7, 7, 0.7) 0 2px,
+    transparent 2px 4px
+  );
+}
+.hero-barcode::after {
+  content: "";
+  position: absolute;
+  left: 0; right: 0;
+  height: 2px;
+  background: var(--color-void-canvas);
+  opacity: 0.7;
+}
+
+/* =============================================================================
+   MOBILE MENU — DESIGN.md: full-screen dark panel, display-face links,
+   staggered. aria-hidden + inert handled by script.js's open/close.
+   ========================================================================== */
+.mobile-menu {
+  position: fixed;
+  inset: var(--navbar-height) 0 0;
+  z-index: 39;
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-32);
+  padding: var(--spacing-40) clamp(20px, 4vw, 32px);
+  background: var(--color-void-canvas);
+  border-top: 1px solid var(--color-steel-border);
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(-8px);
+  transition: opacity var(--duration-fast) var(--ease-out-quint),
+              transform var(--duration-fast) var(--ease-out-quint),
+              visibility var(--duration-fast) var(--ease-out-quint);
+  overflow-y: auto;
+}
+.mobile-menu.open { opacity: 1; visibility: visible; transform: none; }
+.mobile-menu nav { display: flex; flex-direction: column; }
+.mobile-menu nav a {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-16);
+  padding: 16px 0;
+  border-bottom: 1px solid var(--color-steel-border);
+  font-family: var(--font-display);
+  font-size: 32px;
+  font-weight: var(--weight-light);
+  letter-spacing: var(--tracking-display-face);
+  color: var(--color-cloud-mist);
+}
+.mobile-menu nav a .icon { color: var(--color-cinder); width: 20px; height: 20px; }
+.mobile-menu__actions { display: flex; flex-direction: column; gap: 12px; }
+
+/* =============================================================================
+   TOAST — DESIGN.md "pill, light border, no shadow"
+   ========================================================================== */
+#toast {
+  position: fixed;
+  right: clamp(16px, 4vw, 32px);
+  /* Clears the back-to-top button, which owns the same corner. The toast is
+     transient and the button is always there once scrolled, so the toast is
+     what moves. */
+  bottom: calc(clamp(16px, 4vw, 32px) + 60px);
+  z-index: 70;
+  opacity: 0;
+  transform: translateY(20px);
+  pointer-events: none;
+  transition: opacity var(--duration-slow) var(--ease-out-quint),
+              transform var(--duration-slow) var(--ease-out-quint);
+}
+#toast.is-live { opacity: 1; transform: translateY(0); }
+#toast .glass-panel {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 20px;
+  border-radius: var(--radius-buttons);
+  background: var(--color-carbon-plate);
+  border: 1px solid var(--color-fog);
+}
+#toast .icon { color: var(--color-phosphor-mint); width: 18px; height: 18px; }
+#toast-message {
+  font-size: var(--text-caption);
+  font-weight: var(--weight-medium);
+  letter-spacing: 0.042em;
+  color: var(--color-pure-white);
+}
+
+/* =============================================================================
+   BACK TO TOP — ghost pill
+   ========================================================================== */
+.back-to-top {
+  position: fixed;
+  right: clamp(16px, 4vw, 32px);
+  bottom: clamp(16px, 4vw, 32px);
+  z-index: 55;
+  display: grid;
+  place-items: center;
+  width: 44px; height: 44px;
+  border-radius: var(--radius-buttons);
+  background: var(--color-carbon-plate);
+  border: 1px solid var(--color-fog);
+  color: var(--color-pure-white);
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(12px);
+  transition: opacity var(--duration-fast) var(--ease-out-quint),
+              transform var(--duration-fast) var(--ease-out-quint),
+              visibility var(--duration-fast) var(--ease-out-quint),
+              background-color var(--duration-fast) var(--ease-out-quint);
+}
+.back-to-top.visible { opacity: 1; visibility: visible; transform: none; }
+.back-to-top:hover { background: var(--color-obsidian); }
+
+/* =============================================================================
+   MOTION TOGGLE (footer) — honest about state: the label names the ACTION and
+   aria-pressed carries the STATE. Small outlined control, never a filled one
+   (the hero's filled pill is the only filled button in the viewport).
+   ========================================================================== */
+.motion-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 40px;
+  padding: 8px 16px;
+  border-radius: var(--radius-buttons);
+  border: 1px solid var(--color-iron-edge);
+  background: transparent;
+  color: var(--color-graphite);
+  font-family: var(--font-body);
+  font-size: var(--text-caption);
+  font-weight: var(--weight-medium);
+  letter-spacing: 0.042em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: border-color var(--duration-fast) var(--ease-out-quint),
+              color var(--duration-fast) var(--ease-out-quint);
+}
+.motion-toggle:hover { border-color: var(--color-fog); color: var(--color-pure-white); }
+.motion-toggle[aria-pressed="true"] {
+  border-color: var(--color-current-blue);
+  color: var(--color-pure-white);
+}
+/* The glyph itself is a sprite <use>; js/motion-toggle.js repoints the href.
+   Only the box is ours to size — the path carries its own viewBox. */
+.motion-toggle-icon { width: 14px; height: 14px; flex: none; }
+
+/* =============================================================================
+   FOOTER — DESIGN.md "Footer Link Column"
+   Four columns, 14px/500 white headings, 13–14px Graphite links with NO
+   underline, 8–16px row gap, 1px Steel Border rule on top.
+   ========================================================================== */
+.site-footer {
+  position: relative;
+  z-index: 1;
+  border-top: 1px solid var(--color-steel-border);
+  background: var(--color-void-canvas);
+  padding-block: var(--spacing-56) var(--spacing-32);
+}
+.footer-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--spacing-40);
+}
+@media (min-width: 768px) {
+  .footer-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--spacing-32); }
+}
+.footer-col { display: flex; flex-direction: column; gap: 12px; }
+.footer-col__head {
+  font-size: var(--text-body-sm);
+  font-weight: var(--weight-medium);
+  line-height: var(--leading-body-sm);
+  color: var(--color-pure-white);
+}
+.footer-col a {
+  font-size: var(--text-body-sm);
+  color: var(--color-graphite);
+  transition: color var(--duration-fast) var(--ease-out-quint);
+}
+.footer-col a:hover { color: var(--color-pure-white); }
+.footer-nav { display: flex; align-items: center; gap: var(--spacing-16); flex-wrap: wrap; }
+.footer-nav a { font-size: var(--text-body-sm); color: var(--color-graphite); }
+.footer-nav a:hover { color: var(--color-pure-white); }
+.footer-bottom {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--spacing-16);
+  margin-top: var(--spacing-40);
+  padding-top: var(--spacing-24);
+  border-top: 1px solid var(--color-steel-border);
+  font-size: 13px;
+  color: var(--color-cinder);
+}
+@media (min-width: 768px) {
+  .footer-bottom {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+  }
+}
+.footer-status { display: inline-flex; align-items: center; gap: 8px; }
+.footer-status .status-dot {
+  width: 8px; height: 8px;
+  border-radius: var(--radius-badges);
+  background: var(--color-phosphor-mint);
+}
+
+/* =============================================================================
+   PAGE TRANSITION PLATE
+   A stamp in the void: mono wordmark, phosphor dot. Same colour as the page,
+   because its whole job is to be indistinguishable from it.
+   ========================================================================== */
+#page-transition {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 18px;
+  background-color: var(--color-void-canvas);
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 450ms var(--ease-out-quint), visibility 450ms;
+}
+#page-transition.active { opacity: 1; visibility: visible; }
+.pt-logo {
+  font-family: var(--font-mono);
+  font-size: var(--text-body-sm);
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--color-pure-white);
+}
+.pt-logo span { color: var(--color-phosphor-mint); }
+.pt-dot {
+  width: 8px; height: 8px;
+  border-radius: var(--radius-badges);
+  background: var(--color-phosphor-mint);
+}

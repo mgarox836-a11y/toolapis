@@ -1,0 +1,28 @@
+/* =============================================================================
+   TOOL PASS CARD — the hero's single Phosphor Accent Card
+   -----------------------------------------------------------------------------
+   Its component skin lives in css/components.css (`.toolpass`); this file owns
+   only the FROM -> TO field flip and the barcode scan, because those are the
+   two moving parts of the card and they belong with the other motion.
+   ========================================================================== */
+
+/* The flip is a 3D rotateX on the two values, driven by the card's arrival.
+   `transform-style: preserve-3d` on the field is what makes it read as a
+   boarding-pass split rather than as a fade. */
+.toolpass__field {
+  transform-style: preserve-3d;
+  perspective: 400px;
+}
+
+/* FROM -> TO connector: a mint-free arrow in Void, since the card is mint. */
+.toolpass__field + .toolpass__field { position: relative; }
+.toolpass__field + .toolpass__field::before {
+  content: "";
+  position: absolute;
+  left: -9px;
+  top: 50%;
+  width: 1px;
+  height: 26px;
+  transform: translateY(-50%);
+  background: rgba(7, 7, 7, 0.24);
+}

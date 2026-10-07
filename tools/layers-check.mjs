@@ -70,7 +70,13 @@ for (const width of WIDTHS) {
         window.__fade.samples.push([Math.round(performance.now()), +(+s.opacity).toFixed(3)]);
         if (window.__fade.readyAt !== null && !window.__fade.done) {
           const elapsed = performance.now() - window.__fade.readyAt;
-          if (elapsed > 6000 || +s.opacity >= 0.999) { window.__fade.done = true; window.__fade.settledAt = Math.round(elapsed); window.__fade.clear(); return; }
+          /* Generous window on purpose. The resolved transition is 2.4s, but
+             under swiftshader this compositor produces roughly one frame every
+             5–7s, so the ramp only advances when a frame lands — measured, a
+             full 0→1 fade takes ~10s of wall clock, not 2.4s. A 6s cutoff was
+             sampling a starved compositor mid-transition and reporting a
+             healthy ramp as stalled. */
+          if (elapsed > 30000 || +s.opacity >= 0.999) { window.__fade.done = true; window.__fade.settledAt = Math.round(elapsed); window.__fade.clear(); return; }
         }
         /* setInterval, not requestAnimationFrame: under swiftshader this page
            composites at roughly 0.2fps, and a rAF sampler gets one frame in six

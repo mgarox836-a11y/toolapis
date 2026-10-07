@@ -533,9 +533,9 @@ function paintDisplayFrame(W, H) {
 
   /* a soft lime sun low over the horizon */
   const sun = g.createRadialGradient(W * 0.70, vh * 0.60, 0, W * 0.70, vh * 0.60, vh * 0.52);
-  sun.addColorStop(0, 'rgba(163,230,53,0.50)');
-  sun.addColorStop(0.38, 'rgba(163,230,53,0.13)');
-  sun.addColorStop(1, 'rgba(163,230,53,0)');
+  sun.addColorStop(0, 'rgba(112,220,211,0.50)');
+  sun.addColorStop(0.38, 'rgba(112,220,211,0.13)');
+  sun.addColorStop(1, 'rgba(112,220,211,0)');
   g.fillStyle = sun;
   g.fillRect(0, 0, W, vh);
 
@@ -584,10 +584,10 @@ function paintDisplayFrame(W, H) {
   g.closePath();
   g.fillStyle = 'rgba(8,12,6,0.88)';
   g.fill();
-  g.strokeStyle = 'rgba(163,230,53,0.95)';
+  g.strokeStyle = 'rgba(112,220,211,0.95)';
   g.lineWidth = Math.max(1, W / 300);
   g.stroke();
-  g.fillStyle = '#A3E635';
+  g.fillStyle = '#70dcd3';
   g.font = `bold ${Math.round(bh * 0.58)}px "Arial Black", Arial, sans-serif`;
   g.textAlign = 'center';
   g.textBaseline = 'middle';
@@ -600,11 +600,11 @@ function paintDisplayFrame(W, H) {
   const trackH = Math.max(1.5, H * 0.014);
   g.fillStyle = 'rgba(255,255,255,0.13)';
   g.fillRect(W * 0.055, trackY, W * 0.89, trackH);
-  g.fillStyle = '#A3E635';
+  g.fillStyle = '#70dcd3';
   g.fillRect(W * 0.055, trackY, W * 0.89 * 0.38, trackH);
   g.beginPath();
   g.arc(W * 0.055 + W * 0.89 * 0.38, trackY + trackH / 2, Math.max(2, H * 0.017), 0, Math.PI * 2);
-  g.fillStyle = '#BEF264';
+  g.fillStyle = '#a6e5f2';
   g.fill();
   /* a small play triangle at the left of the bar */
   const tri = Math.max(3, H * 0.028);
@@ -1285,9 +1285,9 @@ export function createBackgroundProps() {
    * `background.groundGlow.opacity` (0.12), sized well inside the frame, and
    * dropped far enough down that only its top sliver is ever on screen. */
   const glowTex = radialCanvasTexture(256, [
-    [0.0, `rgba(163,230,53,${B.groundGlow.core})`],
-    [0.45, `rgba(163,230,53,${B.groundGlow.mid})`],
-    [1.0, `rgba(163,230,53,${B.groundGlow.edge})`],
+    [0.0, `rgba(112,220,211,${B.groundGlow.core})`],
+    [0.45, `rgba(112,220,211,${B.groundGlow.mid})`],
+    [1.0, `rgba(112,220,211,${B.groundGlow.edge})`],
   ]);
   textures.push(glowTex);
   const glowMat = new THREE.MeshBasicMaterial({

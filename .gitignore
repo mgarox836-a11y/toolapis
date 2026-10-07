@@ -2,4 +2,6 @@ node_modules/
 tools/shots/
 tools/*.png
 server.log.playwright-mcp/
+.playwright-mcp/
 reference/sky-original.mp4
+_backup_pre_redesign/
