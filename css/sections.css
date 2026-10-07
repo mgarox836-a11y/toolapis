@@ -1,0 +1,1234 @@
+/* =============================================================================
+   SECTIONS — the page's structural layouts
+   -----------------------------------------------------------------------------
+   Everything here is LAYOUT: the shapes Harness composes its page out of. The
+   skins those layouts hold (card, badge, button, code surface) live in
+   components.css; the motion lives in animations.css. This file only decides
+   how many columns, how wide, and what sits inside.
+
+   Contents
+     4.3  Trust marquee strip
+     4.4  Overview bento grid          — the big card, the terminal, the feed
+     4.5  Activity feed (git timeline)
+     4.6  Features — alternating text/visual with mock windows
+     4.7  Flow — numbered steps on a scroll-drawn connector
+     4.8  Clarity — accordion + closing CTA band
+   ========================================================================== */
+
+/* =============================================================================
+   SECTION HEADER — DESIGN.md "Section Header (Eyebrow + Title)"
+   An uppercase eyebrow with wide tracking above a display heading. The eyebrow
+   is the section's quiet signal; the heading carries the weight.
+   ========================================================================== */
+.section-head {
+  max-width: 720px;
+}
+.section-head .t-heading { margin-top: 2px; }
+
+/* =============================================================================
+   4.3 · TRUST MARQUEE
+   A thin ruled band of mono uppercase words. It reads as instrumentation
+   telemetry, which is the register the whole page is written in. The strip
+   pauses on hover so it never pulls the eye off the section above it.
+   ========================================================================== */
+/* `overflow: clip` per brief §4. The track is `width: max-content` — 2330px
+   measured — so this wrapper is the only thing standing between the marquee
+   and a horizontal scrollbar, and `clip` confines it without making the
+   wrapper a scroll container the way `hidden` would. */
+.marquee {
+  border-block: 1px solid var(--color-steel-border);
+  overflow: clip;
+  padding-block: 14px;
+}
+.marquee__track {
+  display: flex;
+  width: max-content;
+  gap: 0;
+  will-change: transform;
+  /* Same 38s at every width: the track is a fixed content width, so the speed
+     is already constant in px/s and does not need to be re-tuned per
+     breakpoint. Brief §4 asks for exactly that. */
+  animation: marquee-scroll 38s linear infinite;
+}
+/* The track holds two identical groups, so -50% is a seamless wrap. */
+@media (hover: hover) {
+  .marquee:hover .marquee__track { animation-play-state: paused; }
+}
+.marquee:focus-within .marquee__track { animation-play-state: paused; }
+.marquee__group {
+  display: flex;
+  align-items: center;
+  flex: none;
+}
+/* `nowrap` is correct here and nowhere else on the page: each item is a short
+   label inside a track that is meant to be wider than the viewport. Brief §4
+   asks for 11–12px; 12px is the readable end of that range and the floor the
+   brief's §7 rule sets. */
+.marquee__item {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-24);
+  padding-inline: var(--spacing-24);
+  font-family: var(--font-mono);
+  font-size: var(--text-caption);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--color-cinder);
+  white-space: nowrap;
+}
+.marquee__item::after {
+  content: "";
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: var(--color-iron-edge);
+}
+.marquee__item:last-child::after { display: none; }
+
+@keyframes marquee-scroll {
+  from { transform: translate3d(0, 0, 0); }
+  to   { transform: translate3d(-50%, 0, 0); }
+}
+
+/* =============================================================================
+   4.4 · OVERVIEW BENTO GRID
+   Twelve columns, 20px gaps, four cards of deliberately unequal weight. The
+   composition is the point: one dominant tile, two half-width, one wide
+   support — so the section reads as a built object rather than a list.
+
+     row 1  [ HD Enhancer (7) ][ USB Tethering (5) ]
+     row 2  [ Social Hub (5) ][ Privacy (7) ]
+
+   Every card carries a VISUAL, not just text. The grid collapses to a single
+   column below 900px, where spans would only create odd half-width orphans.
+   ========================================================================== */
+.bento {
+  display: grid;
+  gap: clamp(14px, 2vw, 20px);
+}
+/* Mobile-first, per brief §3: one column from 320px, two simple columns from
+   600px where two side-by-side cards genuinely help, and the 12-column bento
+   only from 1024px — where there is enough width for a 5-column tile to hold
+   a terminal at a readable 13px.
+
+   The old arrangement was 12 columns from the base style with a
+   `max-width: 899px` override dropping it to 1, which meant the narrow case
+   was an exception to the default rather than the starting point. */
+.bento > * { min-width: 0; }
+@media (min-width: 600px) and (max-width: 1023px) {
+  .bento { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (min-width: 1024px) {
+  .bento {
+    grid-template-columns: repeat(12, minmax(0, 1fr));
+    gap: 20px;
+  }
+}
+
+/* The card caption is the Harness device: a short label and a sentence, one
+   line, quiet. It sits at the bottom of every bento card so the baselines
+   align across the row no matter how tall each visual is. */
+.bento__caption {
+  margin-top: auto;
+  padding-top: var(--spacing-16);
+  font-size: var(--text-body-sm);
+  line-height: var(--leading-body-sm);
+  color: var(--color-ash);
+  text-wrap: pretty;
+}
+.bento__caption strong {
+  font-weight: var(--weight-medium);
+  color: var(--color-pure-white);
+}
+
+.bento__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-16);
+  /* Wraps rather than overflowing: "01 Enhance" plus a "Setup guide" badge is
+     200px at desktop and 190px at 320px minus padding, which is close enough
+     that a longer tool name would push the badge out of the card. */
+  flex-wrap: wrap;
+  min-width: 0;
+}
+.bento__head > * { min-width: 0; }
+
+/* The cursor spotlight. A 6% white radial that follows the pointer inside the
+   card, written to --mx/--my by js/widgets.js inside one rAF. DESIGN.md bans
+   glow shadows on cards, and this is not one: it is a light source the card
+   appears to be lit by. */
+.spot-card::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity var(--dur-base) var(--ease-out);
+  background: radial-gradient(
+    240px circle at var(--mx, 50%) var(--my, 50%),
+    rgba(255, 255, 255, 0.06),
+    transparent 70%
+  );
+}
+/* Gated: a touch device has no hover, and an ungated `:hover` sticks after a
+   tap, leaving the spotlight lit under a card nobody is pointing at. */
+@media (hover: hover) {
+  .spot-card:hover::before { opacity: 1; }
+}
+
+/* --- bento: HD Enhancer (span 7, two rows) -------------------------------- */
+/* The four cards, by weight. The privacy card is full width because a lock
+   panel in a 7-column slot leaves a hole beside it that nothing fills — the
+   visual needs a square-ish box, and the aspect only works at 12. */
+/* SPANS APPLY FROM 1024px ONLY (brief §4). Below that the grid has no 12
+   columns to span, so these declarations are simply absent rather than
+   cancelled — which is what removed the `grid-column: auto !important` that
+   used to have to undo them at every width under 900. A `!important` that
+   exists only to switch something off is a missing media query. */
+@media (min-width: 1024px) {
+  .bento__hd { grid-column: span 7; grid-row: span 2; }
+  .bento__tether { grid-column: span 5; }
+  .bento__social { grid-column: span 5; }
+  .bento__privacy { grid-column: span 12; }
+}
+
+/* --- before/after comparison ---------------------------------------------
+   The enhancer's evidence. One frame, two states: the left is what the clip
+   arrived as, the right is what it leaves as. The sharp layer is revealed with
+   clip-path (compositor-only, so dragging never janks), and the divider is a
+   real <input type="range"> so it is keyboard-operable for free — the visible
+   pill is a label for that input, not a drag handle. */
+/* `width: 100%` is explicit because `.ba` is a flex child of `.card`; flex
+   items default to `align-self: stretch` on the cross axis but their MAIN size
+   comes from `flex-basis: auto`, so without this a card narrower than the
+   frame would shrink it. */
+.ba {
+  position: relative;
+  width: 100%;
+  max-width: 100%;
+  /* `overflow: clip` rather than `hidden`: the layers inside are absolutely
+     positioned to the frame's edges, and `hidden` would make this a scroll
+     container for no reason. Brief §2 sanctions clip as the safety net. */
+  aspect-ratio: 16 / 10;
+  border-radius: var(--radius-nested-cards);
+  overflow: clip;
+  background: var(--color-obsidian);
+  border: 1px solid var(--color-iron-edge);
+  /* A faint scanline ground so the two halves are legible as video frames. */
+  background-image:
+    linear-gradient(180deg, rgba(20, 20, 24, 0.4), rgba(20, 20, 24, 0.9)),
+    repeating-linear-gradient(0deg, rgba(255, 255, 255, 0.028) 0 1px, transparent 1px 4px);
+}
+/* Both halves paint the same synthetic frame; only the filter differs, so the
+   comparison is honest about what changed. */
+.ba__layer {
+  position: absolute;
+  inset: 0;
+  background-image:
+    radial-gradient(120% 90% at 30% 20%, #2a2f3d 0%, #13151b 55%, #0b0c10 100%),
+    linear-gradient(115deg, transparent 38%, rgba(166, 229, 242, 0.14) 50%, transparent 62%);
+}
+.ba__before { filter: blur(2.4px) saturate(0.7) contrast(0.86); }
+.ba__after {
+  clip-path: inset(0 calc(100% - var(--ba, 50%)) 0 0);
+  filter: blur(0) saturate(1) contrast(1);
+}
+/* The labels are mono micro-type on the frame itself, as on a scope. */
+/* 12px floor (brief §7). The tags sit ON the frame, so the padding shrinks to
+   keep the 12px glyphs from crowding the corners of a 16/10 frame that is only
+   190px wide at 320px. */
+.ba__tag {
+  position: absolute;
+  top: 8px;
+  z-index: 2;
+  padding: 3px 7px;
+  border-radius: var(--radius-badges);
+  border: 1px solid var(--color-iron-edge);
+  background: rgba(7, 7, 7, 0.72);
+  font-family: var(--font-mono);
+  font-size: var(--text-caption);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-graphite);
+  /* Never wider than the half of the frame it sits on. */
+  max-width: calc(50% - 16px);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ba__tag--before { left: 10px; }
+.ba__tag--after { right: 10px; color: var(--color-ash); }
+
+/* The divider line and its handle. */
+.ba__divider {
+  position: absolute;
+  top: 0; bottom: 0;
+  left: var(--ba, 50%);
+  z-index: 3;
+  width: 1px;
+  background: var(--color-fog);
+  pointer-events: none;
+}
+/* 44px, per brief §4. The divider it rides is a 1px line, so a 44px handle is
+   a circle hanging off a thread — which is exactly what the reference does,
+   and it is what makes the handle grabbable with a thumb. The range input
+   underneath is full-frame, so the real hit area was already the whole image;
+   this makes the AFFORDANCE match it. */
+.ba__handle {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  translate: -50% -50%;
+  display: grid;
+  place-items: center;
+  width: var(--tap-target);
+  height: var(--tap-target);
+  border-radius: 50%;
+  border: 1px solid var(--color-fog);
+  background: var(--color-carbon-plate);
+  color: var(--color-pure-white);
+  pointer-events: none;
+}
+.ba__handle .icon { width: 18px; height: 18px; }
+/* The real control, laid over the whole frame and fully transparent: it takes
+   pointer input AND keyboard focus, and the focus ring is drawn on the handle
+   so the affordance is visible. */
+.ba__input {
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  width: 100%;
+  height: 100%;
+  max-width: 100%;
+  margin: 0;
+  padding: 0;
+  opacity: 0;
+  cursor: ew-resize;
+  -webkit-appearance: none;
+  appearance: none;
+  background: transparent;
+  /* `pan-y` lets a vertical scroll starting on the frame pass through to the
+     page while the horizontal drag still belongs to the slider. Without it the
+     frame is a horizontal-only dead zone and a phone user cannot scroll the
+     page by dragging over the biggest element in the card. Brief §4. */
+  touch-action: pan-y;
+}
+.ba__input:focus-visible + .ba__divider .ba__handle,
+.ba__input:focus-visible ~ .ba__divider .ba__handle {
+  outline: 1px solid var(--color-deep-signal);
+  outline-offset: 3px;
+}
+.ba__input::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: var(--tap-target);
+  height: var(--tap-target);
+}
+.ba__input::-moz-range-thumb {
+  width: var(--tap-target);
+  height: var(--tap-target);
+  border: 0;
+  background: transparent;
+}
+
+/* Caption strip under the comparison: the resolution claim, as numbers. */
+/* 12px floor (brief §7); `wrap` so "540p in → 1080p out" cannot overflow a
+   narrow card — measured at 165px of content inside a 190px card at 320px,
+   which is a margin, not a guarantee. */
+.ba__stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-8) var(--spacing-16);
+  align-items: center;
+  font-family: var(--font-mono);
+  font-size: var(--text-caption);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-ash);
+  min-width: 0;
+}
+.ba__stats b { color: var(--color-ash); font-weight: var(--weight-regular); }
+
+/* =============================================================================
+   4.5 · TERMINAL SURFACE (USB Tethering card)
+   The tethering commands, typed. DESIGN.md "Code/Syntax Surface": Obsidian,
+   16px radius, Google Sans Code at 13px in Graphite.
+   The caret is the only thing that blinks, and it stops when motion is off.
+   ========================================================================== */
+/* THE SCROLL CONTAINER (brief §4): `overflow-x: auto` on the BLOCK, `max-width:
+   100%` so it can never be the thing that widens the page, and `white-space:
+   pre` with `overflow-wrap` off so a command stays a command.
+
+   The old rule used `white-space: pre-wrap` on every line, which wrapped
+   `adb reverse tcp:8000 tcp:8000` mid-argument. That reads as a broken command
+   rather than as a terminal, and it is why the block never actually overflowed
+   — the wrap was hiding the same problem this now solves properly.
+
+   `overscroll-behavior-x: contain` stops a horizontal drag inside the terminal
+   from chaining to the page once the block reaches its end, which on touch
+   would otherwise fight the vertical scroll. */
+.terminal {
+  position: relative;
+  width: 100%;
+  max-width: 100%;
+  border-radius: var(--radius-nested-cards);
+  border: 1px solid var(--color-iron-edge);
+  background: var(--color-obsidian);
+  padding: var(--spacing-16);
+  font-family: var(--font-mono);
+  /* 12–13px per brief §4. At 320px the card's content box is ~190px, and
+     13px mono fits about 24 characters; the longest line here is 30, so it
+     scrolls — which is what a terminal should do. 12px is the floor at which
+     the mono is still readable, so the font only drops below 13px when the
+     viewport genuinely leaves no room. */
+  font-size: clamp(12px, 2.9vw, 13px);
+  line-height: 1.7;
+  color: var(--color-graphite);
+  /* A fixed minimum height so the card does not resize every keystroke, which
+     would reflow the bento row. */
+  min-height: 148px;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  -webkit-overflow-scrolling: touch;
+}
+.terminal__line { display: block; white-space: pre; }
+/* The typewriter writes into this, so it must not wrap mid-command. */
+.terminal__cmd { white-space: pre; }
+.terminal__comment { color: var(--color-cinder); }
+.terminal__prompt { color: var(--color-phosphor-mint); }
+.terminal__cmd { color: var(--color-ash); }
+/* While a command is being typed the caret rides the end of the text. */
+.terminal__caret {
+  display: inline-block;
+  width: 7px;
+  height: 1em;
+  margin-left: 2px;
+  vertical-align: -0.15em;
+  background: var(--color-phosphor-mint);
+  animation: caret-blink 1.1s steps(2, start) infinite;
+}
+@keyframes caret-blink { 50% { opacity: 0; } }
+
+/* =============================================================================
+   ACTIVITY FEED — DESIGN.md "Activity Row", arranged as a git graph
+   -----------------------------------------------------------------------------
+   A hairline rail down the left with an 8px node per row, so the list reads as
+   history rather than as a table. Rows are 32px avatar + 14px/500 title +
+   12px metadata, with the status dot pinned right.
+   ========================================================================== */
+.feed {
+  display: flex;
+  flex-direction: column;
+}
+.feed__row {
+  position: relative;
+  display: grid;
+  /* `minmax(0, 1fr)` on the body track is the load-bearing part: without it
+     the track's minimum is the title's min-content, and a nowrap title in a
+     narrow card sets the whole grid wider than its container. */
+  grid-template-columns: 8px 32px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  padding-block: 10px;
+  min-width: 0;
+  /* The rail: one hairline behind the nodes. It stops at the last node. */
+  border-bottom: 1px solid var(--color-iron-edge);
+}
+.feed__row:last-child { border-bottom: 0; }
+/* The rail itself, drawn on the row so it inherits the row's bounds. */
+.feed__rail {
+  position: relative;
+  align-self: stretch;
+  width: 8px;
+}
+.feed__rail::before {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: -10px; bottom: -10px;
+  width: 1px;
+  translate: -50% 0;
+  background: var(--color-iron-edge);
+}
+.feed__row:first-child .feed__rail::before { top: 50%; }
+.feed__row:last-child .feed__rail::before { bottom: 50%; }
+/* The node sits on the rail. 8px circle, mint on a success row. */
+.feed__node {
+  position: absolute;
+  left: 50%; top: 50%;
+  translate: -50% -50%;
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  background: var(--color-cinder);
+  box-shadow: 0 0 0 3px var(--color-carbon-plate);
+}
+.feed__row[data-status="pass"] .feed__node { background: var(--color-phosphor-mint); }
+.feed__row[data-status="done"] .feed__node { background: var(--color-verdant-edge); }
+.feed__row[data-status="warn"] .feed__node { background: #d98b4a; }
+
+.feed__avatar {
+  display: grid;
+  place-items: center;
+  width: 32px; height: 32px;
+  flex: none;
+  border-radius: 50%;
+  border: 1px solid var(--color-iron-edge);
+  background: var(--color-obsidian);
+  color: var(--color-graphite);
+  font-family: var(--font-mono);
+  font-size: var(--text-caption);
+  letter-spacing: 0.02em;
+}
+.feed__body { min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.feed__title {
+  font-size: var(--text-body-sm);
+  font-weight: var(--weight-medium);
+  color: var(--color-pure-white);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.feed__meta {
+  font-size: 12px;
+  line-height: 1.35;
+  color: var(--color-graphite);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+/* The trailing status dot: 8px, mint for pass. */
+.feed__dot {
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  background: var(--color-iron-edge);
+  flex: none;
+}
+.feed__row[data-status="pass"] .feed__dot { background: var(--color-phosphor-mint); }
+.feed__row[data-status="done"] .feed__dot { background: var(--color-verdant-edge); }
+.feed__row[data-status="warn"] .feed__dot { background: #d98b4a; }
+
+/* A row entering at the top: slide down into place while fading in. Transform
+   and opacity only, so it never triggers layout. */
+@keyframes feed-in {
+  from { opacity: 0; transform: translate3d(0, -14px, 0); }
+  to   { opacity: 1; transform: translate3d(0, 0, 0); }
+}
+.feed__row--in { animation: feed-in var(--dur-base) var(--ease-out) both; }
+
+/* =============================================================================
+   PRIVACY CARD — the lock panel
+   -----------------------------------------------------------------------------
+   Harness's security card, restated: a bordered circle with a lock glyph, four
+   warm light points at the corners, and one caption. The warm points are the
+   only warm colour on the page; they are small, dim, and never compete with
+   the mint accent.
+   ========================================================================== */
+/* Full-bleed inside its card, so the light points have room to read as lights
+   rather than as dots on a plate. */
+/* THE 260px MINIMUM WAS THE BUG.
+
+   `.lock` used to open with `grid-template-columns: minmax(260px, 1fr)
+   minmax(0, 1.1fr)`, and its only override was a `max-width: 767px` rule
+   dropping it to `1fr`. Between 320 and 767 that override applied, but
+   `.lock__stage { min-height: 240px }` plus the caption plus the card's own
+   padding still exceeded the box, and `.lock { overflow: hidden }` quietly ate
+   16px of it — measured at both 360 and 390. The visible result was a privacy
+   caption with its last line missing.
+
+   Now: one column on mobile, two from 900px, `minmax(0, …)` on both tracks,
+   no fixed minimum anywhere, and `overflow: clip` so the decorative lights
+   still cannot paint outside the panel. The height is a floor, not a
+   constraint. */
+.lock {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  justify-items: center;
+  align-items: center;
+  gap: clamp(20px, 3vw, 56px);
+  min-height: 220px;
+  overflow: clip;
+  border-radius: var(--radius-nested-cards);
+  border: 1px solid var(--color-iron-edge);
+  background: var(--color-obsidian);
+  isolation: isolate;
+  text-align: center;
+  padding-block: var(--spacing-24);
+}
+@media (min-width: 900px) {
+  .lock {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr);
+    justify-items: stretch;
+    text-align: start;
+    min-height: 260px;
+    padding-block: 0;
+  }
+}
+/* The stage holds the ring and the four points; it is the positioned ancestor
+   the points are placed against. */
+.lock__stage {
+  position: relative;
+  display: grid;
+  place-items: center;
+  /* Fluid, and bounded by its own column. The four `.lock__light` points are
+     placed as percentages of this box, so they stay inside it however short
+     it gets — which is what makes `overflow: clip` on `.lock` a backstop
+     rather than a crop. */
+  width: 100%;
+  max-width: 280px;
+  aspect-ratio: 1;
+  min-height: 0;
+}
+.lock__ring {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  width: 96px; height: 96px;
+  border-radius: 50%;
+  border: 1px solid var(--color-fog);
+  background: var(--color-carbon-plate);
+  color: var(--color-pure-white);
+}
+.lock__ring .icon { width: 34px; height: 34px; }
+.lock .bento__caption {
+  margin-top: 0;
+  /* `ch` is a character measure, so 44ch is ~380px at 14px — narrower than a
+     320px card's content box, which means it wraps rather than overflows. Kept
+     because it is what stops the caption running the full 1200px on desktop. */
+  max-width: min(44ch, 100%);
+  min-width: 0;
+}
+/* Four warm points, one per corner of the stage, breathing out of phase. The
+   only warm colour anywhere on the page, and small enough not to compete with
+   the mint accent card. */
+.lock__light {
+  position: absolute;
+  width: 9px; height: 9px;
+  border-radius: 3px;
+  background: #e8c9a8;
+  box-shadow: 0 0 26px 10px rgba(232, 201, 168, 0.34);
+  animation: lock-breathe 6s var(--ease-in-out) infinite;
+}
+.lock__light:nth-of-type(1) { top: 18%; left: 12%; animation-delay: 0s; }
+.lock__light:nth-of-type(2) { top: 22%; right: 14%; animation-delay: 1.5s; }
+.lock__light:nth-of-type(3) { bottom: 20%; right: 18%; animation-delay: 3s; }
+.lock__light:nth-of-type(4) { bottom: 16%; left: 16%; animation-delay: 4.5s; }
+@keyframes lock-breathe {
+  0%, 100% { opacity: 0.34; transform: scale(0.9); }
+  50%      { opacity: 0.9;  transform: scale(1.06); }
+}
+
+/* =============================================================================
+   4.6 · FEATURES — alternating text / visual
+   -----------------------------------------------------------------------------
+   Two-column rows that swap sides, so the eye moves down the page in a
+   zig-zag. The visual is a mock window inside a card, with a thin blue glow
+   behind it (a radial gradient — DESIGN.md bans blur, and a blur is what makes
+   a glow look cheap).
+   ========================================================================== */
+/* One column below 900px with the COPY FIRST, then the visual — which is the
+   DOM order already, so no `order` is needed on mobile and the reading order
+   matches the visual order. `minmax(0, 1fr)` on both desktop tracks, because
+   the mock window inside has a 168px sidebar that would otherwise set the
+   floor for the whole track. */
+.feature {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: clamp(24px, 4vw, 56px);
+  align-items: center;
+}
+.feature > * { min-width: 0; }
+@media (min-width: 900px) {
+  .feature { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+  /* Odd rows put the visual first, even rows put the copy first. */
+  .feature:nth-child(even) .feature__visual { order: 2; }
+}
+.feature + .feature { margin-top: clamp(48px, 8vw, 96px); }
+
+.feature__copy {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--spacing-16);
+  min-width: 0;
+  max-width: 100%;
+}
+.feature__copy .copy { max-width: min(48ch, 100%); }
+/* Below 480px the CTA goes full width — same rule as .btn in components.css,
+   applied to the anchor rather than the button so the two cannot disagree. */
+@media (max-width: 479px) {
+  .feature__copy .btn { width: 100%; }
+}
+
+.feature__points {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: var(--spacing-8);
+  width: 100%;
+  min-width: 0;
+}
+.feature__point {
+  display: grid;
+  grid-template-columns: 24px minmax(0, 1fr);
+  gap: 12px;
+  align-items: start;
+  font-size: var(--text-body-sm);
+  line-height: var(--leading-body-sm);
+  color: var(--color-ash);
+  min-width: 0;
+}
+.feature__point > span { min-width: 0; overflow-wrap: anywhere; }
+.feature__point .icon {
+  width: 24px; height: 24px;
+  color: var(--color-pure-white);
+  margin-top: -2px;
+}
+
+/* The mock window: a title bar with three dots, a sidebar, a content area.
+   Every part is a real element rather than an image, so it stays crisp and
+   costs nothing to load. */
+/* `overflow: clip` on the shine, which is parked at `translateX(-100%)` and
+   animates to `+100%`: `hidden` would make the mock a scroll container and let
+   a horizontal drag on the shine do something. `clip` confines it and nothing
+   else. */
+.mock {
+  position: relative;
+  width: 100%;
+  max-width: 100%;
+  border-radius: var(--radius-cards);
+  border: 1px solid var(--color-fog);
+  background: var(--color-carbon-plate);
+  overflow: clip;
+}
+/* The blue glow sits BEHIND the card, not inside it. */
+.mock::before {
+  content: "";
+  position: absolute;
+  inset: 8% -6% -10% -6%;
+  z-index: -1;
+  background: radial-gradient(60% 55% at 50% 45%, rgba(0, 146, 228, 0.16), transparent 70%);
+  pointer-events: none;
+}
+.mock__bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px var(--spacing-16);
+  border-bottom: 1px solid var(--color-iron-edge);
+  background: var(--color-obsidian);
+}
+.mock__dot { width: 10px; height: 10px; border-radius: 50%; background: var(--color-iron-edge); }
+.mock__dot:nth-child(1) { background: var(--color-cinder); }
+.mock__dot:nth-child(2) { background: var(--color-slate-mute); }
+.mock__dot:nth-child(3) { background: var(--color-graphite); }
+/* 12px floor, `min-width: 0` + ellipsis, and the margin is what yields first:
+   at 320px the bar is ~190px and three 10px dots plus 24px of gaps leave 156px
+   for the URL, which truncates to "toolapis · h…" rather than pushing the bar
+   wider than its card. */
+.mock__url {
+  margin-left: 8px;
+  font-family: var(--font-mono);
+  font-size: var(--text-caption);
+  color: var(--color-cinder);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* THE 168px SIDEBAR WAS THE ROOT CAUSE OF THE REAL OVERFLOW.
+
+   At 200% zoom on a 390px phone the CSS viewport is 195px, and a mock window
+   with a hard 168px sidebar plus its content column was wider than the screen.
+   It dragged `.mock`, `.feature__visual`, `.feature__copy` and every text node
+   inside them past the right edge — 30 overflowing elements in total, and the
+   only genuine horizontal overflow found anywhere on the site.
+
+   The sidebar is now a percentage capped at 168px, with a floor of 84px, so it
+   shrinks with the mock rather than setting a minimum for it. Below 560px the
+   sidebar drops out entirely: a mock of a mobile app has no sidebar, and
+   keeping a 84px one on a 190px card leaves 106px for the content, which is
+   the problem in miniature.
+
+   `min-height` is a floor, never a height — brief §4 requires card heights to
+   be automatic. */
+.mock__body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  min-height: 180px;
+}
+.mock__side {
+  border-right: 1px solid var(--color-iron-edge);
+  padding: var(--spacing-16);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+@media (min-width: 560px) {
+  .mock__body {
+    grid-template-columns: minmax(84px, 34%) minmax(0, 1fr);
+    min-height: 232px;
+  }
+}
+@media (max-width: 559px) {
+  .mock__side { display: none; }
+}
+.mock__side span {
+  height: 8px;
+  border-radius: var(--radius-badges);
+  background: var(--color-iron-edge);
+}
+.mock__side span:nth-child(2) { width: 78%; background: var(--color-slate-mute); }
+.mock__side span:nth-child(3) { width: 88%; }
+.mock__side span:nth-child(4) { width: 64%; }
+.mock__main {
+  padding: var(--spacing-16);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+}
+.mock__title {
+  height: 14px;
+  width: 56%;
+  max-width: 100%;
+  border-radius: var(--radius-badges);
+  background: var(--color-slate-mute);
+}
+.mock__row { display: flex; gap: 10px; min-width: 0; }
+.mock__row span {
+  flex: 1;
+  height: 44px;
+  border-radius: var(--radius-nested-cards);
+  border: 1px solid var(--color-iron-edge);
+  background: var(--color-obsidian);
+}
+/* One horizontal shine that crosses the mock once, when it first arrives. */
+.mock__shine {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(
+    100deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.07) 45%,
+    rgba(255, 255, 255, 0.11) 50%,
+    rgba(255, 255, 255, 0.07) 55%,
+    transparent 100%
+  );
+  transform: translate3d(-100%, 0, 0);
+}
+.mock.is-shown .mock__shine { animation: mock-shine 1100ms var(--ease-out) 1; }
+@keyframes mock-shine {
+  to { transform: translate3d(100%, 0, 0); }
+}
+
+/* =============================================================================
+   4.7 · FLOW — numbered steps on a drawn connector
+   -----------------------------------------------------------------------------
+   Three steps. The line between them is an SVG path whose stroke-dashoffset is
+   bound to the section's scroll progress by js/widgets.js, so the path draws
+   itself as the section comes up. The active node carries a pulsing mint dot.
+   ========================================================================== */
+.flow {
+  position: relative;
+}
+/* The connector runs BETWEEN the nodes, so the path starts and ends at each
+   node's centre rather than at the grid's edges — a line that runs off both
+   ends of the row reads as a rule, not as a connector. In viewBox units the
+   nodes are 68px wide on a ~1200px row, so 34/1200 of the width is 28.3.
+
+   TWO ORIENTATIONS, and mobile-first. The element is an <svg> whose markup is a
+   single horizontal path (`M28.3,17 H1171.7`) — it was previously drawn as a
+   horizontal line even on mobile, where the steps stack vertically. Measured at
+   390px: the line spanned x 20→370 at y 5996 while the three steps ran
+   y 5979→6506. It was a horizontal rule drawn across the top of a vertical
+   list, connecting nothing at all.
+
+   On mobile the SVG is hidden and the rail is drawn in CSS instead, as a
+   ::before on each step — a vertical hairline down the left, passing behind
+   every node, which is the shape the three-step process actually has when it
+   is a column. The scroll-drawn stroke animation belongs to the horizontal
+   version and stays where the layout is horizontal.
+
+   `preserveAspectRatio="none"` on the SVG means the path stretches with the
+   row, so the desktop connector still meets the node centres at any width. */
+.flow__line {
+  display: none;
+  position: absolute;
+  top: 33px;
+  left: 0; right: 0;
+  height: 34px;
+  pointer-events: none;
+  overflow: visible;
+}
+.flow__line path {
+  fill: none;
+  stroke: var(--color-iron-edge);
+  stroke-width: 1;
+}
+.flow__line path.flow__trace {
+  stroke: var(--color-current-blue);
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  /* Long enough to cover the path; widgets.js drives the offset. */
+  stroke-dasharray: var(--flow-len, 1000);
+  stroke-dashoffset: var(--flow-len, 1000);
+}
+@media (min-width: 900px) {
+  .flow__line { display: block; }
+}
+
+.flow__steps {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--spacing-32);
+  position: relative;
+  z-index: 1;
+}
+@media (min-width: 900px) {
+  .flow__steps {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: var(--spacing-24);
+  }
+}
+.flow__steps > * { min-width: 0; }
+
+.flow__step {
+  display: grid;
+  /* The node in a fixed first column, the text in a shrinkable second one. This
+     is what puts the vertical rail at a constant x regardless of how long the
+     heading and body copy are. */
+  grid-template-columns: 68px minmax(0, 1fr);
+  align-content: start;
+  align-items: start;
+  gap: var(--spacing-8) var(--spacing-16);
+  position: relative;
+  min-width: 0;
+}
+@media (min-width: 900px) {
+  .flow__step { display: flex; flex-direction: column; gap: var(--spacing-16); }
+}
+
+/* The vertical rail on mobile: one hairline down the left, behind every node,
+   stopping at the first and last. `::before` on the step rather than on the
+   list so each segment knows where it ends. The negative insets let it run
+   edge-to-edge between consecutive nodes even where the step heights differ. */
+.flow__step::before {
+  content: "";
+  position: absolute;
+  left: 33px;                       /* the node's centre: 68 / 2 */
+  top: 0; bottom: calc(var(--spacing-32) * -1);
+  width: 1px;
+  background: var(--color-iron-edge);
+}
+.flow__step:first-child::before { top: 33px; }
+.flow__step:last-child::before { bottom: auto; height: 33px; }
+@media (min-width: 900px) {
+  .flow__step::before { content: none; }
+}
+
+.flow__node {
+  grid-row: 1;
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 68px; height: 68px;
+  flex: none;
+  border-radius: 50%;
+  border: 1px solid var(--color-iron-edge);
+  background: var(--color-carbon-plate);
+  color: var(--color-graphite);
+  font-family: var(--font-mono);
+  font-size: 15px;
+  letter-spacing: 0.06em;
+}
+/* The node is a grid child, so it needs an explicit z-index to sit above the
+   rail it is drawn through — the rail is the step's ::before, and both are in
+   the same stacking context. */
+.flow__node { z-index: 1; }
+
+/* On mobile the step's text sits beside the node, so the heading and the body
+   share the second column and the node spans both rows. */
+.flow__step > .t-heading-sm,
+.flow__step > .copy-sm {
+  grid-column: 2;
+  min-width: 0;
+}
+.flow__node { grid-row: 1 / span 2; }
+@media (min-width: 900px) {
+  .flow__node { grid-row: auto; }
+  .flow__step > .t-heading-sm,
+  .flow__step > .copy-sm { grid-column: auto; }
+}
+.flow__step.is-active .flow__node {
+  border-color: var(--color-fog);
+  color: var(--color-pure-white);
+}
+/* The pulsing mint dot rides the node once it is the active step. */
+.flow__step.is-active .flow__node::after {
+  content: "";
+  position: absolute;
+  right: -3px; bottom: -3px;
+  width: 12px; height: 12px;
+  border-radius: 50%;
+  background: var(--color-phosphor-mint);
+  animation: node-pulse 2s var(--ease-in-out) infinite;
+}
+@keyframes node-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(112, 220, 211, 0.5); }
+  50%      { box-shadow: 0 0 0 7px rgba(112, 220, 211, 0); }
+}
+
+/* =============================================================================
+   4.8 · CLARITY — accordion
+   -----------------------------------------------------------------------------
+   Borderless rows divided by hairlines, each a <button aria-expanded>. The
+   panel animates with grid-template-rows 0fr -> 1fr, which is the only way to
+   transition to an unknown height without measuring it in JS. The plus
+   rotates 45° into a cross when the row opens.
+   ========================================================================== */
+.acc { border-top: 1px solid var(--color-iron-edge); }
+.acc__item { border-bottom: 1px solid var(--color-iron-edge); }
+/* Full-width header, 48px floor, and the icon in a FIXED track that cannot
+   shrink — `minmax(0, 1fr)` on the question plus a fixed 20px icon column is
+   what keeps a long question from pushing the plus off the right edge. The
+   question is a grid item in a shrinkable track, so it wraps. */
+.acc__btn {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 20px;
+  gap: var(--spacing-16);
+  align-items: center;
+  width: 100%;
+  min-height: 48px;
+  padding: clamp(16px, 3vw, var(--spacing-24)) 0;
+  text-align: left;
+  color: var(--color-pure-white);
+  transition: color var(--dur-fast) var(--ease-out);
+}
+@media (hover: hover) {
+  .acc__btn:hover { color: var(--color-fog); }
+}
+.acc__q {
+  font-family: var(--font-display);
+  font-size: clamp(17px, 2.2vw, 22px);
+  font-weight: 500;
+  letter-spacing: 0.004em;
+  line-height: 1.3;
+  min-width: 0;
+  overflow-wrap: break-word;
+}
+.acc__icon {
+  position: relative;
+  width: 20px; height: 20px;
+  flex: none;
+  justify-self: end;
+  color: var(--color-graphite);
+  transition: transform var(--dur-base) var(--ease-out), color var(--dur-fast) var(--ease-out);
+}
+.acc__icon::before,
+.acc__icon::after {
+  content: "";
+  position: absolute;
+  left: 50%; top: 50%;
+  width: 14px; height: 1px;
+  translate: -50% -50%;
+  background: currentColor;
+}
+.acc__icon::after { rotate: 90deg; transition: rotate var(--dur-base) var(--ease-out); }
+.acc__btn[aria-expanded="true"] .acc__icon { rotate: 45deg; color: var(--color-pure-white); }
+
+.acc__panel {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows var(--dur-base) var(--ease-out);
+}
+.acc__item.is-open .acc__panel { grid-template-rows: 1fr; }
+/* The inner wrapper is what actually collapses: 0fr on the outer grid clips it. */
+.acc__panel > div { overflow: hidden; }
+.acc__a {
+  padding-bottom: var(--spacing-24);
+  max-width: 68ch;
+  font-size: var(--text-body-sm);
+  line-height: var(--leading-body-sm);
+  color: var(--color-graphite);
+  text-wrap: pretty;
+}
+
+/* --- closing CTA band ------------------------------------------------------
+   Sits on --gradient-ground with the perspective floor beneath it, so the page
+   ends on depth rather than on a flat rectangle. */
+.cta-band {
+  position: relative;
+  /* `clip`, not `hidden`: the floor below bleeds well outside this box by
+     design (`inset: 46% -30% -60% -30%`), and `hidden` would make the whole
+     band a scroll container. */
+  overflow: clip;
+  border-radius: var(--radius-cards);
+  border: 1px solid var(--color-fog);
+  background: var(--gradient-ground);
+  padding: clamp(40px, 7vw, 88px) clamp(16px, 5vw, 72px);
+  text-align: center;
+  isolation: isolate;
+  min-width: 0;
+}
+/* The floor: a grid in perspective, faded out toward the viewer. */
+.cta-band__floor {
+  position: absolute;
+  inset: 46% -30% -60% -30%;
+  z-index: -1;
+  background-image:
+    linear-gradient(var(--color-iron-edge) 1px, transparent 1px),
+    linear-gradient(90deg, var(--color-iron-edge) 1px, transparent 1px);
+  background-size: 56px 56px;
+  opacity: 0.28;
+  transform: perspective(520px) rotateX(64deg);
+  transform-origin: 50% 0;
+  -webkit-mask-image: linear-gradient(180deg, #000 0%, transparent 78%);
+  mask-image: linear-gradient(180deg, #000 0%, transparent 78%);
+}
+.cta-band__inner {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--spacing-24);
+  min-width: 0;
+  width: 100%;
+}
+.cta-band .copy { max-width: min(52ch, 100%); margin-inline: auto; }
+.cta-band__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-16);
+  justify-content: center;
+  align-items: center;
+  width: 100%;
+  min-width: 0;
+}
+/* Below 480px the three CTAs stack full-width rather than wrapping into a
+   ragged two-plus-one. */
+@media (max-width: 479px) {
+  .cta-band__actions { flex-direction: column; align-items: stretch; }
+  .cta-band__actions .btn { width: 100%; }
+}
+
+/* =============================================================================
+   FOOTER — DESIGN.md "Footer Link Column"
+   Four columns, 14px/500 white headings, 14px Graphite links, no underline,
+   12px row gap, 40px column gap. A Steel Border rule on top.
+   ========================================================================== */
+/* -----------------------------------------------------------------------------
+   This block used to exist TWICE — once here and once in components.css, with
+   different column counts below 768px. Both were in the bundle; this file wins
+   on source order, so the duplicate was a trap rather than a fallback. It is
+   gone from components.css and this is the single definition.
+
+   Columns, per brief §4: 1 below 600px, 2 from 600 to 1023px, 4 from 1024px.
+   `minmax(0, …)` on every track, so a long link in a narrow column shrinks
+   and wraps instead of widening the grid. */
+.site-footer {
+  position: relative;
+  z-index: 1;
+  border-top: 1px solid var(--color-steel-border);
+  background: var(--color-void-canvas);
+  padding-block: clamp(32px, 6vw, var(--spacing-56)) calc(var(--spacing-32) + env(safe-area-inset-bottom, 0px));
+}
+.footer-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--spacing-40) var(--spacing-24);
+}
+@media (min-width: 600px) {
+  .footer-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (min-width: 1024px) {
+  .footer-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--spacing-40); }
+}
+.footer-col { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.footer-col__head {
+  font-size: var(--text-body-sm);
+  font-weight: var(--weight-medium);
+  line-height: var(--leading-body-sm);
+  letter-spacing: 0.004em;
+  color: var(--color-pure-white);
+  margin-bottom: 8px;
+}
+/* 44px tall, so every footer link clears the brief's touch-target floor. The
+   gap stays 12px+ of visual space because the target's own padding is
+   transparent. */
+.footer-col a {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--tap-target);
+  font-size: var(--text-body-sm);
+  line-height: var(--leading-body-sm);
+  color: var(--color-graphite);
+  /* No underline, per DESIGN.md. `fit-content` is dropped: it capped the
+     element at its text width, which is fine until the text wraps, at which
+     point the box stops wrapping with it. */
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  transition: color var(--duration-fast) var(--ease-out);
+}
+@media (hover: hover) {
+  .footer-col a:hover { color: var(--color-pure-white); }
+}
+.footer-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 32px;
+  font-size: var(--text-body-sm);
+  color: var(--color-graphite);
+}
+/* The one green dot in the footer — a status indicator, which is the sanctioned
+   use of the accent outside the accent card. */
+.footer-status .status-dot {
+  width: 8px; height: 8px;
+  flex: none;
+  border-radius: 50%;
+  background: var(--color-phosphor-mint);
+}
+/* The bottom bar. Column on mobile with the copyright ABOVE the icons, row with
+   space-between from 768px, per brief §4. */
+.footer-bottom {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-16);
+  margin-top: var(--spacing-40);
+  padding-top: var(--spacing-24);
+  border-top: 1px solid var(--color-steel-border);
+}
+@media (max-width: 767px) {
+  .footer-bottom {
+    flex-direction: column;
+    align-items: flex-start;
+    justify-content: flex-start;
+  }
+}
+.footer-bottom small {
+  font-size: 13px;
+  color: var(--color-cinder);
+}
+.footer-social { display: flex; align-items: center; gap: 10px; margin-left: auto; }
+@media (max-width: 767px) { .footer-social { margin-left: 0; } }
+/* 44px targets. They render as 32px discs visually via the icon size, so the
+   tap area is bigger than the mark without the row looking padded. */
+.footer-social a {
+  display: grid;
+  place-items: center;
+  width: var(--tap-target);
+  height: var(--tap-target);
+  border-radius: 50%;
+  color: var(--color-slate-mute);
+  transition: color var(--duration-fast) var(--ease-out), background-color var(--duration-fast) var(--ease-out);
+}
+@media (hover: hover) {
+  .footer-social a:hover { color: var(--color-pure-white); background: var(--color-iron-edge); }
+}
+.footer-social .icon { width: 18px; height: 18px; }

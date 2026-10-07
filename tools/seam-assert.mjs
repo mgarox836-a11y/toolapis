@@ -62,7 +62,11 @@ for (const width of WIDTHS) {
     const over = (fg, bg, a) => fg.map((c, i) => c * a + bg[i] * (1 - a));
 
     const hero = document.getElementById('hero');
-    const next = document.getElementById('overview');
+    /* Whatever element actually follows the hero. The redesign put the trust
+       marquee between them, so hard-coding #overview made this probe measure a
+       gap that is a real band with a real border, not a seam. */
+    const heroEl = document.getElementById('hero');
+    const next = heroEl.nextElementSibling || document.getElementById('overview');
     const hb = hero.getBoundingClientRect();
     const joinYDoc = hb.bottom + window.scrollY;
 
@@ -157,7 +161,7 @@ for (const width of WIDTHS) {
   const bad = [];
   const check = (label, pass, detail) => (pass ? ok : bad).push(`${label}${detail ? '  [' + detail + ']' : ''}`);
 
-  check('hero and next section share the boundary row', r.touch, `${r.heroBottomDoc} vs ${r.nextTopDoc}`);
+  check('hero and its next sibling share the boundary row', r.touch, `${r.heroBottomDoc} vs ${r.nextTopDoc}`);
   /* #hero is a transparent stacking container, exactly like #overview — the fill
      is painted by the `.hero-bg` layer inside it, over the root canvas. Both can
      therefore meet at a shared row without either one owning a fill. */

@@ -6,8 +6,13 @@
 
      1. hero headline reveal, per word, with the tracking settle;
      2. hero glow parallax, capped at 12px;
-     3. navbar state on scroll, so `.nav-solid` does not depend on a sentinel
-        alone (the sentinel stays authoritative; this only re-asserts).
+     3. navbar state on scroll.
+
+   Item 3 USED to be duplicated here as a fallback for script.js's
+   IntersectionObserver. It no longer is: the sentinel in script.js is the only
+   thing that toggles `.nav-solid`, because two listeners racing to set the
+   same class on the same scroll is a bug waiting for the one case they
+   disagree on.
 
    DESIGN.md does not define motion, so the character is "instrument panel":
    precise, calm, transform/opacity only, and completely inert when motion is
@@ -55,11 +60,11 @@ function heroReveal() {
     return;
   }
 
-  /* The intro controller owns the hero's arrival (INTRO_DURATION is 5s and the
-     curtain lifts at 3.6s), so the words are released just after it hands over
-     rather than racing it. When the intro is not running, they go immediately. */
-  if (document.documentElement.classList.contains('intro-active')) {
-    window.setTimeout(release, 3900);
+  /* There is no preloader to wait out any more, so the words go as soon as the
+     DOM is ready. The nth-child transition-delays in css/animations.css do the
+     staggering; this only hands over the class. */
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', release, { once: true });
   } else {
     release();
   }
@@ -100,33 +105,20 @@ function heroParallax() {
 }
 
 /* ---------------------------------------------------------------------------
-   3. NAVBAR STATE
-   `.nav-solid` owns the hairline under the bar. script.js toggles it from the
-   top sentinel; this is a re-assert on scroll for the case where that observer
-   has not fired yet on a very fast restore, and it is idempotent.
+   3. NAVBAR STATE — REMOVED
+   This used to re-assert `.nav-solid` on scroll as a fallback for script.js's
+   sentinel observer. Two listeners setting the same class from two different
+   definitions of "scrolled" (a sentinel's intersection ratio vs a raw scrollY
+   comparison) is not a belt-and-braces pair, it is two answers to one
+   question, and during a fast restore or a momentum scroll they will disagree
+   for a frame. script.js's sentinel is now the only writer.
    ------------------------------------------------------------------------- */
-function navState() {
-  const navbar = document.getElementById('navbar');
-  if (!navbar) return;
-  let ticking = false;
-  const apply = () => {
-    ticking = false;
-    navbar.classList.toggle('nav-solid', window.scrollY > 8);
-  };
-  window.addEventListener('scroll', () => {
-    if (ticking) return;
-    ticking = true;
-    requestAnimationFrame(apply);
-  }, { passive: true });
-  apply();
-}
 
 /* ---------------------------------------------------------------------------
    BOOT
    ------------------------------------------------------------------------- */
 function boot() {
   try { heroReveal(); } catch (e) {}
-  try { navState(); } catch (e) {}
   /* The parallax is the only part that depends on the policy, so it is attached
      and detached with it rather than being decided once at load. */
   try {

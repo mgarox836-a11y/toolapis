@@ -27,12 +27,13 @@
  * ----------------------------------------------------------------------------
  * 1. Never touches an element script.js already owns. Anything carrying
  *    `.reveal` / `[data-reveal]`, anything inside a `.reveal-group`, anything
- *    carrying `data-intro-reveal` (the hero, which the intro controller drives)
- *    and anything Motion has tagged `data-motion-kind` is skipped outright.
- *    script.js is byte-for-byte unchanged.
+ *    carrying `data-load-reveal` (the hero's arrival, which css/animations.css
+ *    plays on load) and anything Motion has tagged `data-motion-kind` is
+ *    skipped outright.
  * 2. Never animates chrome. The sticky header, nav, progress bar, back-to-top,
- *    spotlight, grain, toast, mobile menu, page-transition plate and the canvas
- *    are excluded by container, and anything whose computed position is
+ *    grain, toast, mobile menu, page-transition plate, the hero's light-ribbon
+ *    scene and its floating chips are excluded by container, and anything whose
+ *    computed position is
  *    `fixed` or `sticky` is excluded by measurement.
  * 3. Never leaves a block hidden. No IntersectionObserver -> reveal everything.
  *    Anything already in the viewport -> revealed on the spot, on load, after
@@ -71,17 +72,20 @@ export const REVEAL = {
  *  Flat across each container, in DOM order, so the copy walks the row rather
  *  than the whole grid arriving as one slab. */
 const GROUPS = [
-  /* the feature and flow section intros: the h2 (Motion's) then this paragraph */
-  ['#features .max-w-3xl.reveal', 80],
-  ['#flow .max-w-3xl.reveal', 80],
-  /* the three tool cards: title, accent, body — left to right */
-  ['#overview .reveal-group', 70],
-  /* the two feature tiles: same, with the wide one first */
-  ['#features .reveal-group', 80],
-  /* the three flow steps: title, body — left to right */
+  /* the section intros: the h2 (Motion's) then this paragraph */
+  ['#features .section-head', 80],
+  ['#flow .section-head', 80],
+  ['#clarity .section-head', 80],
+  /* the four bento cards, left to right across two rows */
+  ['#overview .bento', 70],
+  /* the three feature rows */
+  ['#features .feature', 90],
+  /* the three flow steps */
   ['#flow .reveal-group', 90],
-  /* the CTA card: paragraph, then the three buttons */
-  ['#clarity > .reveal .relative', 90],
+  /* the four accordion questions */
+  ['#clarity .acc', 70],
+  /* the closing CTA band: paragraph, then the buttons */
+  ['#clarity .cta-band__inner', 90],
 ];
 
 /** The headings and the copy that sit INSIDE a block the existing system
@@ -92,7 +96,8 @@ const CANDIDATES = ['h3', '.reveal p', '.reveal .btn', '.reveal button'].join(',
 /** Chrome. By container, because the header's own class list is not ours. */
 const CHROME = [
   '#navbar', '#nav-sentinel', '#scroll-progress', '#back-to-top',
-  '#spotlight', '.grain', '#toast', '#page-transition', '#intro-overlay',
+  '.grain', '#toast', '#page-transition',
+  '.hero-scene', '.hero-chip',
   '#mobile-menu', '.skip-link',
 ].join(',');
 
@@ -118,12 +123,12 @@ function isChrome(el) {
 
 function isOwned(el) {
   /* script.js / the intro controller already animate this element. */
-  if (el.matches('.reveal, [data-reveal], [data-intro-reveal]')) return true;
+  if (el.matches('.reveal, [data-reveal], [data-load-reveal]')) return true;
   /* A `.reveal-group` child is a target in its own right: script.js staggers
      them and reveals each one. Only what is INSIDE one is ours. */
   if (el.closest('.reveal-group')) return !el.closest('.reveal-group > *');
   /* The hero is the intro controller's, top to bottom. */
-  if (el.closest('[data-intro-reveal]')) return true;
+  if (el.closest('[data-load-reveal]')) return true;
   /* Motion owns `main h2` and the footer, and tags the well-sized icon boxes
      inside `.reveal`. It sets `data-motion-kind` synchronously at its own boot,
      and script.js is a deferred script earlier in the document than this
@@ -274,7 +279,7 @@ function boot() {
     try { legacy = document.querySelectorAll('.reveal, [data-reveal]'); } catch (err) { legacy = []; }
     for (let i = 0; i < legacy.length; i++) {
       const el = legacy[i];
-      if (el.matches('[data-intro-reveal]') || isChrome(el)) continue;
+      if (el.matches('[data-load-reveal]') || isChrome(el)) continue;
       if (el.closest('.reveal-group')) continue;
       if (seen.has(el)) continue;
       seen.add(el);

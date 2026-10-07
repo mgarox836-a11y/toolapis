@@ -1,79 +1,70 @@
 /* =============================================================================
    hero-extras.js — TOOLAPIS · hero-only extras
    -----------------------------------------------------------------------------
-   The hero's moving parts that are not the headline and not the motion policy:
-
-     * a damped cursor parallax on the TOOL PASS card (6px x, 4px y);
-     * the drifting coordinate readout in the hero's stamped meta strip.
+   The hero's one remaining extra: a damped cursor parallax on the TOOL PASS
+   card (12px x, 8px y), which is the only thing on the page that moves in
+   response to the pointer other than the light-ribbon scene and the card
+   spotlight.
 
    WHAT THIS FILE NO LONGER OWNS
    -----------------------------------------------------------------------------
-   The previous build ran a full-bleed sky <video> and an animated contrail
-   behind the hero, then a WebGL layer behind those. All three are gone. The
-   ground DESIGN.md asks for — neon-lit geometry on a dark gradient, blending
-   into #070707 with no hard mask — is drawn entirely in CSS by css/hero.css.
-   The players and observers went with them rather than being left behind
-   guarding elements that no longer exist.
+   Three things used to live here and are gone, each with its markup:
 
-   The headline parallax lives in js/motion-fx.js now, alongside the rest of the
-   ambient motion, so all decorative motion is in one place.
+     * a full-bleed sky <video> and an animated contrail;
+     * a WebGL layer behind both;
+     * a drifting coordinate readout in a stamped meta strip.
+
+   The preloader and the meta strip went with the redesign; the video and the
+   WebGL layer went earlier (the WebGL removal is commit b834c18 — it was the
+   entire performance problem, 96% native GPU). The ground DESIGN.md asks for is
+   now drawn in css/hero3d.css, and its parallax lives in js/hero3d.js.
+
+   Everything decorative lives with everything else decorative:
+     js/hero3d.js   the ribbon scene
+     js/motion-fx.js  headline reveal + glow parallax
+     js/widgets.js   section widgets
+   This file is now one effect, so it is one small IIFE.
    ========================================================================== */
 
 (function () {
   'use strict';
 
-  const root = document.documentElement;
-  const hero = document.getElementById('hero');
+  var hero = document.getElementById('hero');
   if (!hero) return;
 
-  const pass = hero.querySelector('.hero-boarding');
-  const coordsEl = hero.querySelector('[data-coords]');
+  var pass = hero.querySelector('.hero-boarding');
+  if (!pass) return;
 
-  const reduced = root.classList.contains('motion-reduced')
+  var root = document.documentElement;
+  var reduced = root.classList.contains('motion-reduced')
     || root.classList.contains('reduced-motion')
     || (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
-  const coarse = window.matchMedia && window.matchMedia('(pointer: coarse)').matches;
+  var coarse = window.matchMedia && window.matchMedia('(pointer: coarse)').matches;
 
-  /* ---------------------------------------------------------------------
-     TOOL PASS parallax. Damped through a rAF loop, so the card trails the
-     pointer instead of tracking it, and it is transform-only — nothing here
-     can trigger layout.
-     --------------------------------------------------------------------- */
-  if (pass && !reduced && !coarse) {
-    let x = 0, y = 0, cx = 0, cy = 0, raf = null;
+  if (reduced || coarse) return;
 
-    const tick = function () {
-      raf = null;
-      cx += (x - cx) * 0.06;
-      cy += (y - cy) * 0.06;
-      pass.style.transform = 'translate3d(' + cx.toFixed(2) + 'px,' + cy.toFixed(2) + 'px,0)';
-      if (Math.abs(x - cx) > 0.05 || Math.abs(y - cy) > 0.05) raf = requestAnimationFrame(tick);
-    };
+  /* Damped through a rAF loop, so the card trails the pointer instead of
+     tracking it, and it is transform-only — nothing here can trigger layout. */
+  var x = 0, y = 0, cx = 0, cy = 0, raf = null;
 
-    window.addEventListener('pointermove', function (e) {
-      x = (e.clientX / window.innerWidth - 0.5) * 12;
-      y = (e.clientY / window.innerHeight - 0.5) * 8;
-      if (!raf) raf = requestAnimationFrame(tick);
-    }, { passive: true });
+  var tick = function () {
+    raf = null;
+    cx += (x - cx) * 0.06;
+    cy += (y - cy) * 0.06;
+    pass.style.transform = 'translate3d(' + cx.toFixed(2) + 'px,' + cy.toFixed(2) + 'px,0)';
+    if (Math.abs(x - cx) > 0.05 || Math.abs(y - cy) > 0.05) raf = requestAnimationFrame(tick);
+  };
 
-    window.addEventListener('mouseout', function () {
-      x = 0; y = 0;
-      if (!raf) raf = requestAnimationFrame(tick);
-    });
-  }
+  window.addEventListener('pointermove', function (e) {
+    x = (e.clientX / window.innerWidth - 0.5) * 12;
+    y = (e.clientY / window.innerHeight - 0.5) * 8;
+    if (!raf) raf = requestAnimationFrame(tick);
+  }, { passive: true });
 
-  /* ---------------------------------------------------------------------
-     Coordinate readout. A slow sine drift, so the strip reads as a live
-     instrument rather than as static text.
-     --------------------------------------------------------------------- */
-  if (coordsEl && !reduced) {
-    const baseLat = 37.7681;
-    const baseLon = -122.0039;
-    let t = 0;
-    window.setInterval(function () {
-      t += 0.00008;
-      coordsEl.textContent = (baseLat + Math.sin(t) * 0.0004).toFixed(4)
-        + '° N, ' + (baseLon + Math.cos(t) * 0.0005).toFixed(4) + '° W';
-    }, 1200);
-  }
+  /* Park it when the pointer leaves the window rather than holding the last
+     offset forever. */
+  window.addEventListener('mouseout', function () {
+    x = 0; y = 0;
+    if (!raf) raf = requestAnimationFrame(tick);
+  });
 })();

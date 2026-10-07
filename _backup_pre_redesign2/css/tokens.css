@@ -1,0 +1,197 @@
+/* =============================================================================
+   TOKENS — TOOLAPIS
+   -----------------------------------------------------------------------------
+   The single source of truth for the redesign. Every colour, size, radius and
+   timing on the site resolves here, so DESIGN.md is the only place a value is
+   ever written down.
+
+   SOURCE: DESIGN.md ("midnight mission control with phosphor-green accents").
+   Nothing in this file is invented: each entry is the token, value and role
+   exactly as DESIGN.md states it.
+
+   THE 3D BRIDGE
+   --------------
+   `--surface`, `--surface-card`, `--surface-border`, `--accent-mint` and
+   `--accent-mint-hover` are read at runtime by js/config.js (PALETTE) to tint
+   the WebGL layer and its fog. They are aliases of the DESIGN.md values below,
+   so the 3D props follow the page without a line of JS changing. `--surface`
+   MUST stay identical to the html/body background: the 3D fog IS the page
+   background, and two different blacks make distant geometry dissolve into a
+   visible halo instead of into the void.
+   ========================================================================== */
+
+:root {
+  /* ---------------------------------------------------------------------
+     COLOUR — DESIGN.md "Tokens / Colors"
+     --------------------------------------------------------------------- */
+  --color-void-canvas: #070707;      /* page background, the floor      */
+  --color-carbon-plate: #0d0e12;     /* primary card surface            */
+  --color-obsidian: #141418;         /* nested cards, code surfaces     */
+  --color-iron-edge: #2e3038;        /* hover, dividers, active overlays */
+  --color-steel-border: #22222a;     /* structural borders, nav rules    */
+  --color-pure-white: #ffffff;       /* primary text, filled pill fill  */
+  --color-cloud-mist: #f0f0f0;       /* secondary text, soft fills      */
+  --color-fog: #d9dae5;              /* CARD HAIRLINE — light on dark   */
+  --color-ash: #c8cad0;              /* body secondary, muted copy       */
+  --color-graphite: #aeaeb7;         /* body tertiary, icon strokes      */
+  --color-slate-mute: #a2a4a9;       /* nav borders, inactive nav text   */
+  --color-cinder: #60606c;           /* low-priority text, placeholders  */
+  --color-phosphor-mint: #70dcd3;    /* THE accent — one card per view  */
+  --color-signal-blue: #0092e4;      /* link borders, focus accents      */
+  --color-ice-blue: #a6e5f2;         /* decorative soft borders, eyebrows*/
+  --color-current-blue: #00ade4;     /* active nav / current page       */
+  --color-deep-signal: #0677d4;      /* input focus border              */
+  --color-verdant-edge: #75ae4c;     /* success badge, light emphasis    */
+  --color-steel-iris: #929dbd;       /* cool-tinted card decorative edge */
+
+  /* Surfaces — DESIGN.md "Surfaces": four stacked levels on the dark spectrum */
+  --surface-void-canvas: var(--color-void-canvas);
+  --surface-carbon-plate: var(--color-carbon-plate);
+  --surface-obsidian: var(--color-obsidian);
+  --surface-iron-edge: var(--color-iron-edge);
+
+  /* --- 3D bridge (read by js/config.js -> PALETTE). Do not rename. ------- */
+  --surface: var(--color-void-canvas);            /* fog == page bg        */
+  --surface-card: var(--color-carbon-plate);       /* prop bodies           */
+  --surface-border: var(--color-steel-border);     /* prop edges            */
+  --accent-mint: var(--color-phosphor-mint);       /* the one accent        */
+  /* The emissive highlight on a 3D prop. Ice Blue is a token in its own
+     right (light accent strokes) and is only ever seen on the WebGL layer,
+     never on a UI surface — DESIGN.md's "no mint + blue on one surface" rule
+     is about UI, and this is not UI. */
+  --accent-mint-hover: var(--color-ice-blue);
+
+  /* ---------------------------------------------------------------------
+     TYPOGRAPHY — DESIGN.md "Tokens / Typography"
+     Calsans is a paid face, so the substitute DESIGN.md nominates
+     (Space Grotesk) is what ships. Its POSITIVE tracking (0.056em) is
+     structural and is kept at every size: that is what makes a headline read
+     as an instrument-panel readout instead of an editorial one.
+     Geist is the body face; DESIGN.md nominates Inter as the substitute and
+     it is kept as the fallback so the page never loses its texture.
+     --------------------------------------------------------------------- */
+  --font-display: 'Space Grotesk', 'Calsans', ui-sans-serif, system-ui, sans-serif;
+  --font-body: 'Geist', 'Inter', ui-sans-serif, system-ui, -apple-system,
+    BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-mono: 'Geist Mono', ui-monospace, 'JetBrains Mono', SFMono-Regular,
+    Menlo, Consolas, monospace;
+
+  /* Legacy aliases kept so the existing markup/utility names keep resolving. */
+  --font-sans: var(--font-body);
+  --font-display-serif: var(--font-display);
+
+  /* Type scale — DESIGN.md "Type Scale". Tracking is per-size, not global. */
+  --text-caption: 12px;      --leading-caption: 1.22;   --tracking-caption: 0.5px;
+  --text-body-sm: 14px;      --leading-body-sm: 1.44;
+  --text-body: 16px;         --leading-body: 1.5;
+  --text-subheading: 20px;   --leading-subheading: 1.5; --tracking-subheading: -0.34px;
+  --text-heading-sm: 32px;   --leading-heading-sm: 1.1; --tracking-heading-sm: 1.8px;
+  --text-heading: 56px;      --leading-heading: 1.1;    --tracking-heading: 3.1px;
+  --text-heading-lg: 72px;   --leading-heading-lg: 1;   --tracking-heading-lg: 4px;
+  --text-display: 88px;      --leading-display: 0.96;   --tracking-display: 4.9px;
+
+  /* The tracking constant DESIGN.md states for EVERY Calsans size. Headings
+     use it verbatim at desktop; the fluid rules below tighten it only because
+     a narrow viewport physically cannot hold 4.9px of space per glyph. */
+  --tracking-display-face: 0.056em;
+
+  /* Weights */
+  --weight-light: 300;
+  --weight-regular: 400;
+  --weight-medium: 500;
+  --weight-semibold: 600;
+
+  /* ---------------------------------------------------------------------
+     SPACING & SHAPES — DESIGN.md "Spacing & Shapes"
+     Base unit 8px, comfortable density.
+     --------------------------------------------------------------------- */
+  --spacing-unit: 8px;
+  --spacing-8: 8px;
+  --spacing-16: 16px;
+  --spacing-24: 24px;
+  --spacing-32: 32px;
+  --spacing-40: 40px;
+  --spacing-56: 56px;
+  --spacing-80: 80px;
+
+  /* Radius — DESIGN.md "Border Radius". Controls are pills; the only sharp
+     radius on the site is the 5px input. */
+  --radius-cards: 20px;
+  --radius-nested-cards: 16px;
+  --radius-badges: 800px;
+  --radius-buttons: 800px;
+  --radius-inputs: 5px;
+
+  /* Legacy aliases (same values, old names) so nothing that referenced the
+     previous sheet's shape tokens silently falls back to a default. */
+  --r-card: var(--radius-cards);
+  --r-btn: var(--radius-buttons);
+  --r-control: var(--radius-inputs);
+  --r-pill: var(--radius-badges);
+
+  /* ---------------------------------------------------------------------
+     ELEVATION — DESIGN.md is shadowless by design.
+     Cards define themselves with a 1px LIGHT hairline, never a drop shadow.
+     The only sanctioned shadow is the inset lighting on the filled white pill,
+     which reads as an emboss rather than as elevation.
+     --------------------------------------------------------------------- */
+  --shadow-subtle: rgba(0, 0, 0, 0.05) 2px 2px 0px 0px;
+  --shadow-subtle-2:
+    rgb(255, 255, 255) 0px -1px 0px 0px inset,
+    rgb(255, 255, 255) 1px 0px 0px 0px inset,
+    rgb(255, 255, 255) -1px 0px 0px 0px inset,
+    rgb(255, 255, 255) 0px 1px 0px 0px inset;
+
+  /* ---------------------------------------------------------------------
+     LAYOUT — DESIGN.md "Layout"
+     --------------------------------------------------------------------- */
+  --page-max-width: 1200px;
+  --section-gap: 80px;
+  --card-padding: 24px;
+  --element-gap: 16px;
+
+  /* Legacy aliases used by the existing markup rules */
+  --page-max: var(--page-max-width);
+  --card-pad: var(--card-padding);
+
+  /* ---------------------------------------------------------------------
+     MOTION — DESIGN.md does not define motion, so it is interpreted as
+     "instrument panel": precise, calm, never showy. One global easing curve,
+     200ms for state changes, 600–800ms for reveals. Only transform and opacity
+     are ever animated (compositor-only, so nothing shifts layout at 60fps).
+     --------------------------------------------------------------------- */
+  --ease-out-quint: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+  --duration-fast: 200ms;
+  --duration-reveal: 700ms;
+  --duration-slow: 800ms;
+  --stagger-step: 80ms;
+
+  /* Height of the sticky bar. DESIGN.md "Navigation Bar": ~64px. */
+  --navbar-height: 64px;
+  --nav-h: var(--navbar-height);
+}
+
+/* -----------------------------------------------------------------------------
+   FLUID TYPE
+   DESIGN.md gives fixed sizes; these clamps keep the same sizes at desktop and
+   step down on small screens so nothing overflows at 375px. The display face
+   lands at 88px on a wide viewport and ~44px at 375px, which is the floor the
+   brief asks for. Tracking eases with the size for the same reason.
+   -------------------------------------------------------------------------- */
+@media (max-width: 767px) {
+  :root {
+    --text-heading: 34px;
+    --text-heading-lg: 40px;
+    --text-display: 44px;
+    --section-gap: 56px;
+    --card-padding: 20px;
+  }
+}
+@media (min-width: 768px) and (max-width: 1199px) {
+  :root {
+    --text-heading: 44px;
+    --text-heading-lg: 56px;
+    --text-display: 64px;
+  }
+}

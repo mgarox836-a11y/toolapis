@@ -1,0 +1,857 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <!-- Charset first, ahead of the failsafe script below. It has to land inside
+       the first 1024 bytes to be honoured, and the bootstrap runs long before
+       this line used to sit — so the declaration was arriving too late to be
+       the document's encoding. A meta charset does not gate script execution,
+       so moving it up costs the failsafe nothing. -->
+  <meta charset="UTF-8">
+
+  <!-- ==========================================================================
+       INTRO FAILSAFE — first thing in <head>, deliberately inline and tiny.
+       It has NO dependency on the module, Three.js, fonts or the network.
+       If anything at all goes wrong later, this still hands the page back.
+       ========================================================================== -->
+  <script>
+    (function () {
+      /* ==========================================================================
+         1. FIRST STATEMENTS. The browser must never own the scroll position,
+            and an empty / #overview hash must never become a jump to the
+            tool-cards section. Both happen here, before the page has a layout,
+            so nothing can beat them to it.
+         ========================================================================== */
+      try { if ('scrollRestoration' in history) history.scrollRestoration = 'manual'; } catch (e) {}
+      var h = '';
+      try {
+        h = (location.hash || '').toLowerCase();
+        if (h === '' || h === '#' || h === '#overview') {
+          history.replaceState(null, '', location.pathname + location.search);
+          h = '';
+        }
+      } catch (e) {}
+
+      /* A deliberate deep link (#features, #flow, #clarity) is honoured AFTER
+         the intro by js/intro.js. Everything else means the hero, always. */
+      var DEEP_LINK = h.charAt(0) === '#' && h.length > 1;
+
+      function forceTop() {
+        try {
+          var d = document.documentElement;
+          if (!d) return;
+          var prev = d.style.scrollBehavior;
+          var prevAnchor = d.style.overflowAnchor;
+          var prevOver = d.style.overscrollBehavior;
+          d.style.scrollBehavior = 'auto';
+          d.style.overflowAnchor = 'none';
+          d.style.overscrollBehavior = 'none';
+          try { window.scrollTo({ top: 0, left: 0, behavior: 'instant' }); }
+          catch (e) { try { window.scrollTo(0, 0); } catch (e2) {} }
+          d.scrollTop = 0;
+          try { if (document.body) document.body.scrollTop = 0; } catch (e) {}
+          d.style.scrollBehavior = prev;
+          d.style.overflowAnchor = prevAnchor;
+          d.style.overscrollBehavior = prevOver;
+        } catch (e) {}
+      }
+      /* js/intro.js reuses this exact function instead of owning a second one. */
+      window.__tlForceTop = forceTop;
+      forceTop();
+
+      /* Hoisted declaration — not an executed statement. */
+      function cleanup() {
+        try { forceTop(); } catch (e) {}
+        try {
+          var o = document.getElementById('intro-overlay');
+          if (o) { o.classList.add('is-hidden'); o.style.display = 'none';
+                   if (o.parentNode) o.parentNode.removeChild(o); }
+          var d = document.documentElement, b = document.body;
+          if (d) { d.classList.remove('intro-active'); d.style.overflow = '';
+                   d.style.touchAction = ''; d.classList.add('intro-done'); }
+          if (b) { b.style.overflow = ''; b.style.touchAction = ''; b.classList.add('intro-done'); }
+        } catch (e) {}
+        /* The top is re-asserted AFTER the overlay leaves the flow, because
+           that reflow is the classic moment for a restored position to snap
+           back in. */
+        try {
+          requestAnimationFrame(function () { forceTop(); requestAnimationFrame(forceTop); });
+          setTimeout(forceTop, 60);
+          setTimeout(forceTop, 250);
+        } catch (e) {}
+      }
+
+      /* The hard failsafe, still the one independent of every module. */
+      window.setTimeout(cleanup, 3000);
+
+      /* The scroll-reveal failsafe, same clock, same argument. script.js sets
+         `html.js` on its first line and js/reveal.js sets `data-reveal-live`.
+         By 3s the curtain is long gone; if either half is missing, snap
+         everything visible so nothing is stranded at opacity 0. */
+      window.setTimeout(function () {
+        try {
+          var d = document.documentElement;
+          var scriptAlive = !!(d && d.classList.contains('js'));
+          var revealAlive = !!(d && d.hasAttribute('data-reveal-live'));
+          if (scriptAlive && revealAlive) return;
+          d.classList.add('reveal-all');
+          if (d) d.setAttribute('data-reveal-failsafe', '1');
+        } catch (e) {}
+      }, 3000);
+
+      var BOOT = performance.now();
+
+      document.documentElement.classList.add('intro-active');
+      document.documentElement.setAttribute('data-intro-stage', '0');
+
+      try {
+        document.documentElement.style.overflow = 'hidden';
+        if (document.body) document.body.style.overflow = 'hidden';
+      } catch (e) {}
+
+      var tick = setInterval(function () {
+        if (performance.now() - BOOT >= 3000) { clearInterval(tick); cleanup(); }
+      }, 500);
+      function wake() {
+        if (performance.now() - BOOT >= 3000) { clearInterval(tick); cleanup(); }
+        forceTop();
+      }
+      window.addEventListener('pageshow', wake, true);
+      document.addEventListener('visibilitychange', wake, true);
+
+      /* The guard. A browser restore can land at any time up to (and just
+         after) the load event, so the position is re-asserted every frame for
+         the first ~1.2s and again for ~600ms after load, and for as long as the
+         intro still owns the screen. It stops the instant the visitor touches
+         the page, so it can never fight them. */
+      var guardStop = false;
+      ['wheel', 'touchstart', 'keydown', 'pointerdown', 'mousedown'].forEach(function (type) {
+        window.addEventListener(type, function () {
+          try {
+            if (document.documentElement.classList.contains('intro-done')) guardStop = true;
+          } catch (e) {}
+        }, { passive: true, capture: true });
+      });
+
+      function startGuard(spanMs) {
+        var t0 = performance.now();
+        function step() {
+          /* A deep link owns the destination; never fight it. */
+          if (guardStop || DEEP_LINK) return;
+          var done = false;
+          try { done = document.documentElement.classList.contains('intro-done'); } catch (e) {}
+          var within = performance.now() - t0 < spanMs;
+          if (done && !within) return;
+          if (window.scrollY || window.scrollX) forceTop();
+          requestAnimationFrame(step);
+        }
+        requestAnimationFrame(step);
+      }
+      startGuard(1200);
+
+      document.addEventListener('DOMContentLoaded', forceTop, true);
+      window.addEventListener('load', function () {
+        forceTop();
+        startGuard(600);
+        [0, 100, 300, 800, 1500].forEach(function (ms) {
+          setTimeout(function () {
+            try { if (guardStop) return; } catch (e) {}
+            forceTop();
+          }, ms);
+        });
+      }, true);
+      window.addEventListener('pageshow', function (e) {
+        forceTop();
+        if (e && e.persisted) startGuard(600);
+      }, true);
+      window.addEventListener('pagehide', forceTop, true);
+      window.addEventListener('beforeunload', forceTop, true);
+    })();
+  </script>
+  <!-- ==========================================================================
+       MOTION CLASS BOOTSTRAP — runs before any stylesheet, so there is never a
+       frame with the wrong class on <html>.
+
+       A deliberate duplicate of js/motion.js's `decide()`, not a second policy:
+       an ES module is deferred, so importing js/motion.js here would land after
+       the first paint. js/motion.js re-applies the same classes when it runs.
+
+       `RESPECT_REDUCED_MOTION` below MUST stay equal to
+       TUNING.motion.respectReducedMotion in js/config.js. TRUE means the OS
+       "reduce motion" setting is consulted — required by DESIGN.md's
+       accessibility intent and by the brief's acceptance checklist.
+       ========================================================================== -->
+  <script>
+    (function () {
+      var RESPECT_REDUCED_MOTION = true;
+      var STORAGE_KEY = 'toolapis-reduce-motion';
+
+      var stored = null, param = null;
+      try { stored = window.localStorage.getItem(STORAGE_KEY); } catch (e) {}
+      if (stored !== 'off' && stored !== 'on') stored = null;
+      try {
+        var raw = new URL(window.location.href).searchParams.get('motion');
+        if (raw === 'off' || raw === 'on') param = raw;
+      } catch (e) {}
+
+      var allowed;
+      if (stored) {
+        allowed = stored === 'on';
+      } else if (param) {
+        allowed = param === 'on';
+      } else {
+        var osReduced = false;
+        if (RESPECT_REDUCED_MOTION) {
+          try {
+            osReduced = typeof window.matchMedia === 'function'
+              && window.matchMedia('(prefers-reduced-motion: reduce)').matches === true;
+          } catch (e) { osReduced = false; }
+        }
+        allowed = !osReduced;
+      }
+
+      try {
+        var d = document.documentElement;
+        if (d) {
+          d.classList.toggle('motion-on', allowed);
+          d.classList.toggle('motion-reduced', !allowed);
+          /* script.js toggles this name from localStorage['toolapis-motion']. */
+          d.classList.toggle('reduced-motion', !allowed);
+          d.setAttribute('data-motion', allowed ? 'on' : 'reduced');
+        }
+      } catch (e) {}
+
+      window.__toolapisMotion = function () { return allowed; };
+    })();
+  </script>
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="TOOLAPIS is a small hub of real web tools: upscale TikTok clips to HD, share your PC's internet with Android over USB, or jump into the social media hub.">
+  <meta name="theme-color" content="#070707">
+  <meta name="color-scheme" content="dark">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='16' fill='%2370dcd3'/%3E%3Ctext x='16' y='21.5' font-family='Arial,sans-serif' font-size='12.5' font-weight='800' text-anchor='middle' fill='%23070707'%3ETL%3C/text%3E%3C/svg%3E">
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="TOOLAPIS — Web Tools Hub">
+  <meta property="og:description" content="Upscale TikTok clips to HD, tether your PC's internet to Android over USB, or open the social hub. One place, zero friction.">
+  <meta property="og:url" content="https://github.com/mgarox836-a11y/toolapis">
+  <meta name="twitter:card" content="summary">
+  <meta name="twitter:title" content="TOOLAPIS — Web Tools Hub">
+  <meta name="twitter:description" content="Upscale TikTok clips to HD, tether your PC's internet to Android over USB, or open the social hub.">
+  <title>TOOLAPIS — Web Tools Hub</title>
+
+  <!-- ==========================================================================
+       FONTS — DESIGN.md "Tokens / Typography"
+       Display face: Calsans is a paid face, so the substitute DESIGN.md
+       nominates ships instead: Space Grotesk, weight 300 & 600, positive
+       tracking preserved at every size.
+       Body face: Geist (300–600), with DESIGN.md's own fallback (Inter) behind
+       it. Mono: Geist Mono, falling back to JetBrains Mono.
+
+       Loaded non-render-blocking. A plain stylesheet link here blocks first
+       paint until the CSS2 endpoint answers, and on a throttled mobile run that
+       alone was most of the gap between FCP 3.2s and FCP 1.0s. `media="print"`
+       makes the sheet non-render-blocking; the inline onload promotes it to
+       `all` the moment it arrives. The preconnects still go out first, so the
+       fetch itself starts early — only the *blocking* is removed, not the load.
+       `font-display=swap` is in the URL, so text paints in the fallback face
+       and swaps when the real one lands. The <noscript> keeps it working
+       without scripting, which the media trick would otherwise silently break.
+       ========================================================================== -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="preload" as="style"
+        href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Geist:wght@300;400;500;600&family=Geist+Mono:wght@400;500&display=swap">
+  <link rel="stylesheet"
+        href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Geist:wght@300;400;500;600&family=Geist+Mono:wght@400;500&display=swap"
+        media="print" onload="this.media='all'">
+  <noscript>
+    <link rel="stylesheet"
+          href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Geist:wght@300;400;500;600&family=Geist+Mono:wght@400;500&display=swap">
+  </noscript>
+
+  <!-- ==========================================================================
+       STYLESHEET — one request, built from seven sources.
+       tokens.css  : the DESIGN.md values, and nothing else
+       base.css    : reset, document, type scale, focus, selection
+       animations  : keyframes + the reveal system (before components, so a
+                     component can override a duration)
+       components  : every component skin
+       hero.css    : the hero's own layout and ground
+       toolpass.css: the Phosphor accent card's two moving parts
+       intro.css   : the loader skin (last: purely additive, loses nothing)
+
+       Those seven are linked individually again only because they used to be.
+       Seven stylesheet tags are seven chances to block first paint, and under
+       mobile throttling they measured ~3.2s of it — components.css alone 1.2s,
+       hero.css and animations.css 600ms each — for 80KB of same-origin CSS
+       that fits in one round trip. tools/build-css.mjs concatenates them into
+       css/bundle.css in the order above; run it after editing anything in
+       css/, and `node tools/build-css.mjs --check` fails if the bundle has
+       gone stale. The split files stay the sources: tokens.css is still the
+       DESIGN.md reference and components.css is still the component library.
+       ========================================================================== -->
+  <link rel="stylesheet" href="css/bundle.css">
+
+  <!--
+    ICON SPRITE — replaces the Phosphor icon FONT.
+
+    The font was one deferred CDN script that injected SIX stylesheets
+    (regular/thin/light/bold/fill/duotone), every one of them a full icon
+    catalog to serve and parse for the fifteen glyphs this page actually draws,
+    and it made icons invisible until it landed. The same fifteen glyphs now
+    live inline as <symbol>s: no extra request, no FOIT, and no render-blocking
+    CSS between the stylesheets and first paint.
+
+    Glyph shapes are unchanged — these are the same paths the font shipped, at
+    the same weights the markup asked for (bold for the solid set, regular for
+    the waveform, fill for the check). `fill="currentColor"` on the <svg> is
+    what tints them, so `currentColor` on a parent still decides the colour.
+  -->
+  <svg class="icon-sprite" aria-hidden="true" focusable="false" fill="currentColor">
+    <symbol id="i-share-network" viewBox="0 0 256 256"><path d="M176,160a39.89,39.89,0,0,0-28.62,12.09l-46.1-29.63a39.8,39.8,0,0,0,0-28.92l46.1-29.63a40,40,0,1,0-8.66-13.45l-46.1,29.63a40,40,0,1,0,0,55.82l46.1,29.63A40,40,0,1,0,176,160Zm0-128a24,24,0,1,1-24,24A24,24,0,0,1,176,32ZM64,152a24,24,0,1,1,24-24A24,24,0,0,1,64,152Zm112,72a24,24,0,1,1,24-24A24,24,0,0,1,176,224Z"/></symbol>
+    <symbol id="i-arrow-right" viewBox="0 0 256 256"><path d="M221.66,133.66l-72,72a8,8,0,0,1-11.32-11.32L196.69,136H40a8,8,0,0,1,0-16H196.69L138.34,61.66a8,8,0,0,1,11.32-11.32l72,72A8,8,0,0,1,221.66,133.66Z"/></symbol>
+    <symbol id="i-arrow-up-right" viewBox="0 0 256 256"><path d="M200,64V168a8,8,0,0,1-16,0V83.31L69.66,197.66a8,8,0,0,1-11.32-11.32L172.69,72H88a8,8,0,0,1,0-16H192A8,8,0,0,1,200,64Z"/></symbol>
+    <symbol id="i-arrow-up" viewBox="0 0 256 256"><path d="M205.66,117.66a8,8,0,0,1-11.32,0L136,59.31V216a8,8,0,0,1-16,0V59.31L61.66,117.66a8,8,0,0,1-11.32-11.32l72-72a8,8,0,0,1,11.32,0l72,72A8,8,0,0,1,205.66,117.66Z"/></symbol>
+    <symbol id="i-list" viewBox="0 0 256 256"><path d="M224,128a8,8,0,0,1-8,8H40a8,8,0,0,1,0-16H216A8,8,0,0,1,224,128ZM40,72H216a8,8,0,0,0,0-16H40a8,8,0,0,0,0,16ZM216,184H40a8,8,0,0,0,0,16H216a8,8,0,0,0,0-16Z"/></symbol>
+    <symbol id="i-x" viewBox="0 0 256 256"><path d="M205.66,194.34a8,8,0,0,1-11.32,11.32L128,139.31,61.66,205.66a8,8,0,0,1-11.32-11.32L116.69,128,50.34,61.66A8,8,0,0,1,61.66,50.34L128,116.69l66.34-66.35a8,8,0,0,1,11.32,11.32L139.31,128Z"/></symbol>
+    <symbol id="i-play" viewBox="0 0 256 256"><path d="M232.4,114.49,88.32,26.35a16,16,0,0,0-16.2-.3A15.86,15.86,0,0,0,64,39.87V216.13A15.94,15.94,0,0,0,80,232a16.07,16.07,0,0,0,8.36-2.35L232.4,141.51a15.81,15.81,0,0,0,0-27ZM80,215.94V40l143.83,88Z"/></symbol>
+    <symbol id="i-sparkle" viewBox="0 0 256 256"><path d="M197.58,129.06,146,110l-19-51.62a15.92,15.92,0,0,0-29.88,0L78,110l-51.62,19a15.92,15.92,0,0,0,0,29.88L78,178l19,51.62a15.92,15.92,0,0,0,29.88,0L146,178l51.62-19a15.92,15.92,0,0,0,0-29.88ZM137,164.22a8,8,0,0,0-4.74,4.74L112,223.85,91.78,169A8,8,0,0,0,87,164.22L32.15,144,87,123.78A8,8,0,0,0,91.78,119L112,64.15,132.22,119a8,8,0,0,0,4.74,4.74L191.85,144ZM144,40a8,8,0,0,1,8-8h16V16a8,8,0,0,1,16,0V32h16a8,8,0,0,1,0,16H184V64a8,8,0,0,1-16,0V48H152A8,8,0,0,1,144,40ZM248,88a8,8,0,0,1-8,8h-8v8a8,8,0,0,1-16,0V96h-8a8,8,0,0,1,0-16h8V72a8,8,0,0,1,16,0v8h8A8,8,0,0,1,248,88Z"/></symbol>
+    <symbol id="i-magic-wand" viewBox="0 0 256 256"><path d="M48,64a8,8,0,0,1,8-8H72V40a8,8,0,0,1,16,0V56h16a8,8,0,0,1,0,16H88V88a8,8,0,0,1-16,0V72H56A8,8,0,0,1,48,64ZM184,192h-8v-8a8,8,0,0,0-16,0v8h-8a8,8,0,0,0,0,16h8v8a8,8,0,0,0,16,0v-8h8a8,8,0,0,0,0-16Zm56-48H224V128a8,8,0,0,0-16,0v16H192a8,8,0,0,0,0,16h16v16a8,8,0,0,0,16,0V160h16a8,8,0,0,0,0-16ZM219.31,80,80,219.31a16,16,0,0,1-22.62,0L36.68,198.63a16,16,0,0,1,0-22.63L176,36.69a16,16,0,0,1,22.63,0l20.68,20.68A16,16,0,0,1,219.31,80Zm-54.63,32L144,91.31l-96,96L68.68,208ZM208,68.69,187.31,48l-32,32L176,100.69Z"/></symbol>
+    <symbol id="i-usb" viewBox="0 0 256 256"><path d="M252.44,121.34l-48-32A8,8,0,0,0,192,96v24H72V72h33a32,32,0,1,0,0-16H72A16,16,0,0,0,56,72v48H8a8,8,0,0,0,0,16H56v48a16,16,0,0,0,16,16h32v8a16,16,0,0,0,16,16h32a16,16,0,0,0,16-16V176a16,16,0,0,0-16-16H120a16,16,0,0,0-16,16v8H72V136H192v24a8,8,0,0,0,12.44,6.66l48-32a8,8,0,0,0,0-13.32ZM136,48a16,16,0,1,1-16,16A16,16,0,0,1,136,48ZM120,176h32v32H120Zm88-30.95V111l25.58,17Z"/></symbol>
+    <symbol id="i-globe-hemisphere-west" viewBox="0 0 256 256"><path d="M128,24A104,104,0,1,0,232,128,104.11,104.11,0,0,0,128,24Zm88,104a87.62,87.62,0,0,1-6.4,32.94l-44.7-27.49a15.92,15.92,0,0,0-6.24-2.23l-22.82-3.08a16.11,16.11,0,0,0-16,7.86h-8.72l-3.8-7.86a15.91,15.91,0,0,0-11-8.67l-8-1.73L96.14,104h16.71a16.06,16.06,0,0,0,7.73-2l12.25-6.76a16.62,16.62,0,0,0,3-2.14l26.91-24.34A15.93,15.93,0,0,0,166,49.1l-.36-.65A88.11,88.11,0,0,1,216,128ZM143.31,41.34,152,56.9,125.09,81.24,112.85,88H96.14a16,16,0,0,0-13.88,8l-8.73,15.23L63.38,84.19,74.32,58.32a87.87,87.87,0,0,1,69-17ZM40,128a87.53,87.53,0,0,1,8.54-37.8l11.34,30.27a16,16,0,0,0,11.62,10l21.43,4.61L96.74,143a16.09,16.09,0,0,0,14.4,9h1.48l-7.23,16.23a16,16,0,0,0,2.86,17.37l.14.14L128,205.94l-1.94,10A88.11,88.11,0,0,1,40,128Zm102.58,86.78,1.13-5.81a16.09,16.09,0,0,0-4-13.9,1.85,1.85,0,0,1-.14-.14L120,174.74,133.7,144l22.82,3.08,45.72,28.12A88.18,88.18,0,0,1,142.58,214.78Z"/></symbol>
+    <symbol id="i-copy" viewBox="0 0 256 256"><path d="M216,32H88a8,8,0,0,0-8,8V80H40a8,8,0,0,0-8,8V216a8,8,0,0,0,8,8H168a8,8,0,0,0,8-8V176h40a8,8,0,0,0,8-8V40A8,8,0,0,0,216,32ZM160,208H48V96H160Zm48-48H176V88a8,8,0,0,0-8-8H96V48H208Z"/></symbol>
+    <symbol id="i-check-circle" viewBox="0 0 256 256"><path d="M128,24A104,104,0,1,0,232,128,104.11,104.11,0,0,0,128,24Zm45.66,85.66-56,56a8,8,0,0,1-11.32,0l-24-24a8,8,0,0,1,11.32-11.32L112,148.69l50.34-50.35a8,8,0,0,1,11.32,11.32Z"/></symbol>
+    <symbol id="i-waveform" viewBox="0 0 256 256"><path d="M56,96v64a8,8,0,0,1-16,0V96a8,8,0,0,1,16,0ZM88,24a8,8,0,0,0-8,8V224a8,8,0,0,0,16,0V32A8,8,0,0,0,88,24Zm40,32a8,8,0,0,0-8,8V192a8,8,0,0,0,16,0V64A8,8,0,0,0,128,56Zm40,32a8,8,0,0,0-8,8v64a8,8,0,0,0,16,0V96A8,8,0,0,0,168,88Zm40-16a8,8,0,0,0-8,8v96a8,8,0,0,0,16,0V80A8,8,0,0,0,208,72Z"/></symbol>
+    <symbol id="i-pause" viewBox="0 0 256 256"><path d="M200,32H160a16,16,0,0,0-16,16V208a16,16,0,0,0,16,16h40a16,16,0,0,0,16-16V48A16,16,0,0,0,200,32Zm0,176H160V48h40ZM96,32H56A16,16,0,0,0,40,48V208a16,16,0,0,0,16,16H96a16,16,0,0,0,16-16V48A16,16,0,0,0,96,32Zm0,176H56V48H96Z"/></symbol>
+  </svg>
+
+  <!-- Motion Vanilla (deferred, non-blocking; progressive enhancement only) -->
+  <link rel="preconnect" href="https://cdn.jsdelivr.net">
+  <script defer src="https://cdn.jsdelivr.net/npm/motion@12.9.2/dist/motion.js"></script>
+</head>
+<body>
+
+  <a href="#main-content" class="skip-link">Skip to content</a>
+
+  <div id="nav-sentinel" aria-hidden="true"></div>
+
+  <!-- Film Grain -->
+  <div class="grain" aria-hidden="true"></div>
+
+  <!-- Cursor spotlight. Phosphor, barely there, never interactive. -->
+  <div id="spotlight" class="pointer-events-none" aria-hidden="true"></div>
+
+  <!-- Scroll progress -->
+  <div id="scroll-progress" aria-hidden="true"></div>
+
+  <!-- Intro Overlay. Hidden by default; only visible while <html> has
+       "intro-active". Removed from the DOM by js/intro.js or the failsafe. -->
+  <div id="intro-overlay" role="progressbar" aria-label="Loading TOOLAPIS" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" aria-hidden="true">
+    <div class="intro-inner">
+      <div class="intro-logo">
+        <span class="intro-dot"></span>
+        <span class="intro-wordmark">TOOLAPIS</span>
+      </div>
+      <div class="intro-progress">
+        <div class="intro-progress-bar" id="intro-bar"></div>
+      </div>
+      <div class="intro-meta">
+        <span class="intro-counter" id="intro-counter">000</span>
+        <span class="intro-sep">/</span>
+        <span class="intro-status" id="intro-status">Initializing tools</span>
+      </div>
+      <div class="intro-panel">
+        <div class="intro-title">Three tools. One hub. No friction.</div>
+        <div class="intro-subtitle">HD upscaling, USB tethering and a social hub — all from the browser.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Page Transition Overlay -->
+  <div id="page-transition" aria-hidden="true">
+    <span class="pt-logo">TOOLAPIS<span>.</span></span>
+    <span class="pt-dot" aria-hidden="true"></span>
+  </div>
+
+  <!-- ==========================================================================
+       HEADER NAVIGATION — DESIGN.md "Navigation Bar"
+       Sticky, 64px, Void Canvas, hairline under it once scrolled.
+       ========================================================================== -->
+  <header id="navbar" data-intro-reveal="5">
+    <div class="shell">
+      <!-- No aria-label here on purpose. The link's visible text is "TOOLAPIS."
+           (the mint dot is a real full stop, not decoration), and an
+           aria-label of "TOOLAPIS home" dropped the full stop, so the
+           accessible name did not contain the visible label — a WCAG 2.5.3
+           label-in-name failure. Letting the name come from the content
+           instead fixes it, and "home" rides along in .sr-only so it still
+           says where the link goes. -->
+      <a href="#overview" class="brand">
+        <span class="brand__mark" aria-hidden="true">TL</span>
+        <span class="brand__word">TOOLAPIS<span class="brand__dot" aria-hidden="true">.</span><span class="sr-only"> home</span></span>
+      </a>
+
+      <nav aria-label="Primary">
+        <a href="#overview" class="nav-link">Overview</a>
+        <a href="#features" class="nav-link">Features</a>
+        <a href="#flow" class="nav-link">Flow</a>
+        <a href="#clarity" class="nav-link">Clarity</a>
+      </nav>
+
+      <div class="navbar-actions">
+        <a href="https://newsocapis.vercel.app" target="_blank" rel="noopener noreferrer"
+           class="social-btn desktop-only" data-magnetic aria-label="Open Social Media hub">
+          <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-share-network"></use></svg>
+        </a>
+        <!-- Ghost pill, not a filled one: DESIGN.md allows exactly ONE filled
+             white button per screen and the hero's "Get started" owns it. -->
+        <a href="https://tiktok-hd-enhancer-by-apis-fgtkuxmpzmi7h8gifh4a8o.streamlit.app/"
+           target="_blank" rel="noopener noreferrer" data-magnetic
+           class="btn btn-outline btn-sm desktop-only">
+          <span>HD Enhancer</span>
+          <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-arrow-up-right"></use></svg>
+        </a>
+
+        <button id="nav-toggle" class="btn-outline-icon" aria-label="Toggle menu"
+                aria-expanded="false" aria-controls="mobile-menu">
+          <svg id="nav-icon" class="icon pointer-events-none" aria-hidden="true" focusable="false"><use href="#i-list"></use></svg>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Mobile Navigation Panel. Full-screen dark sheet, display-face links. -->
+  <div id="mobile-menu" class="mobile-menu pointer-events-none" aria-hidden="true">
+    <nav aria-label="Mobile">
+      <a href="#overview">Overview <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-arrow-right"></use></svg></a>
+      <a href="#features">Features <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-arrow-right"></use></svg></a>
+      <a href="#flow">Flow <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-arrow-right"></use></svg></a>
+      <a href="#clarity">Clarity <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-arrow-right"></use></svg></a>
+    </nav>
+    <div class="mobile-menu__actions">
+      <a href="https://tiktok-hd-enhancer-by-apis-fgtkuxmpzmi7h8gifh4a8o.streamlit.app/"
+         target="_blank" rel="noopener noreferrer" class="btn btn-outline">
+        <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-arrow-up-right"></use></svg>
+        <span>Open HD Enhancer</span>
+      </a>
+      <a href="https://newsocapis.vercel.app" target="_blank" rel="noopener noreferrer" class="btn btn-outline">
+        <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-share-network"></use></svg>
+        <span>Social Media</span>
+      </a>
+    </div>
+  </div>
+
+  <main id="main-content">
+
+    <!-- ======================================================================
+         HERO — DESIGN.md "Hero Headline (Calsans Display)"
+         Copy left, accent card right. The ground is entirely css/hero.css: a
+         Void Canvas gradient, a masked 56px grid, one phosphor bloom, a
+         horizon hairline, and the fade that dissolves all of it into the
+         canvas. No video, no WebGL, no violet.
+         ====================================================================== -->
+    <section id="hero" data-section="hero">
+      <div class="hero-bg" aria-hidden="true"></div>
+      <div class="hero-grid-lines" aria-hidden="true"></div>
+      <div class="hero-glow" aria-hidden="true"></div>
+      <div class="hero-horizon" aria-hidden="true"></div>
+      <div class="hero-fade" aria-hidden="true"></div>
+
+      <div class="shell hero-inner">
+        <div class="hero-copy">
+          <span class="eyebrow" data-intro-reveal="1">Tool hub · 2026</span>
+
+          <h1 class="hero-title" data-intro-reveal="1">
+            <span class="hero-title-line word-mask"><span class="word-reveal"><span class="accent">Web Tools</span></span></span>
+            <span class="hero-title-line word-mask"><span class="word-reveal">For</span> <span class="word-reveal">You,</span></span>
+            <span class="hero-title-line word-mask"><span class="word-reveal">All</span> <span class="word-reveal">in</span> <span class="word-reveal">One</span> <span class="word-reveal">Place.</span></span>
+          </h1>
+
+          <p class="hero-subtitle reveal" data-intro-reveal="3">
+            Boost TikTok clips to HD, tether your PC's internet to Android over USB,
+            or jump into the social media hub. One hub, three tools, zero friction.
+          </p>
+
+          <div class="hero-cta-row reveal" data-intro-reveal="4">
+            <!-- The single filled white button in this viewport. -->
+            <a href="#overview" class="btn btn-accent">
+              <span>Get started</span>
+              <svg class="icon btn-arrow" aria-hidden="true" focusable="false"><use href="#i-arrow-right"></use></svg>
+            </a>
+            <a href="#flow" class="hero-play-btn" aria-label="See how in 30s">
+              <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-play"></use></svg>
+              <span>See how in 30s</span>
+            </a>
+          </div>
+        </div>
+
+        <!-- TOOL PASS — the one Phosphor Accent Card in the hero viewport. -->
+        <div class="hero-boarding toolpass" data-intro-reveal="2">
+          <div class="toolpass__head">
+            <span class="toolpass__label">TOOL PASS</span>
+            <div class="hero-barcode" aria-hidden="true"></div>
+          </div>
+          <div class="toolpass__fields">
+            <div class="toolpass__field">
+              <span class="toolpass__field-label">FROM</span>
+              <span class="toolpass__field-value">BROWSER</span>
+            </div>
+            <div class="toolpass__field">
+              <span class="toolpass__field-label">TO</span>
+              <span class="toolpass__field-value">HD</span>
+            </div>
+          </div>
+          <!-- h2, not h3: this card sits inside the hero, so it is the first
+               level beneath the page h1. As an h3 it skipped a level. -->
+          <h2 class="toolpass__title">Ready in one click.</h2>
+          <div class="toolpass__actions">
+            <a href="https://tiktok-hd-enhancer-by-apis-fgtkuxmpzmi7h8gifh4a8o.streamlit.app/"
+               target="_blank" rel="noopener noreferrer" class="hero-pill-outline">
+              <span>Open HD Enhancer</span>
+            </a>
+            <a href="https://drive.google.com/file/d/1gH_huKs7Pf9XP2uJcRfMaLqJonLfJcbI/view"
+               target="_blank" rel="noopener noreferrer" class="hero-pill-outline">
+              <span>Open Gnirehtet</span>
+            </a>
+          </div>
+        </div>
+      </div>
+
+      <!-- Stamped meta strip. Kept (and restyled) because js/hero-extras.js
+           drives [data-coords] from it. -->
+      <div class="hero-bottom-strip" aria-hidden="true">
+        <div class="hero-strip-left">
+          <span>+</span>
+          <span>Fly direct</span>
+          <span class="hero-strip-sep">|</span>
+          <span>Web tools</span>
+        </div>
+        <div class="hero-strip-right">
+          <span data-coords>37.7681° N, -122.0039° W</span>
+          <span class="hero-heart">♥</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- ======================================================================
+         OVERVIEW — the three tools. Dark Surface Cards, stroke icons, display
+         titles, outlined status badges, a ghost "Open" pill each.
+         ====================================================================== -->
+    <section id="overview" class="section">
+      <div class="shell">
+        <div class="section-head max-w-3xl reveal">
+          <span class="eyebrow">Overview</span>
+          <h2 class="t-heading">Three tools. One hub.</h2>
+          <p class="copy">No installs, no accounts, no filler. Three tools that do the job and get out of your way.</p>
+        </div>
+
+        <div class="reveal-group grid">
+          <!-- Card 1: TikTok HD Enhancer -->
+          <article class="card glass-panel spot-card sheen tool-card reveal">
+            <span class="tool-card-eyebrow"><i>01</i> Enhance</span>
+            <div class="tool-card-icon">
+              <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-sparkle"></use></svg>
+            </div>
+            <h3 class="t-heading-sm">TikTok HD Enhancer</h3>
+            <p class="copy-sm">
+              A Streamlit app that automatically raises the resolution and sharpness
+              of your TikTok clips. Drop the file in, get a clean HD version out.
+            </p>
+            <div>
+              <span class="badge">Live</span>
+            </div>
+            <div style="margin-top:auto;padding-top:8px">
+              <a href="https://tiktok-hd-enhancer-by-apis-fgtkuxmpzmi7h8gifh4a8o.streamlit.app/"
+                 target="_blank" rel="noopener noreferrer" class="btn btn-outline">
+                <span>Open</span>
+                <svg class="icon btn-arrow" aria-hidden="true" focusable="false"><use href="#i-arrow-right"></use></svg>
+              </a>
+            </div>
+          </article>
+
+          <!-- Card 2: Gnirehtet Tethering -->
+          <article class="card glass-panel spot-card sheen tool-card reveal">
+            <span class="tool-card-eyebrow"><i>02</i> Connect</span>
+            <div class="tool-card-icon">
+              <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-usb"></use></svg>
+            </div>
+            <h3 class="t-heading-sm">USB Tethering</h3>
+            <p class="copy-sm">
+              Share your PC's internet with an Android phone over a USB cable.
+              Fast, free, and no extra modem or router setup.
+            </p>
+            <div>
+              <span class="badge badge--info">Setup guide</span>
+            </div>
+            <div style="margin-top:auto;padding-top:8px">
+              <a href="https://github.com/Genymobile/gnirehtet" target="_blank" rel="noopener noreferrer" class="btn btn-outline">
+                <span>Open</span>
+                <svg class="icon btn-arrow" aria-hidden="true" focusable="false"><use href="#i-arrow-right"></use></svg>
+              </a>
+            </div>
+          </article>
+
+          <!-- Card 3: Social Media Hub -->
+          <article class="card glass-panel spot-card sheen tool-card reveal">
+            <span class="tool-card-eyebrow"><i>03</i> Share</span>
+            <div class="tool-card-icon">
+              <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-share-network"></use></svg>
+            </div>
+            <h3 class="t-heading-sm">Social Media Hub</h3>
+            <p class="copy-sm">
+              One clean place for your social media tools and links.
+              Everything you normally keep in twelve tabs, in one tab.
+            </p>
+            <div>
+              <span class="badge">Live</span>
+            </div>
+            <div style="margin-top:auto;padding-top:8px">
+              <a href="https://newsocapis.vercel.app" target="_blank" rel="noopener noreferrer" class="btn btn-outline">
+                <span>Open</span>
+                <svg class="icon btn-arrow" aria-hidden="true" focusable="false"><use href="#i-arrow-right"></use></svg>
+              </a>
+            </div>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <!-- ======================================================================
+         FEATURES — eyebrow + 56px display heading, then a wide tile, two
+         half-width tiles, and a code surface for the tethering commands.
+         ====================================================================== -->
+    <section id="features" class="section">
+      <div class="shell">
+        <div class="section-head max-w-3xl reveal">
+          <span class="eyebrow">Features</span>
+          <h2 class="t-heading">Small hub. Real tools.</h2>
+          <p class="copy">No installs, no accounts, no filler. Just a few tools that do the job and get out of your way.</p>
+        </div>
+
+        <div class="reveal-group grid">
+          <!-- Wide tile: HD upscaling + the command surface -->
+          <div class="card glass-panel spot-card wide reveal" style="gap:24px">
+            <div style="display:flex;gap:24px;align-items:flex-start;flex-wrap:wrap">
+              <div class="feature-tile__icon feature-tile__icon--lg">
+                <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-magic-wand"></use></svg>
+              </div>
+              <div style="flex:1 1 260px;display:flex;flex-direction:column;gap:8px">
+                <h3 class="t-heading-sm">HD upscaling</h3>
+                <p class="copy-sm">
+                  Raises the resolution and sharpness of low-quality TikTok clips
+                  automatically. No sliders, no settings, no guesswork.
+                </p>
+              </div>
+            </div>
+
+            <!-- DESIGN.md "Code/Syntax Surface": Obsidian, 16px radius, mono. -->
+            <div class="code" aria-label="USB tethering commands">
+              <div><span class="code__comment"># tether your phone over USB</span></div>
+              <div><span class="code__prompt">$</span> gnirehtet run</div>
+              <div><span class="code__prompt">$</span> adb reverse tcp:8000 tcp:8000</div>
+              <div><span class="code__comment"># phone now shares the PC connection</span></div>
+            </div>
+          </div>
+
+          <!-- Tile: USB tethering -->
+          <div class="card glass-panel spot-card reveal">
+            <div style="display:flex;gap:20px;align-items:flex-start">
+              <div class="feature-tile__icon">
+                <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-usb"></use></svg>
+              </div>
+              <div style="display:flex;flex-direction:column;gap:8px">
+                <h3 class="t-heading-sm">USB tethering</h3>
+                <p class="copy-sm">
+                  Shares your PC's internet with an Android phone over a USB cable,
+                  no extra modem or router setup.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <!-- Tile: Web-first -->
+          <div class="card glass-panel spot-card reveal">
+            <div style="display:flex;gap:20px;align-items:flex-start">
+              <div class="feature-tile__icon">
+                <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-globe-hemisphere-west"></use></svg>
+              </div>
+              <div style="display:flex;flex-direction:column;gap:8px">
+                <h3 class="t-heading-sm">Web-first</h3>
+                <p class="copy-sm">
+                  Every tool launches straight from the browser. Grab a link,
+                  share it, and you're done.
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ======================================================================
+         FLOW — DESIGN.md "Activity Row": 32px mark, 14px/500 title, 12px meta,
+         8px status dot, Iron Edge dividers. Three steps, left to right.
+         ====================================================================== -->
+    <section id="flow" class="section">
+      <div class="shell">
+        <div class="section-head max-w-3xl reveal">
+          <span class="eyebrow">Flow</span>
+          <h2 class="t-heading">Pick it up in a minute.</h2>
+          <p class="copy">Open a tool, run it, done. Nothing else on the page gets in your way.</p>
+        </div>
+
+        <div class="reveal-group">
+          <!-- Step 1 -->
+          <div class="card glass-panel reveal" style="gap:0;padding-top:8px;padding-bottom:8px">
+            <div class="activity">
+              <span class="activity__mark w-12 h-12" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7.6 3.4v12.4l3.2-3.1 2.2 5.4 2.9-1.2-2.2-5.4h4.5z"/></svg>
+              </span>
+              <span class="activity__body">
+                <span class="activity__title">Pick a tool</span>
+                <span class="activity__meta">Enhancer for video, tethering for connection, hub for the rest</span>
+              </span>
+              <span class="activity__dot" aria-hidden="true"></span>
+            </div>
+          </div>
+
+          <!-- Step 2 -->
+          <div class="card glass-panel reveal" style="gap:0;padding-top:8px;padding-bottom:8px">
+            <div class="activity">
+              <span class="activity__mark w-12 h-12" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2.8c2.7 2.1 4.1 5.1 4.1 8.4 0 1.9-.3 3.6-1 5.1H8.9c-.7-1.5-1-3.2-1-5.1 0-3.3 1.4-6.3 4.1-8.4Z"/><circle cx="12" cy="9.4" r="1.9"/><path d="M8.9 16.3 6.7 19.4l3-1.1"/><path d="M15.1 16.3l2.2 3.1-3-1.1"/><path d="M10.5 19.1c.5 1.2 1 1.9 1.5 1.9s1-.7 1.5-1.9"/></svg>
+              </span>
+              <span class="activity__body">
+                <span class="activity__title">Launch it</span>
+                <span class="activity__meta">One click opens the app in your browser</span>
+              </span>
+              <span class="activity__dot" aria-hidden="true"></span>
+            </div>
+          </div>
+
+          <!-- Step 3 -->
+          <div class="card glass-panel reveal" style="gap:0;padding-top:8px;padding-bottom:8px">
+            <div class="activity">
+              <span class="activity__mark w-12 h-12" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8.6"/><path d="m8.3 12.2 2.7 2.7 4.7-5.3"/></svg>
+              </span>
+              <span class="activity__body">
+                <span class="activity__title">You're done</span>
+                <span class="activity__meta">Upscale the clip or share the connection right away</span>
+              </span>
+              <span class="activity__dot" aria-hidden="true"></span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ======================================================================
+         CLARITY — closing band. Carbon Plate card, one filled pill, one ghost
+         pill, and the copy action. No mint here: the accent is already spent
+         on the TOOL PASS card in the hero.
+         ====================================================================== -->
+    <section id="clarity" class="section">
+      <div class="shell">
+        <div class="reveal">
+          <div class="relative" style="display:flex;flex-direction:column;gap:24px;align-items:center;text-align:center">
+            <span class="eyebrow">Clarity</span>
+            <h2 class="t-heading">Clear tools, zero clutter.</h2>
+            <p class="copy">One hub for the tools you actually use. Open it, use it, move on.</p>
+            <div style="display:flex;flex-wrap:wrap;gap:16px;justify-content:center;align-items:center">
+              <a href="https://tiktok-hd-enhancer-by-apis-fgtkuxmpzmi7h8gifh4a8o.streamlit.app/"
+                 target="_blank" rel="noopener noreferrer" data-magnetic data-3d="hd"
+                 class="btn btn-accent">
+                <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-magic-wand"></use></svg>
+                <span>Open HD Enhancer</span>
+                <svg class="icon btn-arrow" aria-hidden="true" focusable="false"><use href="#i-arrow-right"></use></svg>
+              </a>
+              <button type="button"
+                      onclick="copyToClipboard('https://tiktok-hd-enhancer-by-apis-fgtkuxmpzmi7h8gifh4a8o.streamlit.app/', 'Enhancer link copied!')"
+                      class="btn btn-outline">
+                <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-copy"></use></svg>
+                <span>Copy enhancer link</span>
+              </button>
+              <a href="https://newsocapis.vercel.app" target="_blank" rel="noopener noreferrer"
+                 data-magnetic data-3d="social" class="btn btn-outline">
+                <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-share-network"></use></svg>
+                <span>Social Media</span>
+              </a>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- Back to Top -->
+  <button id="back-to-top" class="back-to-top" aria-label="Back to top">
+    <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-arrow-up"></use></svg>
+  </button>
+
+  <!-- Toast Notification -->
+  <div id="toast" role="status" aria-live="polite">
+    <div class="glass-panel">
+      <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-check-circle"></use></svg>
+      <span id="toast-message">Link Copied!</span>
+    </div>
+  </div>
+
+  <!-- ==========================================================================
+       FOOTER — DESIGN.md "Footer Link Column": four columns, 14px/500 white
+       headings, Graphite links with no underline, Steel Border rule on top.
+       ========================================================================== -->
+  <footer class="site-footer">
+    <div class="shell">
+      <div class="footer-grid">
+        <div class="footer-col">
+          <span class="footer-col__head">TOOLAPIS.</span>
+          <a href="https://github.com/mgarox836-a11y/toolapis" target="_blank" rel="noopener noreferrer">GitHub</a>
+          <a href="https://newsocapis.vercel.app" target="_blank" rel="noopener noreferrer">Social hub</a>
+          <span class="footer-status"><span class="status-dot" aria-hidden="true"></span> All systems operational</span>
+        </div>
+
+        <nav class="footer-col" aria-label="Product">
+          <span class="footer-col__head">Product</span>
+          <a href="https://tiktok-hd-enhancer-by-apis-fgtkuxmpzmi7h8gifh4a8o.streamlit.app/" target="_blank" rel="noopener noreferrer">HD Enhancer</a>
+          <a href="https://github.com/Genymobile/gnirehtet" target="_blank" rel="noopener noreferrer">USB Tethering</a>
+          <a href="https://newsocapis.vercel.app" target="_blank" rel="noopener noreferrer">Social Media Hub</a>
+        </nav>
+
+        <nav class="footer-col" aria-label="Sections">
+          <span class="footer-col__head">Sections</span>
+          <a href="#overview">Overview</a>
+          <a href="#features">Features</a>
+          <a href="#flow">Flow</a>
+          <a href="#clarity">Clarity</a>
+        </nav>
+
+        <div class="footer-col">
+          <span class="footer-col__head">Preferences</span>
+          <!-- A real <button> so it is reachable by Tab, operable with
+               Enter/Space, and announced with its pressed state.
+               js/motion-toggle.js owns the label and the flip. -->
+          <button id="motion-toggle" type="button" class="motion-toggle"
+                  aria-pressed="false" aria-describedby="motion-toggle-hint">
+            <svg class="icon motion-toggle-icon" aria-hidden="true" focusable="false"><use href="#i-waveform"></use></svg>
+            <span class="motion-toggle-label">Reduce motion</span>
+            <span class="sr-only" id="motion-toggle-hint">Turns off animation for this site</span>
+          </button>
+          <span class="copy-sm">© 2026 TOOLAPIS. All rights reserved.</span>
+        </div>
+      </div>
+    </div>
+  </footer>
+
+  <!-- JavaScript (deferred) -->
+  <script defer src="script.js"></script>
+
+  <!-- Motion policy wiring, then the controllers. Every one has its own
+       failsafe, so a failure here costs an effect, never the page. -->
+  <script type="module" src="js/motion-boot.js"></script>
+  <script type="module" src="js/motion-toggle.js"></script>
+  <script type="module" src="js/motion-fx.js"></script>
+  <script type="module" src="js/intro.js"></script>
+  <script type="module" src="js/reveal.js"></script>
+  <script defer src="js/hero-extras.js"></script>
+</body>
+</html>

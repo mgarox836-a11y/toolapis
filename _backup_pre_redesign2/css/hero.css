@@ -1,0 +1,346 @@
+/* =============================================================================
+   HERO — DESIGN.md "Hero Headline (Calsans Display)" + the ground beneath it
+   -----------------------------------------------------------------------------
+   The old hero was a full-bleed sky video under a violet wash. Both are gone,
+   and so is the WebGL layer that used to sit behind them (js/scene3d.js,
+   js/objects.js, js/scroll.js). What remains is the whole hero in CSS.
+
+   DESIGN.md's imagery brief is "neon-lit geometry on a dark gradient ground,
+   blending into the #070707 canvas with no hard mask and no hard edge". That is
+   what the four layers below are, in order of depth:
+
+     .hero-bg           Void Canvas plus a diagonal darkening gradient
+     .hero-grid-lines   a 56px grid, Iron Edge at 10%, masked to a radial pool
+     .hero-glow         one phosphor bloom, the accent used as light not fill
+     .hero-horizon      a single hairline the fade below dissolves
+     .hero-fade         dissolves all of it into the canvas at the hero's bottom
+
+   Every layer is a token, so the room re-tints with the palette, and every
+   layer ends at Void Canvas so the join to the next section cannot be a line.
+   ========================================================================== */
+
+#hero {
+  position: relative;
+  isolation: isolate;
+  min-height: 100svh;
+  padding-top: calc(var(--navbar-height) + clamp(40px, 8vh, 88px));
+  padding-bottom: clamp(28px, 4vh, 48px);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* ---- The ground: a dark gradient with a hairline grid --------------------
+   DESIGN.md's imagery language, painted in CSS. The grid is the only "texture"
+   on the page; it is Iron Edge at very low alpha, 56px cells, drifting one
+   cell every 24s. */
+.hero-bg {
+  position: absolute;
+  inset: 0;
+  z-index: -2;
+  background-color: var(--color-void-canvas);
+  background-image:
+    linear-gradient(180deg, rgba(20, 20, 24, 0.9) 0%, rgba(7, 7, 7, 0) 42%),
+    linear-gradient(var(--color-iron-edge) 1px, transparent 1px),
+    linear-gradient(90deg, var(--color-iron-edge) 1px, transparent 1px);
+  background-size: 100% 100%, 56px 56px, 56px 56px;
+  background-position: 0 0, 0 0, 0 0;
+  /* The grid must never be a visible texture — it is a hint, so it is graded
+     down to a tenth of Iron Edge. */
+  opacity: 0.28;
+}
+.hero-grid-lines {
+  position: absolute;
+  /* Oversized by exactly one grid cell on every side. The drift is a `transform`,
+     which slides the painted grid; without the extra cell the layer would pull
+     away from the hero edges and expose a bare strip as it moved. */
+  inset: -56px;
+  z-index: -2;
+  background-image:
+    linear-gradient(var(--color-iron-edge) 1px, transparent 1px),
+    linear-gradient(90deg, var(--color-iron-edge) 1px, transparent 1px);
+  background-size: 56px 56px;
+  opacity: 0.1;
+  -webkit-mask-image: radial-gradient(120% 80% at 70% 20%, #000 0%, transparent 70%);
+  mask-image: radial-gradient(120% 80% at 70% 20%, #000 0%, transparent 70%);
+  will-change: transform;
+}
+
+/* The phosphor bloom. Radial, very low alpha, 7s breath — the one place in the
+   hero where the accent is used as light rather than as fill. */
+.hero-glow {
+  position: absolute;
+  z-index: -1;
+  top: -10%;
+  right: -6%;
+  width: min(760px, 90vw);
+  aspect-ratio: 1;
+  border-radius: 50%;
+  pointer-events: none;
+  background: radial-gradient(
+    circle at center,
+    rgba(112, 220, 211, 0.14) 0%,
+    rgba(112, 220, 211, 0.05) 34%,
+    transparent 66%
+  );
+  will-change: transform, opacity;
+}
+
+/* The horizon line: a single hairline that the fade below dissolves. It is
+   what turns a dark page into a "room" without drawing a hard edge. */
+.hero-horizon {
+  position: absolute;
+  left: 0; right: 0;
+  bottom: 22%;
+  height: 1px;
+  z-index: -1;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    var(--color-iron-edge) 22%,
+    var(--color-steel-iris) 50%,
+    var(--color-iron-edge) 78%,
+    transparent 100%
+  );
+  opacity: 0.5;
+  pointer-events: none;
+}
+
+/* The fade into the next section. Every stop is the canvas token, so the last
+   pixel row of the hero and the first of the section below are the same
+   colour — no seam. */
+.hero-fade {
+  position: absolute;
+  left: 0; right: 0; bottom: 0;
+  height: clamp(140px, 22vh, 260px);
+  z-index: -1;
+  pointer-events: none;
+  background: linear-gradient(
+    to bottom,
+    rgba(7, 7, 7, 0) 0%,
+    rgba(7, 7, 7, 0.42) 42%,
+    rgba(7, 7, 7, 0.86) 74%,
+    var(--color-void-canvas) 100%
+  );
+}
+
+/* ---- Layout: DESIGN.md's 50/50 hero ------------------------------------- */
+.hero-inner {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: clamp(40px, 6vw, 64px);
+  align-items: center;
+  width: 100%;
+  /* The hero owns the viewport, so the grid takes the slack and centres inside
+     it, and the stamped strip below is pushed to the bottom by its own
+     margin-top. Without this the strip rode up under the copy. */
+  flex: 1;
+  align-content: center;
+}
+@media (min-width: 1024px) {
+  .hero-inner {
+    /* Slightly wider than a true 50/50: the display face is tracked out to
+       0.056em, so the headline needs the extra room to hold three lines at
+       its intended size instead of wrapping inside a line mask (where a wrap
+       would be clipped). The pass card keeps its own 360px. */
+    grid-template-columns: minmax(0, 1.2fr) minmax(320px, 0.8fr);
+    gap: clamp(48px, 6vw, 80px);
+  }
+}
+
+.hero-copy {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--spacing-24);
+  max-width: 720px;
+}
+
+/* ---- Hero headline -------------------------------------------------------
+   DESIGN.md "Hero Headline (Calsans Display)": display face, weight 300, up to
+   88px/0.96, positive tracking. The opening phrase carries the accent; the rest
+   is Pure White. The accent here is TYPE, not a fill, which is DESIGN.md's own
+   two-tone treatment of the same headline.
+
+   The 88px ceiling is reached only where the copy column can hold it. Tracked
+   out to 0.056em the display face is wide, and a headline that wraps INSIDE a
+   line mask would be clipped, so the size is bound to the column (vw-based)
+   rather than to the raw token. */
+.hero-title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-weight: var(--weight-light);
+  font-size: clamp(40px, 6.2vw, var(--text-display));
+  line-height: var(--leading-display);
+  letter-spacing: var(--tracking-display-face);
+  color: var(--color-pure-white);
+}
+.hero-title-line {
+  display: block;
+  overflow: hidden;
+  padding-bottom: 0.06em;
+}
+.hero-title-line > span { display: inline-block; }
+.word-mask { display: block; overflow: hidden; padding-bottom: 0.04em; }
+
+/* Two-tone: the opening phrase in Phosphor Mint, the rest in Pure White. */
+.hero-title .accent { color: var(--color-phosphor-mint); }
+
+/* Sub-copy: Geist 18px in Ash (DESIGN.md "Subheading" tone). */
+.hero-subtitle {
+  max-width: 34ch;
+  color: var(--color-ash);
+  font-size: 18px;
+  line-height: 1.5;
+  font-weight: var(--weight-regular);
+}
+
+/* CTA row: the filled white pill is the single primary action in this
+   viewport; "See how in 30s" is the ghost pill beside it. */
+.hero-cta-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+}
+.hero-link-see {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 12px 24px;
+  border-radius: var(--radius-buttons);
+  border: 1px solid var(--color-pure-white);
+  color: var(--color-pure-white);
+  font-size: var(--text-body-sm);
+  font-weight: var(--weight-medium);
+  transition: background-color var(--duration-fast) var(--ease-out-quint);
+}
+.hero-link-see:hover { background: rgba(255, 255, 255, 0.08); }
+.hero-link-see .btn-arrow { transition: transform var(--duration-fast) var(--ease-out-quint); }
+.hero-link-see:hover .btn-arrow { transform: translateX(4px); }
+
+.hero-play-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+  padding: 12px 20px;
+  border-radius: var(--radius-buttons);
+  border: 1px solid var(--color-pure-white);
+  background: transparent;
+  color: var(--color-pure-white);
+  font-size: var(--text-body-sm);
+  font-weight: var(--weight-medium);
+  transition: background-color var(--duration-fast) var(--ease-out-quint);
+}
+.hero-play-btn:hover { background: rgba(255, 255, 255, 0.08); }
+
+/* ---- Hero meta strip ------------------------------------------------------
+   The old "boarding gate" strip. Kept as a stamped micro-label row, mono and
+   quiet, in the language of the pass card above it. */
+.hero-bottom-strip {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-16);
+  /* margin-top:auto pins it to the bottom of the flex column; the clamp is the
+     minimum breathing room under the copy when the hero is short. */
+  margin-top: auto;
+  padding-top: var(--spacing-24);
+  width: 100%;
+  max-width: var(--page-max-width);
+  margin-inline: auto;
+  padding-inline: clamp(20px, 4vw, 32px);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--color-cinder);
+}
+.hero-strip-left,
+.hero-strip-right { display: flex; align-items: center; gap: 10px; }
+.hero-strip-sep { color: var(--color-iron-edge); }
+.hero-heart {
+  display: inline-grid;
+  place-items: center;
+  width: 18px; height: 18px;
+  border-radius: var(--radius-badges);
+  border: 1px solid var(--color-iron-edge);
+  font-size: 9px;
+  line-height: 1;
+  color: var(--color-graphite);
+}
+
+/* ---- The removed aircraft / contrail -------------------------------------
+   `.hero-aircraft`, `.hero-contrail` and `.hero-plane` are display:none. They
+   were an aviation motif that DESIGN.md does not have; js/hero-extras.js still
+   toggles `.is-drawn` / `.is-loop` on the contrail, which is harmless, and its
+   video hooks are all guarded, so no JS had to change. Kept as a documented
+   no-op rather than deleted from the markup, because removing elements the
+   existing scripts query is a behavioural change, not a visual one. */
+.hero-aircraft { display: none; }
+
+/* ---- Reduced motion ------------------------------------------------------- */
+@media (prefers-reduced-motion: reduce) {
+  .hero-glow,
+  .hero-grid-lines,
+  .hero-barcode::after,
+  .toolpass__field-value { animation: none !important; }
+}
+html.motion-reduced .hero-glow,
+html.motion-reduced .hero-grid-lines { animation: none !important; }
+
+/* ============================================================================
+   SECTION LAYOUT
+   The three content sections share one rhythm: eyebrow, 56px display heading,
+   Graphite paragraph, then content. 80px between sections, 24px between cards.
+   ========================================================================== */
+#overview .reveal-group { grid-template-columns: 1fr; }
+@media (min-width: 768px) { #overview .reveal-group { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+
+#features .reveal-group { grid-template-columns: 1fr; }
+@media (min-width: 768px) {
+  #features .reveal-group { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  #features .reveal-group > .wide { grid-column: span 2; }
+}
+
+#flow .reveal-group {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--spacing-24);
+}
+@media (min-width: 900px) {
+  #flow .reveal-group { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+
+/* Feature tile icon wells: 56px for the wide tile, 48px for the pair. */
+.feature-tile__icon {
+  display: grid;
+  place-items: center;
+  width: 48px; height: 48px;
+  flex: 0 0 48px;
+  border-radius: var(--radius-nested-cards);
+  border: 1px solid var(--color-iron-edge);
+  color: var(--color-phosphor-mint);
+}
+.feature-tile__icon--lg { width: 56px; height: 56px; flex-basis: 56px; }
+.feature-tile__icon .icon { width: 24px; height: 24px; }
+
+/* Closing band: a full-width Carbon Plate card with a Fog hairline, holding
+   one filled pill. The `.reveal` is a child of `.shell`, not of the section —
+   `#clarity > .reveal` never matched, which is why the plate had no surface. */
+#clarity .shell > .reveal {
+  position: relative;
+  padding: clamp(32px, 6vw, 64px);
+  border-radius: var(--radius-cards);
+  background: var(--color-carbon-plate);
+  border: 1px solid var(--color-fog);
+  text-align: center;
+  overflow: hidden;
+}
+#clarity .copy { max-width: 56ch; margin-inline: auto; }

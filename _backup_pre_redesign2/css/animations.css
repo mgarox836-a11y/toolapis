@@ -1,0 +1,307 @@
+/* =============================================================================
+   ANIMATIONS
+   -----------------------------------------------------------------------------
+   DESIGN.md does not define motion, so it is interpreted as "instrument panel":
+   precise, calm, never showy. One easing curve everywhere
+   (cubic-bezier(.22,1,.36,1)), 200ms for state, 700-800ms for reveals, and a
+   strict rule: only `transform` and `opacity` are ever animated, so nothing
+   reflows at 60fps and there is no layout shift.
+
+   Every block here has a reduced-motion counterpart at the bottom of the file.
+   ========================================================================== */
+
+/* ------------------------------------------------------------- keyframes --- */
+@keyframes tl-rise {
+  from { opacity: 0; transform: translateY(24px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes tl-fade {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+/* The display face settles: it arrives slightly tighter than it rests, then
+   eases out to DESIGN.md's 0.056em. */
+@keyframes tl-display-settle {
+  from { opacity: 0; transform: translateY(24px); letter-spacing: 0.012em; }
+  to   { opacity: 1; transform: translateY(0); letter-spacing: var(--tracking-display-face); }
+}
+
+@keyframes tl-pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50%      { opacity: 0.45; transform: scale(0.82); }
+}
+
+@keyframes tl-breathe {
+  0%, 100% { opacity: 0.5; transform: scale(1); }
+  50%      { opacity: 0.85; transform: scale(1.06); }
+}
+
+@keyframes tl-scan {
+  0%   { transform: translateY(0); }
+  100% { transform: translateY(62px); }
+}
+
+/* The grid drifts one cell over 24s — slow enough to be felt, not seen.
+   `transform`, not `background-position`. A background-position animation is
+   not a compositable property: the browser has to repaint the whole layer on
+   every single frame, forever, at full viewport size, for an effect nobody can
+   see moving at 24s. As a transform the drift runs on the compositor and the
+   grid is painted once. `.hero-grid-lines` is inset -56px so the extra cell
+   keeps the layer from exposing an edge as it travels. */
+@keyframes tl-grid-drift {
+  from { transform: translate3d(0, 0, 0); }
+  to   { transform: translate3d(-56px, -56px, 0); }
+}
+
+@keyframes tl-dash {
+  to { background-position-x: 14px; }
+}
+
+@keyframes tl-sheen {
+  from { transform: skewX(-20deg) translateX(-180%); }
+  to   { transform: skewX(-20deg) translateX(420%); }
+}
+
+/* The mint hairline that runs once around a card's border on hover. A
+   conic-gradient masked to the 1px edge — no extra element, no shadow. */
+@keyframes tl-trace {
+  from { --trace-angle: 0deg; }
+  to   { --trace-angle: 360deg; }
+}
+
+@property --trace-angle {
+  syntax: '<angle>';
+  inherits: false;
+  initial-value: 0deg;
+}
+
+/* ------------------------------------------------------------ page load ---- */
+/* Hero headline, per line. .word-reveal is the existing hook script.js and
+   css/hero.css already toggle with `.is-visible`; the stagger below keeps the
+   existing nth-child timing intact and adds the tracking settle. */
+.word-reveal {
+  display: inline-block;
+  transform: translateY(100%);
+  opacity: 0;
+  will-change: transform, opacity;
+  transition:
+    transform var(--duration-reveal) var(--ease-out-quint),
+    opacity var(--duration-reveal) var(--ease-out-quint),
+    letter-spacing var(--duration-reveal) var(--ease-out-quint);
+}
+.word-reveal.is-visible {
+  transform: translateY(0);
+  opacity: 1;
+}
+.hero-title .word-reveal { animation: none; }
+.hero-title .word-reveal.is-visible {
+  animation: tl-display-settle var(--duration-slow) var(--ease-out-quint) both;
+}
+
+.hero-title .word-reveal:nth-child(1) { transition-delay: 0ms; }
+.hero-title .word-reveal:nth-child(2) { transition-delay: 80ms; }
+.hero-title .word-reveal:nth-child(3) { transition-delay: 160ms; }
+.hero-title .word-reveal:nth-child(4) { transition-delay: 240ms; }
+.hero-title .word-reveal:nth-child(5) { transition-delay: 320ms; }
+.hero-title .word-reveal:nth-child(6) { transition-delay: 400ms; }
+.hero-title .word-reveal:nth-child(7) { transition-delay: 480ms; }
+
+/* --------------------------------------------------------- scroll reveal --- */
+/* Fade-up on scroll with a per-group stagger. The hidden state is a TRANSFORM,
+   never a margin: the 3D solver reads its obstacles off the final layout, so a
+   block must be measured where it will land, not where it is drawn. Gated on
+   `html.reveal-ready`, which only js/reveal.js adds — no JS, no hidden
+   content. Numbers are contracts with that module (seconds for the duration,
+   milliseconds for the stagger and the ceiling). */
+:root {
+  --reveal-distance: 24px;
+  --reveal-blur: 0px;
+  --reveal-duration: .7s;
+  --reveal-stagger: 80ms;
+  --reveal-max-delay: 360ms;
+  --reveal-ease: var(--ease-out-quint);
+}
+
+html.rv-measuring :is(.reveal, [data-reveal], .rv, main h2, footer) {
+  transform: none !important;
+}
+
+html.reveal-ready :is(.reveal, [data-reveal], .rv):not([data-intro-reveal]):not(#navbar):not(#nav-sentinel):not(#scroll-progress):not(#back-to-top):not(#spotlight):not(.grain):not(#page-transition):not(#toast):not(#intro-overlay):not(.mobile-menu):not(.skip-link) {
+  opacity: 0;
+  transform: translate3d(0, var(--reveal-distance), 0);
+  transition:
+    opacity var(--reveal-duration) var(--reveal-ease),
+    transform var(--reveal-duration) var(--reveal-ease);
+  transition-delay: var(--reveal-delay, 0ms);
+}
+html.reveal-ready :is(.reveal, [data-reveal], .rv):not([data-intro-reveal]):not(#navbar):not(#nav-sentinel):not(#scroll-progress):not(#back-to-top):not(#spotlight):not(.grain):not(#page-transition):not(#toast):not(#intro-overlay):not(.mobile-menu):not(.skip-link):is(.is-visible, .active) {
+  opacity: 1;
+  transform: translate3d(0, 0, 0);
+}
+html.reveal-ready .rv-anim { will-change: opacity, transform; }
+
+@media (max-width: 767px) {
+  :root { --reveal-distance: 16px; --reveal-max-delay: 300ms; }
+}
+
+/* The 5.5s inline failsafe adds `reveal-all` when it cannot see both halves of
+   the reveal system alive. In the normal case it never matches; if it ever
+   does, everything is snapped visible. */
+html.reveal-all :is(.reveal, [data-reveal], .rv) {
+  opacity: 1 !important;
+  transform: none !important;
+  filter: none !important;
+  transition: none !important;
+}
+
+/* ----------------------------------------------------------- hover motion --- */
+/* Cards: surface steps up one luminance level and the block lifts 4px. No
+   shadow, ever. The optional mint trace runs once around the hairline. */
+.card::after,
+.tool-card::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1px;
+  background: conic-gradient(
+    from var(--trace-angle),
+    transparent 0deg,
+    var(--color-phosphor-mint) 40deg,
+    transparent 90deg,
+    transparent 360deg
+  );
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  mask-composite: exclude;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--duration-slow) var(--ease-out-quint);
+}
+.card:hover::after,
+.tool-card:hover::after { opacity: 1; animation: tl-trace 600ms linear; }
+
+/* Sheen: one pass across the card on hover, transform only. */
+.sheen { position: relative; overflow: hidden; }
+.sheen::after {
+  content: "";
+  position: absolute;
+  top: -20%; bottom: -20%;
+  left: 0;
+  width: 50%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.06), transparent);
+  transform: skewX(-20deg) translateX(-180%);
+  pointer-events: none;
+}
+.sheen:hover::after { animation: tl-sheen 900ms var(--ease-out-quint); }
+
+/* Flow connectors: marching dashes in Iron Edge. */
+.flow-dash {
+  height: 1px;
+  background-image: repeating-linear-gradient(
+    90deg,
+    var(--color-iron-edge) 0 6px,
+    transparent 6px 14px
+  );
+  animation: tl-dash 1.2s linear infinite;
+}
+
+/* --------------------------------------------------------------- accents --- */
+/* Status dot: a slow 2s pulse for anything live. */
+.status-dot,
+.activity__dot,
+.footer-status .status-dot {
+  animation: tl-pulse 2s var(--ease-in-out) infinite;
+}
+
+/* Hero glow: a phosphor bloom breathing on a 7s cycle. */
+.hero-glow { animation: tl-breathe 7s var(--ease-in-out) infinite; }
+
+/* The hero grid drifts one cell over 24s — slow enough to be felt, not seen. */
+.hero-grid-lines { animation: tl-grid-drift 24s linear infinite; }
+
+/* Barcode scan line. */
+.hero-barcode::after { animation: tl-scan 2.6s var(--ease-in-out) infinite; }
+
+/* Nav entrance: the bar drops in once. */
+html.js #navbar > .shell { animation: tl-fade 600ms var(--ease-out-quint) both; }
+
+/* Mobile menu links cascade in. */
+.mobile-menu.open nav a { animation: tl-rise 500ms var(--ease-out-quint) both; }
+.mobile-menu.open nav a:nth-child(1) { animation-delay: 40ms; }
+.mobile-menu.open nav a:nth-child(2) { animation-delay: 120ms; }
+.mobile-menu.open nav a:nth-child(3) { animation-delay: 200ms; }
+.mobile-menu.open nav a:nth-child(4) { animation-delay: 280ms; }
+.mobile-menu.open .mobile-menu__actions { animation: tl-rise 500ms var(--ease-out-quint) 340ms both; }
+
+/* Page transition dot. */
+.pt-dot { animation: tl-pulse 900ms var(--ease-in-out) infinite; }
+
+/* TOOL PASS: a thin flip on the FROM -> TO fields when the card arrives. */
+.toolpass { animation: tl-fade var(--duration-slow) var(--ease-out-quint) both; }
+.toolpass__field-value { animation: tl-flip 700ms var(--ease-out-quint) both; }
+.toolpass__field:nth-child(2) .toolpass__field-value { animation-delay: 90ms; }
+@keyframes tl-flip {
+  from { opacity: 0; transform: rotateX(70deg); }
+  to   { opacity: 1; transform: rotateX(0deg); }
+}
+
+/* ============================================================================
+   REDUCED MOTION
+   ----------------------------------------------------------------------------
+   Two switches drive this and they are honoured together:
+     * `html.motion-reduced` — the visitor's own choice (footer toggle,
+       ?motion=off). js/motion.js owns the class.
+     * `@media (prefers-reduced-motion: reduce)` — the OS setting. DESIGN.md
+       says nothing about motion, so the OS preference is honoured as well;
+       every non-essential animation below is removed.
+   ========================================================================== */
+@media (prefers-reduced-motion: reduce) {
+  html:not(.motion-on) *,
+  html:not(.motion-on) *::before,
+  html:not(.motion-on) *::after {
+    animation-duration: 1ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 1ms !important;
+    scroll-behavior: auto !important;
+  }
+  /* Anything still hidden by a hide-initial rule is snapped visible. */
+  html:not(.motion-on) :is(.reveal, [data-reveal], .rv, .word-reveal) {
+    opacity: 1 !important;
+    transform: none !important;
+    filter: none !important;
+  }
+}
+
+/* Smooth scrolling follows the same switch: it is motion, and a visitor who
+   asked for none should get plain jumps. */
+html.motion-on { scroll-behavior: smooth; }
+html.motion-reduced { scroll-behavior: auto; }
+
+html.motion-reduced :is(.reveal, [data-reveal], .rv) {
+  opacity: 1 !important;
+  transform: none !important;
+  filter: none !important;
+  transition: opacity 200ms linear !important;
+}
+html.motion-reduced .word-reveal {
+  transform: none !important;
+  opacity: 1 !important;
+}
+html.motion-reduced :is(.status-dot, .activity__dot, .footer-status .status-dot,
+  .hero-glow, .hero-grid-lines, .flow-dash, .pt-dot, .hero-barcode::after,
+  .toolpass__field-value) {
+  animation: none !important;
+}
+html.motion-reduced .card:hover,
+html.motion-reduced .tool-card:hover,
+html.motion-reduced .btn-accent:hover { transform: none; }
+html.motion-reduced .card::after,
+html.motion-reduced .tool-card::after,
+html.motion-reduced .sheen::after { display: none; }
+html.motion-reduced #scroll-progress { height: 2px; }
+html.motion-reduced #navbar { transition: none; }
+html.motion-reduced #page-transition { transition: opacity 150ms linear; }

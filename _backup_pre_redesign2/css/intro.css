@@ -1,0 +1,238 @@
+/* =============================================================================
+   INTRO OVERLAY — DESIGN.md tokens, mission-control voice
+   -----------------------------------------------------------------------------
+   The overlay's timing and stage machine belong to js/intro.js (unchanged).
+   This file is the skin only: the canvas colour, a mono wordmark, a 2px
+   progress rail and a phosphor counter — an instrument panel booting, which is
+   the page's own metaphor.
+
+   Kept hidden by DEFAULT and only shown while <html> carries `intro-active`,
+   which the inline failsafe in index.html sets before any module runs.
+   ========================================================================== */
+
+:root {
+  --tl-bg: var(--color-void-canvas);
+  --tl-accent: var(--color-phosphor-mint);
+  --tl-muted: var(--color-cinder);
+  --tl-text: var(--color-pure-white);
+}
+
+html.intro-active,
+html.intro-active body { overflow: hidden !important; }
+
+#intro-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: var(--tl-bg);
+  background-image: radial-gradient(760px circle at 50% 118%, rgba(112, 220, 211, 0.06), transparent 62%);
+  font-family: var(--font-body);
+  color: var(--tl-text);
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition: opacity 500ms var(--ease-out-quint), visibility 500ms;
+}
+
+html.intro-active #intro-overlay {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+}
+html.intro-done #intro-overlay,
+#intro-overlay.is-hidden {
+  opacity: 0 !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
+}
+
+#intro-overlay .intro-inner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: clamp(18px, 2vw, 28px);
+  padding: clamp(16px, 2vw, 32px);
+  text-align: center;
+  max-width: min(90vw, 640px);
+}
+
+/* Wordmark: mono, uppercase, wide tracking — a stamp, not a headline. */
+#intro-overlay .intro-logo {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  opacity: 0;
+  transform: scale(0.96);
+  transition: opacity 500ms var(--ease-out-quint), transform 500ms var(--ease-out-quint);
+}
+html.intro-active[data-intro-stage="0"] #intro-overlay .intro-logo,
+html.intro-active[data-intro-stage="1"] #intro-overlay .intro-logo,
+html.intro-active[data-intro-stage="2"] #intro-overlay .intro-logo {
+  opacity: 1;
+  transform: scale(1);
+}
+#intro-overlay .intro-dot {
+  width: 8px; height: 8px;
+  flex: 0 0 8px;
+  border-radius: var(--radius-badges);
+  background: var(--tl-accent);
+  animation: tl-pulse 900ms var(--ease-in-out) infinite;
+}
+#intro-overlay .intro-wordmark {
+  font-family: var(--font-mono);
+  font-size: var(--text-body);
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--tl-text);
+}
+#intro-overlay .intro-wordmark::after { content: '.'; color: var(--tl-accent); }
+
+/* Progress rail: 2px, Iron Edge track, phosphor fill. Flat — no glow. */
+#intro-overlay .intro-progress {
+  width: min(70vw, 320px);
+  height: 2px;
+  border-radius: var(--radius-badges);
+  background: var(--color-iron-edge);
+  overflow: hidden;
+  opacity: 0;
+  transform: translateY(6px);
+  transition: opacity 400ms var(--ease-out-quint), transform 400ms var(--ease-out-quint);
+}
+html.intro-active[data-intro-stage="1"] #intro-overlay .intro-progress,
+html.intro-active[data-intro-stage="2"] #intro-overlay .intro-progress {
+  opacity: 1;
+  transform: translateY(0);
+}
+#intro-overlay .intro-progress-bar {
+  height: 100%;
+  width: 0%;
+  border-radius: inherit;
+  background: var(--tl-accent);
+  will-change: width;
+}
+
+/* Counter + status line: tabular numerals so the readout never jitters. */
+#intro-overlay .intro-meta {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-family: var(--font-mono);
+  font-size: var(--text-caption);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.1em;
+  color: var(--color-cinder);
+  opacity: 0;
+  transition: opacity 400ms var(--ease-out-quint);
+}
+html.intro-active[data-intro-stage="1"] #intro-overlay .intro-meta,
+html.intro-active[data-intro-stage="2"] #intro-overlay .intro-meta { opacity: 1; }
+#intro-overlay .intro-counter { color: var(--tl-accent); min-width: 3ch; text-align: right; }
+#intro-overlay .intro-sep { color: var(--color-iron-edge); }
+#intro-overlay .intro-status { color: var(--color-cinder); }
+
+/* Panel: a Carbon Plate card with a Fog hairline — the same card the whole
+   page is built from, so the loader already looks like the product. */
+#intro-overlay .intro-panel {
+  padding: var(--spacing-16) var(--spacing-24);
+  border-radius: var(--radius-nested-cards);
+  background: var(--color-carbon-plate);
+  border: 1px solid var(--color-fog);
+  opacity: 0;
+  transform: translateY(10px);
+  transition: opacity 500ms var(--ease-out-quint), transform 600ms var(--ease-out-quint);
+}
+html.intro-active[data-intro-stage="2"] #intro-overlay .intro-panel {
+  opacity: 1;
+  transform: translateY(0);
+}
+#intro-overlay .intro-title {
+  font-family: var(--font-display);
+  font-size: var(--text-subheading);
+  font-weight: var(--weight-light);
+  letter-spacing: var(--tracking-display-face);
+  color: var(--tl-text);
+}
+#intro-overlay .intro-subtitle {
+  margin-top: 8px;
+  font-size: var(--text-body-sm);
+  color: var(--color-cinder);
+}
+
+/* ---- The exit -------------------------------------------------------------
+   A slide-up curtain. DURATION IS A CONTRACT: js/intro.js hardcodes
+   CURTAIN_MS = 900 and tears the node down at CURTAIN_MS + 160, so this must
+   stay at .9s — longer is torn down mid-flight, shorter is safe. */
+@keyframes tl-curtain-up {
+  0%   { transform: translateY(0); border-bottom-left-radius: 0; border-bottom-right-radius: 0; }
+  16%  { transform: translateY(-6%); border-bottom-left-radius: 44% 6%; border-bottom-right-radius: 44% 6%; }
+  100% { transform: translateY(-100%); border-bottom-left-radius: 0; border-bottom-right-radius: 0; }
+}
+html.intro-active[data-intro-stage="3"] #intro-overlay {
+  animation: tl-curtain-up 900ms cubic-bezier(0.76, 0, 0.24, 1) forwards;
+  will-change: transform;
+}
+html.intro-active[data-intro-stage="3"] #intro-overlay .intro-inner {
+  opacity: 0;
+  transform: translateY(-40px) scale(0.98);
+  transition: opacity 420ms var(--ease-out-quint), transform 420ms var(--ease-out-quint);
+}
+
+/* ---- Hero content reveal, staggered --------------------------------------
+   Owned by js/intro.js via `html.intro-reveal`. Same travel and duration as the
+   scroll reveal, so the two systems read as one. `#navbar` is the exception: a
+   sticky bar under a filter is a rendering artefact, so it keeps a plain fade.
+   These attributes must stay in the same order the controller expects. */
+html.intro-active [data-intro-reveal] {
+  opacity: 0 !important;
+  transform: translate3d(0, 24px, 0) !important;
+  transition:
+    opacity 550ms var(--ease-out-quint),
+    transform 550ms var(--ease-out-quint) !important;
+}
+html.intro-active.intro-reveal [data-intro-reveal] {
+  opacity: 1 !important;
+  transform: translate3d(0, 0, 0) !important;
+}
+html.intro-active [data-intro-reveal="1"] { transition-delay: 0ms !important; }
+html.intro-active [data-intro-reveal="2"] { transition-delay: 120ms !important; }
+html.intro-active [data-intro-reveal="3"] { transition-delay: 240ms !important; }
+html.intro-active [data-intro-reveal="4"] { transition-delay: 360ms !important; }
+html.intro-active [data-intro-reveal="5"] { transition-delay: 480ms !important; }
+
+html.intro-done [data-intro-reveal],
+html.reveal-all [data-intro-reveal] {
+  opacity: 1 !important;
+  transform: none !important;
+  transition: none !important;
+}
+
+/* Reduced motion: no curtain, one short fade. */
+html.motion-reduced #intro-overlay *,
+html.motion-reduced #intro-overlay *::after {
+  animation: none !important;
+  transition-duration: 10ms !important;
+}
+html.motion-reduced.intro-active[data-intro-stage="3"] #intro-overlay {
+  animation: none !important;
+  transform: none !important;
+  opacity: 0;
+  transition: opacity 300ms linear, visibility 300ms linear;
+}
+@media (prefers-reduced-motion: reduce) {
+  html:not(.motion-on) #intro-overlay * { animation: none !important; transition-duration: 10ms !important; }
+}
+
+/* ---- Icon safety net ------------------------------------------------------
+   script.js parks the card / step icon boxes at inline `opacity: 0` before
+   handing them to Motion. These staged keyframes outrank both the inline style
+   and a Web Animations fill, so a dropped animation can never leave a card
+   reading as "no icon". */
+@keyframes tl-icon-visible { to { opacity: 1 !important; } }
+[data-motion-kind="icon"] {
+  animation: tl-icon-visible 1ms linear 1.5s forwards,
+             tl-icon-visible 1ms linear 3s forwards;
+}

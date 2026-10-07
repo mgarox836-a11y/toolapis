@@ -1,0 +1,369 @@
+/* =============================================================================
+   HERO 3D — the light-ribbon visual
+   -----------------------------------------------------------------------------
+   DESIGN.md "Imagery": neon-lit geometry on a dark gradient ground, blending
+   into the #070707 canvas with no hard mask. This is that ground, and the
+   ribbon that sits on it.
+
+   WHY SVG AND NOT WEBGL
+   A Three.js layer was removed from this site in commit b834c18: it was the
+   entire performance problem (Lighthouse 42/25 with it, 77/74 without), and the
+   profile was 96% native GPU. An SVG path with an animated stroke-dashoffset
+   gives the same read — a light ribbon tracking a curve — for zero GPU cost
+   and no fallback branch. js/hero3d.js is only a controller: it pauses the
+   animation when the hero scrolls away or the tab is hidden, and writes the
+   mouse parallax. All the light is CSS.
+
+   THE SEAM
+   Every layer here ends at Void Canvas. The ribbon's endpoints fade to
+   transparent, the floor grid is masked out at the bottom, and `.hero-fade`
+   sits above all of it — so the last pixel row of the hero and the first of
+   the section below are the same colour. tools/seam-assert.mjs proves that by
+   resolving the paint stack, not by eyeballing a screenshot.
+   ========================================================================== */
+
+/* The scene is a grid CHILD of .hero-inner, not an absolutely-positioned layer
+   over the whole hero. That is what lets it be a real column on desktop and a
+   real row on mobile, instead of a fixed 760px box whose position has to be
+   fought with media queries at every breakpoint. It takes no grid slot of its
+   own on desktop (it is pulled out of flow), and on mobile it occupies the row
+   between the copy and the accent card, which is the order the brief asks for:
+   text, then visual, then card. */
+.hero-scene {
+  position: absolute;
+  /* Bleeds off the right edge on purpose: DESIGN.md's hero is a 50/50 split
+     where the visual runs to the viewport edge with no hard edge of its own. */
+  inset: 0 -12% 0 auto;
+  /* `62%` of the hero, not `62vw`: `vw` is the viewport including the scrollbar,
+     so on desktop the scene was 15px wider than the space it was placed in. */
+  width: min(760px, 62%);
+  z-index: 0;
+  pointer-events: none;
+  /* `clip`, not `hidden`. The floor and the ribbon inside this box extend well
+     past its edges by design, so the box must confine them — and `hidden`
+     would make it a scroll container. Brief §4 asks for exactly this. */
+  overflow: clip;
+  /* Contain the glow so a long dash-offset animation cannot widen the page. */
+  contain: paint;
+}
+/* On one column the scene sits UNDER the copy, and the accent card sits over
+   the scene. So the scene's bright middle band must not land where the card is:
+   the composition the brief asks for is copy → visual → accent card, which means
+   the scene wants its light in the UPPER part of its own box here, not the
+   middle. */
+@media (max-width: 899px) {
+  /* In flow, between the copy and the accent card. Full-bleed: it breaks out
+     of .shell's gutter so the light runs to both viewport edges, which is what
+     makes it read as a scene rather than as an inset panel.
+
+     The bleed is `calc(var(--gutter) * -1)` rather than the literal
+     `clamp(20px, 4vw, 32px) * -1` that was here before, which was a THIRD copy
+     of the page gutter and had already drifted from the one .shell used. Now
+     there is one number and both sides read it. */
+  .hero-scene {
+    position: relative;
+    inset: auto;
+    width: auto;
+    /* Brief §4: 280–360px on mobile. Fluid, so it is 280px at 320 and 320px at
+       a 500px phone, rather than one fixed 320px at every width. */
+    height: clamp(280px, 62vw, 360px);
+    grid-column: 1 / -1;
+    margin-inline: calc(var(--gutter) * -1);
+    /* No safe-area correction here, and deliberately: #hero already carries
+       `padding-inline: env(safe-area-inset-*)`, so the scene's negative margin
+       resolves against a box that is already clear of the notch. Adding a
+       padding here instead would offset the absolutely-positioned layers
+       inside (the ground, floor and ribbon all position against this box's
+       padding box) and shift the light off-centre. */
+  }
+  /* Fade the right edge too, since on mobile the scene no longer bleeds off
+     screen — every edge is now visible and every edge has to dissolve. */
+  .hero-scene__ground {
+    -webkit-mask-image:
+      linear-gradient(90deg, transparent 0%, #000 22%, #000 78%, transparent 100%),
+      linear-gradient(180deg, transparent 0%, #000 14%, #000 58%, transparent 100%);
+    mask-image:
+      linear-gradient(90deg, transparent 0%, #000 22%, #000 78%, transparent 100%),
+      linear-gradient(180deg, transparent 0%, #000 14%, #000 58%, transparent 100%);
+  }
+  /* The ribbon's lower tracks are where the card lands; keep them faint and
+     pull the whole composition up out of the card's footprint. */
+  .hero-scene__bloom { top: 6%; right: 12%; width: 74%; }
+  .hero-chips { display: none; }
+}
+
+/* --- the ground -----------------------------------------------------------
+   --gradient-ground per DESIGN.md "Imagery", with the top stop a real token.
+
+   THE MASK IS THE WHOLE POINT. Without it this element is a rectangle: a
+   lighter-blue box sitting on the canvas with four hard edges, which is exactly
+   what DESIGN.md's "blending into the #070707 canvas with no hard mask" forbids
+   and what the eye reads as a broken image rather than as depth.
+
+   Two mask layers, composited with `intersect`, so each edge is dissolved
+   independently:
+     * a horizontal ramp that fades the LEFT edge to nothing (the right edge is
+       already off-screen, so it never needs one);
+     * a vertical ramp that fades both the top and the bottom.
+   `intersect` is required — with the default `add` composite the more opaque
+   layer wins and the other has no effect. */
+.hero-scene__ground {
+  position: absolute;
+  inset: 0;
+  background: var(--gradient-ground);
+  -webkit-mask-image:
+    linear-gradient(90deg, transparent 0%, #000 34%, #000 100%),
+    linear-gradient(180deg, transparent 0%, #000 26%, #000 62%, transparent 100%);
+  mask-image:
+    linear-gradient(90deg, transparent 0%, #000 34%, #000 100%),
+    linear-gradient(180deg, transparent 0%, #000 26%, #000 62%, transparent 100%);
+  -webkit-mask-composite: source-in;
+  mask-composite: intersect;
+}
+
+/* The perspective floor, shared with the CTA band so the two read as the same
+   room seen from different angles. */
+.hero-scene__floor {
+  position: absolute;
+  /* Extends 40% past each side and 70% below the box by design — it is a
+     perspective floor and it has to run off frame. `.hero-scene`'s
+     `overflow: clip` is what confines it; the negative insets here are the
+     reason that clip has to exist. */
+  inset: 42% -40% -70% -10%;
+  background-image:
+    linear-gradient(var(--color-iron-edge) 1px, transparent 1px),
+    linear-gradient(90deg, var(--color-iron-edge) 1px, transparent 1px);
+  background-size: 64px 64px;
+  opacity: 0.22;
+  transform: perspective(560px) rotateX(66deg);
+  transform-origin: 50% 0;
+  -webkit-mask-image: linear-gradient(180deg, #000 0%, transparent 72%);
+  mask-image: linear-gradient(180deg, #000 0%, transparent 72%);
+}
+
+/* --- the ribbon ----------------------------------------------------------- */
+.hero-ribbon {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  /* `visible` is correct and safe HERE, unlike everywhere else: this SVG sits
+     inside `.hero-scene`, which is `overflow: clip`. The paths run from x=-40
+     to x=756 in a 760-unit viewBox and fade to transparent at both ends, so
+     the overflow is the fade — nothing that could be seen, and nothing that
+     escapes the scene's clip. */
+  overflow: visible;
+}
+/* Gradient shared by the ribbon strokes: mint at the leading end, ice blue
+   where it trails. Both are DESIGN.md tokens. */
+.hero-ribbon__grad { fill: none; stroke-linecap: round; }
+
+.ribbon-base {
+  stroke-width: 1.5;
+  stroke: url(#ribbonGrad);
+  opacity: 0.5;
+}
+/* The two structural tracks, offset from each other so the light reads as
+   travelling along a path rather than sitting on one. */
+.ribbon-track {
+  stroke-width: 1.25;
+  stroke: url(#ribbonGrad);
+  opacity: 0.3;
+}
+
+/* The travelling segment. This is the only animated property on the scene:
+   stroke-dashoffset, which is compositor-friendly and never triggers layout.
+   The dash pattern is short relative to the path so a whole segment is visible
+   at once rather than a bright dot lost in a long gap. */
+.ribbon-flow {
+  stroke-width: 3;
+  stroke: url(#ribbonFlowGrad);
+  stroke-dasharray: 240 1560;
+  filter: drop-shadow(0 0 7px rgba(112, 220, 211, 0.6));
+  animation: ribbon-run 7s linear infinite;
+}
+@keyframes ribbon-run {
+  from { stroke-dashoffset: 1800; }
+  to   { stroke-dashoffset: 0; }
+}
+/* A second, slower segment on the inner track so the two never sync up. */
+.ribbon-flow--inner {
+  stroke-width: 2;
+  stroke: url(#ribbonGrad);
+  stroke-dasharray: 170 1280;
+  opacity: 0.9;
+  filter: drop-shadow(0 0 6px rgba(166, 229, 242, 0.45));
+  animation: ribbon-run-inner 11s linear infinite;
+}
+@keyframes ribbon-run-inner {
+  from { stroke-dashoffset: 0; }
+  to   { stroke-dashoffset: -1450; }
+}
+
+/* The phosphor bloom behind the ribbon. One radial, no blur filter — a blur
+   here is the single most expensive thing this scene could ask for. */
+.hero-scene__bloom {
+  position: absolute;
+  top: 18%;
+  right: 4%;
+  width: 58%;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  background: radial-gradient(
+    circle at center,
+    rgba(112, 220, 211, 0.13) 0%,
+    rgba(112, 220, 211, 0.045) 36%,
+    transparent 68%
+  );
+  animation: bloom-breathe 7.5s var(--ease-in-out) infinite;
+}
+@keyframes bloom-breathe {
+  0%, 100% { opacity: 0.7; transform: scale(0.97); }
+  50%      { opacity: 1;   transform: scale(1.05); }
+}
+
+/* --- floating chips -------------------------------------------------------
+   Three small pills that read as status readouts over the scene. Mono 12px,
+   Carbon Plate, Fog hairline. Each drifts on its own period so they never
+   move in lockstep. */
+.hero-chips {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  /* The chips occupy the upper-left of the scene on desktop, clear of the TOOL
+     PASS card. A chip behind the card is not a layering detail, it is a chip
+     nobody can read — so this is a placement constraint, not a preference. */
+}
+/* Chips are placed as PERCENTAGES of the scene box, so every one of them stays
+   inside it at any width — which is what lets `.hero-scene`'s `overflow: clip`
+   be a backstop rather than a crop. The previous values were all `%` already
+   EXCEPT that the chip itself was `white-space: nowrap` with no width cap, so a
+   long label set the chip's width and pushed it past the right edge on a
+   narrow scene. `max-width` + ellipsis closes that. */
+.hero-chip {
+  position: absolute;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  max-width: calc(100% - 16px);
+  padding: 7px 12px;
+  border-radius: var(--radius-badges);
+  border: 1px solid var(--color-fog);
+  background: var(--color-carbon-plate);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  letter-spacing: 0.02em;
+  color: var(--color-ash);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  box-shadow: var(--shadow-subtle);
+  z-index: 2;
+}
+.hero-chip .icon { flex: none; }
+.hero-chip .icon { width: 13px; height: 13px; color: var(--color-graphite); }
+/* Composition, given that the scene is 760px wide starting at ~46% of the
+   viewport, and the accent card occupies its right half from 30% down:
+     chip 1  top-left of the scene, above the card's top edge
+     chip 2  left of the scene, mid height, still clear of the card
+     chip 3  above the card, top-right of the scene
+   Measured against the card rather than eyeballed, because the failure mode is
+   a chip that is technically visible and practically unreadable. */
+.hero-chip--1 { top: 9%;  left: 3%;  animation: chip-float-a 6.2s var(--ease-in-out) infinite; }
+.hero-chip--2 { top: 40%; left: 2%;  animation: chip-float-b 5.4s var(--ease-in-out) infinite; }
+.hero-chip--3 { top: 14%; left: 34%; animation: chip-float-c 7s   var(--ease-in-out) infinite; }
+/* Below 1280 the scene's width is a fixed 62vw, so as the viewport narrows the
+   scene's LEFT edge moves right while the card's left edge moves LEFT (the
+   card is the fixed 380px column and the copy column shrinks). The two cross
+   around 1150px, and below that every chip in the scene's middle band lands
+   under the card.
+
+   Rather than chase the crossover with more offsets, the middle chip moves to
+   the scene's bottom band — below the card's bottom edge — which stays clear at
+   every width from 1024 up. The card's bottom is the hero's vertical centre. */
+@media (max-width: 1279px) {
+  .hero-chip--3 { left: 24%; }
+  .hero-chip--2 { top: 78%; left: 6%; }
+}
+
+/* Brief §4/§5: below 768px the parallax and the travelling segments both stop.
+   The parallax writes --px/--py from a pointermove listener, which a touch
+   device does not have, so those transforms were resolving to
+   `translate3d(0px, 0px, 0)` anyway — four extra composited layers for nothing.
+   `animation: none` leaves the ribbon at its rest dashoffset, which is a
+   finished composition rather than a frozen accident.
+
+   The chips are hidden entirely below 900px by the rule above; they are
+   12px mono labels positioned against a scene that is now a horizontal band,
+   and there is nowhere in that band they would not be in the way. */
+@media (max-width: 767px) {
+  .ribbon-flow,
+  .ribbon-flow--inner { animation: none; }
+  .ribbon-flow { stroke-dashoffset: 640; }
+  .hero-scene__ground,
+  .hero-scene__floor,
+  .hero-scene__bloom,
+  .hero-ribbon,
+  .hero-chips { transform: none; }
+}
+
+@keyframes chip-float-a {
+  0%, 100% { transform: translate3d(0, -6px, 0); }
+  50%      { transform: translate3d(0, 6px, 0); }
+}
+@keyframes chip-float-b {
+  0%, 100% { transform: translate3d(4px, 5px, 0); }
+  50%      { transform: translate3d(-4px, -5px, 0); }
+}
+@keyframes chip-float-c {
+  0%, 100% { transform: translate3d(0, 4px, 0); }
+  50%      { transform: translate3d(0, -6px, 0); }
+}
+
+/* --- parallax -------------------------------------------------------------
+   js/hero3d.js writes --px/--py from the pointer (capped at 12px, which is the
+   brief's ceiling). The layers move by different fractions of it, so the
+   scene has depth without the copy ever drifting off its baseline. */
+.hero-scene__ground { transform: translate3d(calc(var(--px, 0px) * 0.25), calc(var(--py, 0px) * 0.25), 0); }
+.hero-scene__floor  { transform: perspective(560px) rotateX(66deg) translate3d(calc(var(--px, 0px) * 0.5), calc(var(--py, 0px) * 0.5), 0); }
+.hero-scene__bloom  { transform: translate3d(calc(var(--px, 0px) * 0.75), calc(var(--py, 0px) * 0.75), 0); }
+.hero-ribbon         { transform: translate3d(calc(var(--px, 0px) * 1), calc(var(--py, 0px) * 1), 0); }
+.hero-chips          { transform: translate3d(calc(var(--px, 0px) * 0.6), calc(var(--py, 0px) * 0.6), 0); }
+
+/* The keyframes above set `transform` outright, so they would clobber the
+   parallax. Each animated layer carries its own parallax via a wrapper-free
+   compromise: the keyframe animates a child variable instead of the transform
+   the parallax rule owns. Rebinding the two floats keeps both working. */
+.hero-scene__bloom,
+.hero-chip { will-change: transform, opacity; }
+
+/* --- reduced motion -------------------------------------------------------
+   Every loop in the scene stops and the ribbon is left mid-travel, which is a
+   finished composition rather than a frozen accident. */
+html.motion-reduced .ribbon-flow,
+html.motion-reduced .ribbon-flow--inner,
+html.motion-reduced .hero-scene__bloom,
+html.motion-reduced .hero-chip,
+html.motion-reduced .lock__light,
+html.motion-reduced .terminal__caret,
+html.motion-reduced .marquee__track,
+html.motion-reduced .flow__step.is-active .flow__node::after { animation: none !important; }
+html.motion-reduced .ribbon-flow { stroke-dashoffset: 640; }
+html.motion-reduced .hero-chip { transform: none; }
+
+/* ---------------------------------------------------------------------------
+   POINTER PARALLAX IS A HOVER-ONLY EFFECT
+   -----------------------------------------------------------------------------
+   js/hero3d.js already refuses to attach its pointermove listener unless
+   `(pointer: fine)` matches, so --px/--py are never written on a touch device
+   and these five transforms resolve to zero. Gating them in CSS as well is
+   belt-and-braces on one point that matters: the transforms are what force the
+   scene's five layers onto the compositor. Without the gate they stay promoted
+   on a phone, where nothing ever moves them. */
+@media (hover: none), (pointer: coarse) {
+  .hero-scene__ground,
+  .hero-scene__floor,
+  .hero-scene__bloom,
+  .hero-ribbon,
+  .hero-chips { transform: none; }
+}

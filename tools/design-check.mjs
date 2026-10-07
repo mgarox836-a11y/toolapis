@@ -7,11 +7,16 @@
  *   1. the canvas is Void Canvas and every surface is a token;
  *   2. cards are Carbon Plate with a 1px Fog hairline, 20px radius, NO shadow;
  *   3. exactly one filled white button and one Phosphor accent card per viewport;
- *   4. headlines use the display face at positive tracking, never negative;
+ *   4. headlines use Google Sans at positive tracking, never negative, and
+ *      never at weight >= 700;
  *   5. body copy stays inside the 14–18px reading range;
- *   6. no legacy palette survives anywhere (violet, lime, the old greys);
+ *   6. no legacy palette survives anywhere (violet, lime, the old greys) and no
+ *      superseded type family is left in the stylesheet;
  *   7. no horizontal scroll at 375px, and no console errors;
- *   8. with prefers-reduced-motion: reduce, nothing animates.
+ *   8. with prefers-reduced-motion: reduce, nothing animates;
+ *   9. the redesigned sections are actually present and wired: bento grid,
+ *      activity feed, terminal, before/after slider, lock panel, accordion,
+ *      flow connector, and the slider is keyboard-operable.
  *
  *   node tools/design-check.mjs
  *   node tools/design-check.mjs --width 768 --height 1024
@@ -103,12 +108,16 @@ for (const vp of VIEWPORTS) {
       return bg !== 'rgba(0, 0, 0, 0)' && bg !== 'transparent';
     };
 
-    const cards = [...document.querySelectorAll('#overview .tool-card, #features .card, #flow .card, #clarity .shell > .reveal')]
+    /* The bento grid replaced the old equal-column tool cards, so the selector
+       follows the current markup rather than the previous one. */
+    const cards = [...document.querySelectorAll('#overview .bento > .card, #clarity .cta-band')]
       .filter(visible)
       .map((el) => {
         const s = getComputedStyle(el);
         return {
+          cls: (el.className || '').toString().split(/\s+/)[0],
           bg: s.backgroundColor,
+          bgImage: s.backgroundImage,
           border: s.borderTopWidth + ' ' + s.borderTopStyle + ' ' + s.borderTopColor,
           radius: s.borderTopLeftRadius,
           shadow: s.boxShadow,
@@ -154,8 +163,78 @@ for (const vp of VIEWPORTS) {
       .filter(visible)
       .map((el) => parseFloat(getComputedStyle(el).fontSize));
 
+    /* Every element rendered at 700 or above. Scoped to what has text in it,
+       because `font-weight` is inherited and a wrapper div reports its
+       child's value. */
+    const heavy = [];
+    for (const el of document.querySelectorAll('body, body *')) {
+      if (!visible(el)) continue;
+      const hasOwnText = [...el.childNodes]
+        .some((n) => n.nodeType === 3 && n.textContent.trim().length > 0);
+      if (!hasOwnText) continue;
+      const w = parseInt(getComputedStyle(el).fontWeight, 10);
+      if (w >= 700) heavy.push(el.tagName.toLowerCase() + '.' + ((el.className || '').toString().split(/\s+/)[0] || '?') + ' w=' + w);
+    }
+
+    /* Mono surfaces: the terminal, the hero chips, the bento stats. */
+    const monoFaces = [...document.querySelectorAll('.terminal, .hero-chip, .ba__stats, .code, .mono')]
+      .filter(visible)
+      .map((el) => getComputedStyle(el).fontFamily.split(',')[0].replace(/["']/g, ''))
+      .filter((v, i, a) => a.indexOf(v) === i);
+
+    /* Hover states, gathered with real input rather than a synthetic class.
+       This block runs after the page has settled; see the hover pass below. */
+
+    /* The redesigned sections, and whether each is actually wired rather than
+       merely present in the markup. A class that exists but whose controller
+       never ran is the failure mode this catches. */
+    const ba = document.querySelector('[data-ba]');
+    const sections = {
+      bento: document.querySelectorAll('#overview .bento > .card').length,
+      feed: document.querySelectorAll('[data-feed] .feed__row').length,
+      terminal: document.querySelectorAll('[data-terminal] [data-type]').length,
+      lock: document.querySelectorAll('.lock__ring').length,
+      acc: document.querySelectorAll('.acc__item').length,
+      flowTrace: !!document.querySelector('[data-flow-trace]'),
+      marquee: document.querySelectorAll('.marquee__group').length,
+      slider: ba ? {
+        tag: ba.tagName.toLowerCase(),
+        type: ba.type,
+        aria: !!ba.getAttribute('aria-label'),
+        value: ba.value,
+      } : null,
+      /* The feed must hold a constant number of rows: it evicts as it pushes,
+         and a growing list means the eviction never ran. */
+      feedStable: document.querySelectorAll('[data-feed] .feed__row').length === 4,
+    };
+
     /* Every computed colour and every stylesheet rule, searched for the old
-       palette. */
+       palette, plus the superseded type families.
+
+       The font check reads the STYLESHEET TEXT, not the computed value,
+       because --font-body is a var() chain: the computed value resolves to
+       Google Sans even while an old name survives inside a fallback stack,
+       which is exactly what --font-geist / --font-calsans are (deliberate
+       aliases so no rule breaks). Asserting on computed values would pass
+       either way and catch nothing. */
+    const cssText = [...document.styleSheets]
+      .flatMap((sheet) => { try { return [...sheet.cssRules].map((r) => r.cssText); } catch (err) { return []; } })
+      .join('\n');
+    /* Each is matched only where it would be a LIVE reference, never as one
+       entry of a fallback stack: a --font-* declaration or an @font-face. */
+    const staleFonts = [
+      { re: /@font-face[^}]*'Space Grotesk'/, label: 'Space Grotesk @font-face' },
+      { re: /@font-face[^}]*'Geist'/, label: 'Geist @font-face' },
+      { re: /@font-face[^}]*'Geist Mono'/, label: 'Geist Mono @font-face' },
+      { re: /--font-(display|body|sans)\s*:\s*'Space Grotesk'/, label: 'Space Grotesk as a live --font-* alias' },
+      { re: /--font-(display|body|sans)\s*:\s*'Calsans'/, label: 'Calsans as a live --font-* alias' },
+      /* NOTE: 'Geist Mono' as a FALLBACK entry inside the mono stack is
+         allowed and intended — css/tokens.css names it there on purpose, so a
+         device without Google Sans Code still gets a sane monospace face. Only
+         an @font-face or a live --font-(display|body|sans) alias counts as a
+         leftover, and those are the three checks above. */
+    ].filter((c) => c.re.test(cssText)).map((c) => c.label);
+
     const stale = [];
     for (const el of document.querySelectorAll('body, body *')) {
       const s = getComputedStyle(el);
@@ -196,7 +275,11 @@ for (const vp of VIEWPORTS) {
       mintCards,
       heads,
       bodies: { min: Math.min(...bodies), max: Math.max(...bodies) },
+      heavy,
+      monoFaces,
+      sections,
       stale: [...new Set(stale)].slice(0, 12),
+      staleFonts,
       navBorder: cs(document.getElementById('navbar'), 'border-bottom-color'),
       displayFF: getComputedStyle(document.querySelector('h1')).fontFamily,
       hasTailwind: !!document.querySelector('script[src*="tailwindcss"]'),
@@ -234,6 +317,75 @@ for (const vp of VIEWPORTS) {
     return out;
   })();
 
+  /* ---- hover pass -------------------------------------------------------
+     A separate read, because a hover state cannot be observed in a
+     computed-style pass on an un-hovered element — there is no `:hover` to
+     measure. The card lift in particular was dead for a whole review cycle: the
+     reveal system's `:not(#id)` chain resolves to about (10,3,2), which
+     out-specified `.card:hover`'s `transform`, so the card's background
+     changed on hover while the -4px lift never applied. The rule looked
+     correct in the stylesheet and was dead on the page. */
+  const hoverOne = async (selector, pick) => {
+    const el = await page.$(selector);
+    if (!el) return { ok: false, value: 'not on screen' };
+    const read = (sel) => page.evaluate((q) => {
+      const e = document.querySelector(q);
+      const c = getComputedStyle(e);
+      return { bg: c.backgroundColor, transform: c.transform, translate: c.translate, border: c.borderTopColor, shadow: c.boxShadow };
+    }, sel);
+    const before = await read(selector);
+    await el.hover({ force: true });
+    await page.waitForTimeout(420);
+    return { ok: true, value: pick(before, await read(selector)) };
+  };
+  const bring = async (selector) => {
+    await page.evaluate((sel) => {
+      const e = document.querySelector(sel);
+      if (e) e.scrollIntoView({ block: 'center' });
+    }, selector);
+    await page.waitForTimeout(850);
+  };
+
+  await page.evaluate(() => window.scrollTo(0, 0));
+  await page.waitForTimeout(600);
+
+  await bring('.bento__tether');
+  const cardHover = await hoverOne('.bento__tether', (b, a) => ({
+    lift: a.translate !== b.translate && a.translate !== 'none',
+    bgChanged: a.bg !== b.bg,
+    borderHeld: a.border === b.border,
+    noShadow: a.shadow === 'none',
+    translate: a.translate,
+  }));
+  const ghostHover = await hoverOne('.bento__tether a.btn-outline', (b, a) => a.bg);
+
+  await page.evaluate(() => window.scrollTo(0, 0));
+  await page.waitForTimeout(800);
+  const filledHover = await hoverOne('.hero-cta-row a.btn-accent', (b, a) => ({
+    lift: a.transform !== b.transform && a.transform !== 'none',
+    transform: a.transform,
+  }));
+
+  await bring('.bento__hd');
+  /* The arrow is a CHILD of the button, so the hover has to land on the button
+     and the read has to be taken on the icon inside it. */
+  await page.hover('.bento__hd a.btn-outline', { force: true });
+  await page.waitForTimeout(450);
+  const arrowHover = await page.evaluate(() => {
+    const a = document.querySelector('.bento__hd a.btn-outline .btn-arrow');
+    return a ? getComputedStyle(a).transform : 'no arrow';
+  });
+
+  const blurOut = await page.evaluate(() => {
+    const hits = [];
+    document.querySelectorAll('body, body *').forEach((e) => {
+      const c = getComputedStyle(e);
+      const bf = c.backdropFilter || c.webkitBackdropFilter;
+      if (bf && bf !== 'none') hits.push((e.className || e.tagName) + ' -> ' + bf);
+    });
+    return hits;
+  });
+
   console.log(`\n=== ${vp.width}x${vp.height} · ${vp.label} ===`);
   const ok = [], bad = [];
   const check = (label, pass, detail) => (pass ? ok : bad).push(`${label}${detail ? '  [' + detail + ']' : ''}`);
@@ -247,10 +399,21 @@ for (const vp of VIEWPORTS) {
     `${r.htmlBg} / ${r.bodyBg}`);
 
   /* 2 — cards */
-  check('every card is Carbon Plate with a 1px Fog hairline, 20px radius, no shadow',
-    r.cards.length > 0 && r.cards.every((c) => c.bg === T.carbon && /^1px solid rgb\(217, 218, 229\)$/.test(c.border)
+  /* The bento cards are Carbon Plate panels. `.cta-band` is a different kind
+     of thing entirely — DESIGN.md "3D Product Visual Block"/closing band: it
+     sits on --gradient-ground, so it has no background-color at all. Probing
+     it as a card is what made this assertion fail for five correct cards. */
+  const panels = r.cards.filter((c) => c.cls !== 'cta-band');
+  const bands = r.cards.filter((c) => c.cls === 'cta-band');
+  check('every bento card is Carbon Plate with a 1px Fog hairline, 20px radius, no shadow',
+    panels.length === 4 && panels.every((c) => c.bg === T.carbon
+      && /^1px solid rgb\(217, 218, 229\)$/.test(c.border)
       && c.radius === '20px' && c.shadow === 'none'),
-    `${r.cards.length} cards; first ${JSON.stringify(r.cards[0] || {})}`);
+    `${panels.length} cards; first ${JSON.stringify(panels[0] || {})}`);
+  check('the closing CTA band is a gradient ground, not a flat plate',
+    bands.length === 1 && bands[0].radius === '20px' && bands[0].shadow === 'none'
+      && /linear-gradient/.test(bands[0].bgImage),
+    JSON.stringify(bands[0] || {}));
 
   /* 3 — ONE filled white button per screen. This is the primary-action
      rationing, so a second one on screen is the failure, not a filled button's
@@ -261,25 +424,34 @@ for (const vp of VIEWPORTS) {
   check('at most one Phosphor accent card', r.mintCards.length <= 1,
     r.mintCards.join(' ') || 'none');
 
-  /* 4 — the display face, always, with POSITIVE tracking.
-     The brief ties "+0.056em and Space Grotesk" to headlines ≥ 56px, but the
-     ruling that actually has teeth is the one DESIGN.md states as a Don't:
-     the display face is never negatively tracked, at any size. So that is what
-     is asserted everywhere, and the 56px+ case is checked as its own rule. */
-  check('every headline uses the display face at weight <= 400',
-    r.heads.length > 0 && r.heads.every((h) => /Space Grotesk/.test(h.ff) && +h.weight <= 400),
+  /* 4 — Google Sans everywhere, POSITIVE tracking, nothing heavy.
+     The typography brief replaced Space Grotesk + Geist with one family.
+     DESIGN.md's "Don't" that still has teeth is that the display face is never
+     negatively tracked, at any size — so that is asserted everywhere, the
+     56px+ ceiling is checked as its own rule, and 700+ is banned outright
+     because weight, not size, carrying the hierarchy is what makes a page read
+     as consumer UI. */
+  check('every headline uses Google Sans at weight <= 600',
+    r.heads.length > 0 && r.heads.every((h) => /Google Sans/.test(h.ff) && +h.weight <= 600),
     r.heads.map((h) => `${h.size.toFixed(0)}px w=${h.weight}`).join(' | '));
+  check('no weight >= 700 anywhere on the page', r.heavy.length === 0,
+    r.heavy.join(', ') || 'none');
   check('no headline anywhere is negatively tracked',
     r.heads.every((h) => parseFloat(h.ls) >= 0),
     r.heads.filter((h) => parseFloat(h.ls) < 0).map((h) => h.size.toFixed(0) + 'px').join(', ') || 'none negative');
-  /* Where the viewport is wide enough for the 56px token to apply, it must. */
+  /* Google Sans is wider-bodied than the Calsans it stands in for, so the
+     tracking was recalibrated DOWN — 0.03em on the hero, 0.024em at the 56px
+     token — while DESIGN.md's 0.056em stays the ceiling. */
   const bigHeads = r.heads.filter((h) => h.size >= 54);
-  check('headlines at the 56px token keep the display tracking (~0.056em)',
+  check('display tracking stays positive and under the 0.056em ceiling',
     bigHeads.length === 0 || bigHeads.every((h) => {
       const ratio = parseFloat(h.ls) / h.size;
-      return ratio > 0.04 && ratio < 0.075;
+      return ratio > 0 && ratio <= 0.0565;
     }),
-    bigHeads.map((h) => `${h.size.toFixed(0)}px ls=${h.ls}`).join(' | ') || 'no 56px+ headline at this width');
+    bigHeads.map((h) => `${h.size.toFixed(0)}px ls=${h.ls} = ${(parseFloat(h.ls) / h.size * 100).toFixed(2)}em`).join(' | ')
+      || 'no 56px+ headline at this width');
+  check('mono surfaces use Google Sans Code', r.monoFaces.every((f) => /Google Sans Code/.test(f)),
+    r.monoFaces.join(' | ') || 'no mono surface on screen');
 
   /* 5 — body copy range */
   check('body copy stays within 14–18px', r.bodies.min >= 13.5 && r.bodies.max <= 18.5,
@@ -287,6 +459,10 @@ for (const vp of VIEWPORTS) {
 
   /* 6 — no legacy palette */
   check('no violet / lime / old-grey colour survives', r.stale.length === 0, r.stale.join(' ; ') || 'clean');
+  /* One family for every role, with the superseded names surviving only as
+     entries of a fallback stack. */
+  check('no superseded type family is live in the stylesheet',
+    r.staleFonts.length === 0, r.staleFonts.join(', ') || 'Google Sans only');
   check('Tailwind CDN is gone', !r.hasTailwind);
 
   /* 7 — layout and links */
@@ -302,6 +478,41 @@ for (const vp of VIEWPORTS) {
   check('intro overlay removed from the DOM', r.introGone);
   check('no reveal left stranded below full opacity', r.hiddenReveals.length === 0,
     r.hiddenReveals.join(' ') || 'none');
+
+  /* 10 — hover states actually fire.
+     These four are one-liners in CSS that a computed-style pass cannot see on
+     its own, and one of them (the card lift) was silently dead for a whole
+     review cycle: the reveal system's `:not(#id)` chain out-specified it, so
+     the card's background changed on hover while the -4px lift never applied.
+     A rule can look correct in the stylesheet and be dead on the page. */
+  check('card hover lifts 4px and darkens to Obsidian',
+    cardHover.ok && cardHover.value.lift && cardHover.value.bgChanged && cardHover.value.borderHeld && cardHover.value.noShadow,
+    JSON.stringify(cardHover.value));
+  check('ghost pill hover fills 8% white',
+    /rgba\(255, 255, 255, 0\.08\)/.test(String(ghostHover.value)), String(ghostHover.value));
+  check('filled pill hover lifts 1px',
+    filledHover.ok && filledHover.value.lift, JSON.stringify(filledHover.value));
+  check('button arrow slides 4px on hover',
+    /,\s*4,\s*0\)|translateX\(4px\)/.test(String(arrowHover)), String(arrowHover));
+  /* Nothing anywhere may reach for backdrop-filter: DESIGN.md has no
+     glassmorphism, and it is the single most expensive decoration on the page. */
+  check('no backdrop-filter anywhere', blurOut.length === 0, blurOut.join(' ; ') || 'none');
+
+  /* 9 — the redesigned sections exist AND are wired, not just present in the
+     markup. A class that exists while its controller never ran is exactly the
+     failure mode a screenshot cannot see, so each is probed for the state its
+     controller is responsible for producing. */
+  check('bento grid has its four cards', r.sections.bento === 4, `${r.sections.bento} cards`);
+  check('activity feed holds a constant 4 rows', r.sections.feedStable, `${r.sections.feed} rows`);
+  check('terminal has its typed commands', r.sections.terminal === 2, `${r.sections.terminal} commands`);
+  check('lock panel renders', r.sections.lock === 1, `${r.sections.lock} rings`);
+  check('accordion has its four questions', r.sections.acc === 4, `${r.sections.acc} items`);
+  check('flow connector path present', r.sections.flowTrace);
+  check('marquee has both halves for a seamless wrap', r.sections.marquee === 2, `${r.sections.marquee} groups`);
+  check('before/after slider is a labelled range input',
+    !!r.sections.slider && r.sections.slider.tag === 'input'
+      && r.sections.slider.type === 'range' && r.sections.slider.aria,
+    JSON.stringify(r.sections.slider));
 
   /* 8 — reduced motion */
   check('prefers-reduced-motion is honoured on <html>', /motion-reduced/.test(reduced.htmlClass),
