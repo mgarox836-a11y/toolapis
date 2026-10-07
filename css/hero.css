@@ -45,7 +45,10 @@
 }
 .hero-grid-lines {
   position: absolute;
-  inset: 0;
+  /* Oversized by exactly one grid cell on every side. The drift is a `transform`,
+     which slides the painted grid; without the extra cell the layer would pull
+     away from the hero edges and expose a bare strip as it moved. */
+  inset: -56px;
   z-index: -2;
   background-image:
     linear-gradient(var(--color-iron-edge) 1px, transparent 1px),
@@ -54,6 +57,7 @@
   opacity: 0.1;
   -webkit-mask-image: radial-gradient(120% 80% at 70% 20%, #000 0%, transparent 70%);
   mask-image: radial-gradient(120% 80% at 70% 20%, #000 0%, transparent 70%);
+  will-change: transform;
 }
 
 /* The phosphor bloom. Radial, very low alpha, 7s breath — the one place in the

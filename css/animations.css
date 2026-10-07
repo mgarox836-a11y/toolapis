@@ -43,9 +43,16 @@
   100% { transform: translateY(62px); }
 }
 
+/* The grid drifts one cell over 24s — slow enough to be felt, not seen.
+   `transform`, not `background-position`. A background-position animation is
+   not a compositable property: the browser has to repaint the whole layer on
+   every single frame, forever, at full viewport size, for an effect nobody can
+   see moving at 24s. As a transform the drift runs on the compositor and the
+   grid is painted once. `.hero-grid-lines` is inset -56px so the extra cell
+   keeps the layer from exposing an edge as it travels. */
 @keyframes tl-grid-drift {
-  from { background-position: 0 0, 0 0; }
-  to   { background-position: 0 56px, 56px 0; }
+  from { transform: translate3d(0, 0, 0); }
+  to   { transform: translate3d(-56px, -56px, 0); }
 }
 
 @keyframes tl-dash {
