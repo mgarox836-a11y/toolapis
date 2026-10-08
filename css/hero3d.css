@@ -76,6 +76,19 @@
        inside (the ground, floor and ribbon all position against this box's
        padding box) and shift the light off-centre. */
   }
+  /* SHORT LANDSCAPE. The height above asks for 360px of a 390px-tall landscape
+     phone. This lives HERE rather than in css/hero.css beside the other
+     landscape rules because hero3d.css is concatenated AFTER hero.css, so an
+     equally-specific `.hero-scene` rule over there loses the cascade and the
+     override silently does nothing — which is exactly what happened the first
+     time: the media query matched, `#hero` took its new padding, and the scene
+     stayed 360px. Declaring the height and its responsive variant in one place
+     is the fix; raising specificity to win the order would only relocate the
+     next bug. */
+  @media (max-height: 520px) and (orientation: landscape) {
+    .hero-scene { height: clamp(160px, 26vw, 220px); }
+  }
+
   /* Fade the right edge too, since on mobile the scene no longer bleeds off
      screen — every edge is now visible and every edge has to dissolve. */
   .hero-scene__ground {

@@ -172,7 +172,20 @@
   /* ---------------------------------------------------------------------
      LAYOUT — DESIGN.md "Layout"
      --------------------------------------------------------------------- */
-  --page-max-width: 1200px;
+  /* The measure cap, and it now breathes with the window.
+
+     A flat 1200px left 1120px of empty margin on each side of a 3440px screen
+     — 65% of the display empty, which reads as a page that has given up rather
+     than one that is composed. The clamp lets the content band widen to 1600px
+     on very wide windows while leaving everything at or below ~1714px exactly
+     where it was, because `70vw` there is still under the 1200px floor.
+
+     It is a LAYOUT cap only, not a measure one: the body copy is capped
+     separately and in `ch` (34ch on the hero subtitle, 48ch on feature copy,
+     56ch on the CTA band), so the line length is identical at 1440 and at 3440.
+     Widening the band moves cards and columns apart; it does not make anyone
+     read a longer line. */
+  --page-max-width: clamp(1200px, 70vw, 1600px);
   --element-gap: 16px;
 
   /* ---------------------------------------------------------------------

@@ -1,4 +1,11 @@
 {
+  "scripts": {
+    "build:css": "node tools/build-css.mjs",
+    "check:css": "node tools/css-syntax-check.mjs",
+    "check:fluid": "node tools/check-overflow.mjs",
+    "check:fluid:quick": "node tools/check-overflow.mjs --quick",
+    "check": "npm run build:css && npm run check:css && npm run check:fluid"
+  },
   "dependencies": {
     "aceternity-ui": "^0.2.2",
     "framer-motion": "^13.4.0"

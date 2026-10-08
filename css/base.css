@@ -37,11 +37,27 @@ html {
 body {
   margin: 0;
   min-height: 100%;
-  /* 320px is the narrowest viewport the brief asks for, and it is also the
-     narrowest any current phone reports. Stated as a floor rather than left
-     implicit so a 280px legacy device gets a horizontal scroll (its own
-     problem, visible to it) instead of a silently zoomed-out page. */
-  min-width: 320px;
+  /* min-width: 0, NOT the 320px floor this used to carry.
+
+     The floor was deliberate when it was written (the old comment said a 280px
+     device should "get a horizontal scroll, its own problem, visible to it,
+     instead of a silently zoomed-out page"). Measured, that trade did not work
+     out. A `min-width` on <body> inflates the WHOLE document, not just the
+     content that needs it, so at a 280px viewport the layout viewport became
+     320px while `clientWidth` stayed 280 — every element on the page measured
+     320px wide, 176 of them crossing the viewport edge, and the h1 ending 24px
+     past it. Because the inflation was on the root, a mobile browser also
+     reported an `innerWidth` (320) larger than the physical screen (280):
+     precisely the "layout viewport wider than the screen" failure the floor was
+     supposed to be avoiding, except silent.
+
+     With `0` the floor is gone and nothing needed one. At 280px: document and
+     viewport both 280, zero unclipped offenders, gutters symmetric at 16/16,
+     the h1 ending at 264. The navbar still fits (brand + share + hamburger end
+     at 264 of 280), the bento is one column, the mock tiles stay two-up at
+     102px and the terminal holds 12px. A narrower floor is only ever worth
+     putting back if something measures genuinely unable to fit. */
+  min-width: 0;
   background-color: var(--color-void-canvas);
   color: var(--color-pure-white);
   font-family: var(--font-body);

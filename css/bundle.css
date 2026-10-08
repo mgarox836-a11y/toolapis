@@ -179,7 +179,20 @@
   /* ---------------------------------------------------------------------
      LAYOUT — DESIGN.md "Layout"
      --------------------------------------------------------------------- */
-  --page-max-width: 1200px;
+  /* The measure cap, and it now breathes with the window.
+
+     A flat 1200px left 1120px of empty margin on each side of a 3440px screen
+     — 65% of the display empty, which reads as a page that has given up rather
+     than one that is composed. The clamp lets the content band widen to 1600px
+     on very wide windows while leaving everything at or below ~1714px exactly
+     where it was, because `70vw` there is still under the 1200px floor.
+
+     It is a LAYOUT cap only, not a measure one: the body copy is capped
+     separately and in `ch` (34ch on the hero subtitle, 48ch on feature copy,
+     56ch on the CTA band), so the line length is identical at 1440 and at 3440.
+     Widening the band moves cards and columns apart; it does not make anyone
+     read a longer line. */
+  --page-max-width: clamp(1200px, 70vw, 1600px);
   --element-gap: 16px;
 
   /* ---------------------------------------------------------------------
@@ -316,11 +329,27 @@ html {
 body {
   margin: 0;
   min-height: 100%;
-  /* 320px is the narrowest viewport the brief asks for, and it is also the
-     narrowest any current phone reports. Stated as a floor rather than left
-     implicit so a 280px legacy device gets a horizontal scroll (its own
-     problem, visible to it) instead of a silently zoomed-out page. */
-  min-width: 320px;
+  /* min-width: 0, NOT the 320px floor this used to carry.
+
+     The floor was deliberate when it was written (the old comment said a 280px
+     device should "get a horizontal scroll, its own problem, visible to it,
+     instead of a silently zoomed-out page"). Measured, that trade did not work
+     out. A `min-width` on <body> inflates the WHOLE document, not just the
+     content that needs it, so at a 280px viewport the layout viewport became
+     320px while `clientWidth` stayed 280 — every element on the page measured
+     320px wide, 176 of them crossing the viewport edge, and the h1 ending 24px
+     past it. Because the inflation was on the root, a mobile browser also
+     reported an `innerWidth` (320) larger than the physical screen (280):
+     precisely the "layout viewport wider than the screen" failure the floor was
+     supposed to be avoiding, except silent.
+
+     With `0` the floor is gone and nothing needed one. At 280px: document and
+     viewport both 280, zero unclipped offenders, gutters symmetric at 16/16,
+     the h1 ending at 264. The navbar still fits (brand + share + hamburger end
+     at 264 of 280), the bento is one column, the mock tiles stay two-up at
+     102px and the terminal holds 12px. A narrower floor is only ever worth
+     putting back if something measures genuinely unable to fit. */
+  min-width: 0;
   background-color: var(--color-void-canvas);
   color: var(--color-pure-white);
   font-family: var(--font-body);
@@ -2700,6 +2729,45 @@ html.motion-reduced .hero-grid-lines { animation: none !important; }
    decision rather than a layout one. */
 #clarity .cta-band .copy { max-width: 56ch; margin-inline: auto; }
 
+/* =============================================================================
+   SHORT AND LANDSCAPE VIEWPORTS
+   -----------------------------------------------------------------------------
+   A phone on its side reports roughly 844x390 or 667x375. The hero's 2-column
+   layout starts at 1024px WIDTH, so on those it stays one column and stacks the
+   copy, the scene and the TOOL PASS card — which measured 1389px of hero in a
+   390px viewport, 3.6 screens of scrolling before the fold.
+
+   This block cannot fix that, and it is worth being plain about why: the height
+   is content, not floor. Stripping `min-height` and shrinking the scene takes
+   844x390 from 1389 to 1143 and 667x375 from 1339 to 1061 — an ~18% reduction
+   that is still 2.9x the viewport. Genuinely fitting a 390px-tall landscape
+   viewport needs the copy and the scene side by side, i.e. the 2-column hero
+   below 1024px, which is a different decision (and changes the tablet case).
+   What this does achieve is that the fold is no longer below the entire fold:
+   the headline, subtitle and both CTAs are reachable in one landscape screen.
+
+   `(orientation: landscape)` is deliberate and load-bearing rather than
+   decorative. Without it, `max-height: 520px` also matches a desktop browser
+   window dragged short, which is not the case being fixed — and a variant
+   tested at `(max-height: 900px)` matched the single most common desktop
+   viewport, 1440x900, and shrank its hero from 900px to 683px. A real
+   regression, caught by measurement, and the reason the threshold is 520.
+
+   `padding-top` keeps the navbar clearance (the sticky bar would otherwise sit
+   on the headline) but drops the `clamp(32px, 6vh, 88px)` breathing room, which
+   at 390px tall contributes almost nothing and costs a third of a screen. */
+@media (max-height: 520px) and (orientation: landscape) {
+  #hero {
+    min-height: 0;
+    padding-top: calc(var(--navbar-height) + 10px + env(safe-area-inset-top, 0px));
+    padding-bottom: 12px;
+  }
+  .hero-inner { gap: clamp(12px, 2vw, 20px); }
+  /* The scene's own height override lives in css/hero3d.css, next to the
+     declaration it changes — that file is concatenated after this one, so a
+     rule here of equal specificity would lose and do nothing. */
+}
+
 /* ===== hero3d.css ======================================================== */
 /* =============================================================================
    HERO 3D — the light-ribbon visual
@@ -2779,6 +2847,19 @@ html.motion-reduced .hero-grid-lines { animation: none !important; }
        inside (the ground, floor and ribbon all position against this box's
        padding box) and shift the light off-centre. */
   }
+  /* SHORT LANDSCAPE. The height above asks for 360px of a 390px-tall landscape
+     phone. This lives HERE rather than in css/hero.css beside the other
+     landscape rules because hero3d.css is concatenated AFTER hero.css, so an
+     equally-specific `.hero-scene` rule over there loses the cascade and the
+     override silently does nothing — which is exactly what happened the first
+     time: the media query matched, `#hero` took its new padding, and the scene
+     stayed 360px. Declaring the height and its responsive variant in one place
+     is the fix; raising specificity to win the order would only relocate the
+     next bug. */
+  @media (max-height: 520px) and (orientation: landscape) {
+    .hero-scene { height: clamp(160px, 26vw, 220px); }
+  }
+
   /* Fade the right edge too, since on mobile the scene no longer bleeds off
      screen — every edge is now visible and every edge has to dissolve. */
   .hero-scene__ground {
