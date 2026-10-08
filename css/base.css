@@ -5,6 +5,11 @@
    canvas is Void Canvas (#070707) and every surface stacks upward from it
    (#0d0e12 -> #141418 -> #2e3038). Body copy never leaves the 14–18px reading
    range.
+
+   TYPOGRAPHY: one family (Google Sans) for display, heading, body and UI, with
+   Google Sans Code for the mono surfaces. Display tracking is positive but
+   tighter than DESIGN.md's Calsans value — see the deviation note in
+   css/tokens.css for the measurement behind it.
    ========================================================================== */
 
 /* ---------------------------------------------------------------- reset --- */
@@ -13,32 +18,87 @@
 *::after { box-sizing: border-box; }
 
 html {
-  /* The canvas is the canvas. Matches --surface (the 3D fog) exactly. */
+  /* The canvas is the canvas, and it matches the bottom stop of
+     --gradient-ground so the hero's ground has nowhere to end. */
   background-color: var(--color-void-canvas);
   scrollbar-width: thin;
   scrollbar-color: var(--color-iron-edge) var(--color-void-canvas);
+  /* Stop iOS from inflating text in landscape, which would re-flow every
+     clamp() in the type scale on rotation. */
   -webkit-text-size-adjust: 100%;
-  scroll-behavior: smooth;
+  text-size-adjust: 100%;
+  /* Smooth scrolling is MOTION, so it belongs to the motion policy rather
+     than to the reset. css/animations.css sets it from `html.motion-on` /
+     `html.motion-reduced`, which js/motion.js and the footer toggle own.
+     Declaring it here as well would win on cascade for anyone whose class has
+     not been applied yet, which is exactly the visitor who asked for none. */
 }
 
 body {
   margin: 0;
   min-height: 100%;
+  /* 320px is the narrowest viewport the brief asks for, and it is also the
+     narrowest any current phone reports. Stated as a floor rather than left
+     implicit so a 280px legacy device gets a horizontal scroll (its own
+     problem, visible to it) instead of a silently zoomed-out page. */
+  min-width: 320px;
   background-color: var(--color-void-canvas);
   color: var(--color-pure-white);
   font-family: var(--font-body);
   font-size: var(--text-body);
   line-height: var(--leading-body);
   font-weight: var(--weight-regular);
+  letter-spacing: var(--tracking-body);
+  /* Google Sans is a variable-capable face: let the browser pick the optical
+     size for the rendered px, and keep the standard ligatures on. */
+  font-optical-sizing: auto;
+  font-feature-settings: "liga" on;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  overflow-x: hidden;
+  text-rendering: optimizeLegibility;
+
+  /* ---------------------------------------------------------------------------
+     NO `overflow-x: hidden` HERE, AND THAT IS THE POINT.
+
+     This declaration used to be on body, and it was the single most damaging
+     line in the stylesheet. It suppresses the horizontal scrollbar, so a
+     layout that genuinely does not fit LOOKS like one that does — which is
+     why `scrollWidth === clientWidth` measured true at every width from 320
+     to 1440 while elements were demonstrably being cut off at 200% zoom. It
+     also makes body a scroll container, which silently breaks
+     `position: sticky` for every descendant.
+
+     Every overflow on this page is now fixed at the element that causes it,
+     and the only remaining `overflow` declarations are `clip` on the specific
+     decorative wrappers that are supposed to bleed (the hero scene, the
+     marquee, the perspective floors). `clip` is used rather than `hidden`
+     because `hidden` would make each of those a scroll container too.
+     --------------------------------------------------------------------------- */
+  overflow-wrap: anywhere;
 }
 
 h1, h2, h3, h4, h5, h6, p, figure, blockquote, ul, ol, dl, dd { margin: 0; }
 ul, ol { padding: 0; list-style: none; }
-img, svg, video, canvas { display: block; max-width: 100%; }
-img, video { height: auto; }
+
+/* Every replaced element is bounded by its container. `height: auto` is what
+   keeps the aspect ratio when only one dimension is constrained — without it
+   a media element given `max-width: 100%` in a narrow column keeps its
+   intrinsic height and overflows vertically instead. */
+img, svg, video, canvas, picture {
+  display: block;
+  max-width: 100%;
+  height: auto;
+}
+/* `height: auto` is the reset's half of the job: it keeps an <img>/<video>'s
+   aspect ratio when only `max-width` is constrained.
+
+   It does NOT need an opt-out for the inline SVG sprite or the icons. Both
+   carry an explicit box — `.icon-sprite` is a zero-size defs holder, `.icon` is
+   a 1em glyph — declared as CLASS selectors in components.css, and a class
+   beats this element selector on specificity no matter which file loads first.
+   An earlier version of this file tried to opt them out explicitly and that
+   only created a second, contradictory statement of the icon box; the box has
+   exactly one owner, components.css, which is where it is commented. */
 button, input, select, textarea { font: inherit; color: inherit; }
 button { background: none; border: 0; padding: 0; cursor: pointer; }
 a { color: inherit; text-decoration: none; }
@@ -76,15 +136,18 @@ a:focus-visible,
 button:focus-visible { border-radius: var(--radius-buttons); }
 
 /* --------------------------------------------------------- typography ---- */
-/* Display face: Space Grotesk standing in for Calsans, weight 300, POSITIVE
-   tracking at every size. DESIGN.md "Don't": never negative-track the display
-   face — the spread is structural to its identity. */
+/* One family for every role. Display and heading sit at 400/500 with POSITIVE
+   tracking at every size: DESIGN.md "Don't" forbids negative-tracking the
+   display face, so the spread stays positive, just tuned down for Google
+   Sans. `text-wrap: balance` keeps a headline's rag even without changing
+   where it breaks by hand. */
 .display {
   font-family: var(--font-display);
   font-weight: var(--weight-light);
   letter-spacing: var(--tracking-display-face);
   line-height: var(--leading-heading);
   color: var(--color-pure-white);
+  text-wrap: balance;
 }
 
 .t-display,
@@ -92,26 +155,45 @@ button:focus-visible { border-radius: var(--radius-buttons); }
 .t-heading,
 .t-heading-sm {
   font-family: var(--font-display);
-  font-weight: var(--weight-light);
-  letter-spacing: var(--tracking-display-face);
   color: var(--color-pure-white);
   margin: 0;
+  text-wrap: balance;
 }
+/* The `clamp()` now lives in the TOKEN (css/tokens.css), not here. Wrapping a
+   clamp in another clamp only adds a second place to change it, and the
+   previous floor of 44px here fought the 40px the brief asks for. A heading
+   that cannot break a long word also needs `overflow-wrap`, which body
+   already sets — stated again here so the rule survives on its own. */
 .t-display {
-  font-size: clamp(44px, 8.6vw, var(--text-display));
+  font-size: var(--text-display);
+  font-weight: var(--weight-light);
+  letter-spacing: var(--tracking-display-face);
   line-height: var(--leading-display);
+  overflow-wrap: break-word;
 }
 .t-heading-lg {
-  font-size: clamp(40px, 7vw, var(--text-heading-lg));
+  font-size: var(--text-heading-lg);
+  font-weight: var(--weight-light);
+  letter-spacing: var(--tracking-heading-lg);
   line-height: var(--leading-heading-lg);
+  overflow-wrap: break-word;
 }
 .t-heading {
-  font-size: clamp(34px, 5.4vw, var(--text-heading));
+  font-size: var(--text-heading);
+  font-weight: 400;
+  letter-spacing: var(--tracking-heading);
   line-height: var(--leading-heading);
+  overflow-wrap: break-word;
 }
+/* Card titles. 500 rather than 400 so a title reads as a label inside a card
+   rather than as another headline, and tracking stops at +0.01em — the earlier
+   Calsans value spread these too wide. */
 .t-heading-sm {
-  font-size: clamp(24px, 2.6vw, var(--text-heading-sm));
+  font-size: var(--text-heading-sm);
+  font-weight: var(--weight-medium);
+  letter-spacing: 0.01em;
   line-height: var(--leading-heading-sm);
+  overflow-wrap: break-word;
 }
 .t-subheading {
   font-size: var(--text-subheading);
@@ -132,17 +214,22 @@ button:focus-visible { border-radius: var(--radius-buttons); }
   letter-spacing: var(--tracking-caption);
 }
 
-/* Body copy, per DESIGN.md's Components: Geist 400 at #aeaeb7 / #c8cad0. */
+/* Body copy, per DESIGN.md's Components: 400 at #aeaeb7 / #c8cad0, with
+   `text-wrap: pretty` so a paragraph's last line is not left ragged. */
 .copy {
   color: var(--color-graphite);
   font-size: var(--text-body);
   line-height: var(--leading-body);
   font-weight: var(--weight-regular);
+  letter-spacing: var(--tracking-body);
+  text-wrap: pretty;
 }
 .copy-sm {
   color: var(--color-graphite);
   font-size: var(--text-body-sm);
   line-height: var(--leading-body-sm);
+  letter-spacing: var(--tracking-body-sm);
+  text-wrap: pretty;
 }
 .muted { color: var(--color-ash); }
 .dim { color: var(--color-cinder); }
@@ -166,14 +253,47 @@ button:focus-visible { border-radius: var(--radius-buttons); }
   font-family: var(--font-mono);
   font-size: 13px;
   letter-spacing: 0.02em;
+  font-feature-settings: "liga" off, "calt" off;
 }
 
 /* --------------------------------------------------------------- layout --- */
-.shell {
-  width: 100%;
-  max-width: var(--page-max-width);
+/* THE CONTAINER, and the one true definition of the page inset.
+
+   The brief's form is `width: min(100% - 2 * var(--gutter), 1200px)` rather
+   than `max-width` plus `padding-inline`, and the difference matters at small
+   widths: with max-width + padding, `box-sizing: border-box` makes the
+   CONTENT width `100% - 2 * padding`, which is correct — but only because
+   every element in the project opted into border-box. Expressing it as
+   `min(100% - 2 * gutter, max)` states the intent directly and cannot drift
+   if a box-sizing rule is ever missed.
+
+   `margin-inline: auto` centres it. No horizontal padding of its own, so
+   there is no second inset to keep in sync — the safe-area handling for the
+   nav and the footer is added where it is actually needed (a fixed bar and a
+   fixed bar's neighbour), not smeared across every container.
+
+   `.container` is an alias, because the brief names that class and the markup
+   says `.shell`; both resolve here so there is still exactly one definition. */
+.shell,
+.container {
+  width: min(100% - 2 * var(--gutter), var(--page-max-width));
   margin-inline: auto;
-  padding-inline: clamp(20px, 4vw, 32px);
+}
+
+/* Safe-area insets, for the two places that sit against a screen edge where a
+   notch or a home indicator lives: the fixed navbar and the footer. `max()`
+   takes the LARGER of the gutter and the inset, so on a notched phone in
+   landscape the content moves in to clear the notch, and on an unnotched one
+   nothing changes. */
+.navbar-shell,
+.site-footer .shell {
+  padding-inline: max(
+    var(--gutter),
+    env(safe-area-inset-left, 0px),
+    env(safe-area-inset-right, 0px)
+  );
+  width: 100%;
+  max-width: calc(var(--page-max-width) + 2 * var(--gutter));
 }
 
 .section {
@@ -187,7 +307,10 @@ button:focus-visible { border-radius: var(--radius-buttons); }
   flex-direction: column;
   gap: var(--spacing-16);
   max-width: 720px;
-  margin-bottom: var(--spacing-56);
+  /* Fluid rather than a fixed 56px: the gap below a heading should scale with
+     the section rhythm, not sit at one value on a phone and another on a
+     desktop. */
+  margin-bottom: clamp(28px, 4vw, var(--spacing-56));
 }
 
 .grid {
@@ -247,18 +370,13 @@ section[id] { scroll-margin-top: calc(var(--navbar-height) + 24px); }
   pointer-events: none;
 }
 
-/* The cursor spotlight. Barely-there phosphor wash, no blur, pointer-events
-   off so it can never intercept a click. */
-#spotlight {
-  position: fixed;
-  inset: 0;
-  z-index: 30;
-  pointer-events: none;
-  opacity: 0;
-  transition: opacity var(--duration-slow) var(--ease-out-quint);
-  background: radial-gradient(600px circle at 0 0, rgba(112, 220, 211, 0.05), transparent 80%);
-}
-#spotlight.is-live { opacity: 1; }
+/* The cursor spotlight that used to live here — a fixed, page-wide 600px
+   phosphor wash following the pointer — is gone. It was a full-viewport
+   overlay sitting above every surface, which meant a mint wash over whatever
+   the pointer happened to be near, including the accent card. The light is now
+   local to each bento card: `.spot-card::before` in css/sections.css reads
+   --mx/--my, written by js/widgets.js, at 6% white rather than 5% mint. It
+   lights the card under the cursor instead of tinting the whole page. */
 
 /* Film grain. Its only job is to stop #070707 from banding. */
 .grain {

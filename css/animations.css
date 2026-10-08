@@ -108,6 +108,40 @@
 .hero-title .word-reveal:nth-child(6) { transition-delay: 400ms; }
 .hero-title .word-reveal:nth-child(7) { transition-delay: 480ms; }
 
+/* ---- LOAD REVEAL (replaces the intro) ------------------------------------
+   The preloader is gone. These six elements still arrive in sequence, but the
+   choreography is now a plain CSS keyframe play on load: no overlay, no scroll
+   lock, no timer, and nothing that can hold the page. Because the animation is
+   `both`-filled it ends in its final state, and under reduced motion it never
+   starts at all (below), so there is no case where the hero stays hidden. */
+@keyframes load-rise {
+  from { opacity: 0; transform: translate3d(0, 24px, 0); }
+  to   { opacity: 1; transform: translate3d(0, 0, 0); }
+}
+[data-load-reveal] {
+  animation: load-rise 550ms var(--ease-out-quint) both;
+}
+[data-load-reveal="1"] { animation-delay: 40ms; }
+[data-load-reveal="2"] { animation-delay: 140ms; }
+[data-load-reveal="3"] { animation-delay: 240ms; }
+[data-load-reveal="4"] { animation-delay: 340ms; }
+[data-load-reveal="5"] { animation-delay: 460ms; }
+
+/* Failsafe: if anything above were ever to fail to run, the hero must still be
+   readable. `reveal-all` is set by the inline <head> timer when the reveal
+   system never came up. */
+html.reveal-all [data-load-reveal] {
+  animation: none !important;
+  opacity: 1 !important;
+  transform: none !important;
+}
+/* Reduced motion: no travel, no stagger — the hero is simply there. */
+html.motion-reduced [data-load-reveal] {
+  animation: none !important;
+  opacity: 1 !important;
+  transform: none !important;
+}
+
 /* --------------------------------------------------------- scroll reveal --- */
 /* Fade-up on scroll with a per-group stagger. The hidden state is a TRANSFORM,
    never a margin: the 3D solver reads its obstacles off the final layout, so a
@@ -128,7 +162,24 @@ html.rv-measuring :is(.reveal, [data-reveal], .rv, main h2, footer) {
   transform: none !important;
 }
 
-html.reveal-ready :is(.reveal, [data-reveal], .rv):not([data-intro-reveal]):not(#navbar):not(#nav-sentinel):not(#scroll-progress):not(#back-to-top):not(#spotlight):not(.grain):not(#page-transition):not(#toast):not(#intro-overlay):not(.mobile-menu):not(.skip-link) {
+/* The exclusions below are the two systems' boundaries. `[data-load-reveal]`
+   and `#navbar` belong to the load choreography (see LOAD REVEAL above);
+   `#spotlight` and `#intro-overlay` are gone — the spotlight is now per-card
+   (`.spot-card`) and the intro with it.
+
+   NOTE ON WHY THIS SELECTOR IS SO HEAVY, AND WHY IT DOES NOT MATTER.
+   The `:not(#id)` chain resolves to roughly (10, 3, 2) — `:not()` contributes
+   its argument's specificity, and there are ten IDs in there. That makes this
+   rule win against almost anything a component wants to say about `transform`,
+   including `.card:hover`'s lift.
+
+   It does not matter, because no component states its hover lift in
+   `transform`. `.card:hover` uses the independent `translate` property
+   (CSS Transforms Level 2), which composes with `transform` rather than
+   competing with it: this rule animates `transform`, the hover writes
+   `translate`, and the card gets both. Trying to fix this by weakening the
+   selector instead just moves the breakage somewhere less obvious. */
+html.reveal-ready :is(.reveal, [data-reveal], .rv):not([data-load-reveal]):not(#navbar):not(#nav-sentinel):not(#scroll-progress):not(#back-to-top):not(#spotlight):not(.grain):not(#page-transition):not(#toast):not(.mobile-menu):not(.skip-link) {
   opacity: 0;
   transform: translate3d(0, var(--reveal-distance), 0);
   transition:
@@ -136,13 +187,16 @@ html.reveal-ready :is(.reveal, [data-reveal], .rv):not([data-intro-reveal]):not(
     transform var(--reveal-duration) var(--reveal-ease);
   transition-delay: var(--reveal-delay, 0ms);
 }
-html.reveal-ready :is(.reveal, [data-reveal], .rv):not([data-intro-reveal]):not(#navbar):not(#nav-sentinel):not(#scroll-progress):not(#back-to-top):not(#spotlight):not(.grain):not(#page-transition):not(#toast):not(#intro-overlay):not(.mobile-menu):not(.skip-link):is(.is-visible, .active) {
+html.reveal-ready :is(.reveal, [data-reveal], .rv):not([data-load-reveal]):not(#navbar):not(#nav-sentinel):not(#scroll-progress):not(#back-to-top):not(#spotlight):not(.grain):not(#page-transition):not(#toast):not(.mobile-menu):not(.skip-link):is(.is-visible, .active) {
   opacity: 1;
   transform: translate3d(0, 0, 0);
 }
+html.reveal-ready :is(.reveal, [data-reveal], .rv):not([data-load-reveal]):not(#navbar):not(#nav-sentinel):not(#scroll-progress):not(#back-to-top):not(#spotlight):not(.grain):not(#page-transition):not(#toast):not(.mobile-menu):not(.skip-link):is(.is-visible, .active) {
+  opacity: 1;
+}
 html.reveal-ready .rv-anim { will-change: opacity, transform; }
 
-@media (max-width: 767px) {
+@media (width < 768px) {
   :root { --reveal-distance: 16px; --reveal-max-delay: 300ms; }
 }
 
@@ -158,45 +212,74 @@ html.reveal-all :is(.reveal, [data-reveal], .rv) {
 
 /* ----------------------------------------------------------- hover motion --- */
 /* Cards: surface steps up one luminance level and the block lifts 4px. No
-   shadow, ever. The optional mint trace runs once around the hairline. */
-.card::after,
-.tool-card::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  padding: 1px;
-  background: conic-gradient(
-    from var(--trace-angle),
-    transparent 0deg,
-    var(--color-phosphor-mint) 40deg,
-    transparent 90deg,
-    transparent 360deg
-  );
-  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
-  -webkit-mask-composite: xor;
-  mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
-  mask-composite: exclude;
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity var(--duration-slow) var(--ease-out-quint);
-}
-.card:hover::after,
-.tool-card:hover::after { opacity: 1; animation: tl-trace 600ms linear; }
+   shadow, ever. The optional mint trace runs once around the hairline.
 
-/* Sheen: one pass across the card on hover, transform only. */
-.sheen { position: relative; overflow: hidden; }
-.sheen::after {
-  content: "";
-  position: absolute;
-  top: -20%; bottom: -20%;
-  left: 0;
-  width: 50%;
-  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.06), transparent);
-  transform: skewX(-20deg) translateX(-180%);
-  pointer-events: none;
+   EVERYTHING IN THIS BLOCK IS INSIDE `@media (hover: hover)`, and that is the
+   whole point of brief §3/§5. A `:hover` rule on a touch device does not fire
+   on tap so much as STICK — the browser applies it and leaves it applied until
+   something else is tapped. So an ungated card lift leaves cards visibly
+   raised after the finger is gone, and an ungated sheen replays a 900ms light
+   sweep on every tap of the card.
+
+   The `::after` elements themselves still exist outside the guard (they have
+   to: a pseudo-element that only exists on hover cannot be transitioned INTO),
+   but with `opacity: 0` and no animation bound they cost nothing to paint. */
+@media (hover: hover) {
+  .card::after,
+  .tool-card::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    padding: 1px;
+    background: conic-gradient(
+      from var(--trace-angle),
+      transparent 0deg,
+      var(--color-phosphor-mint) 40deg,
+      transparent 90deg,
+      transparent 360deg
+    );
+    -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+    -webkit-mask-composite: xor;
+    mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+    mask-composite: exclude;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity var(--duration-slow) var(--ease-out-quint);
+  }
+  .card:hover::after,
+  .tool-card:hover::after { opacity: 1; animation: tl-trace 600ms linear; }
+
+  /* Sheen: one pass across the card on hover, transform only. */
+  .sheen { position: relative; overflow: clip; }
+  .sheen::after {
+    content: "";
+    position: absolute;
+    top: -20%; bottom: -20%;
+    left: 0;
+    width: 50%;
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.06), transparent);
+    transform: skewX(-20deg) translateX(-180%);
+    pointer-events: none;
+  }
+  .sheen:hover::after { animation: tl-sheen 900ms var(--ease-out-quint); }
 }
-.sheen:hover::after { animation: tl-sheen 900ms var(--ease-out-quint); }
+
+/* On a coarse pointer the sheen is a parked 50%-wide gradient sitting inside
+   the card. It is invisible at opacity 0 but it is still a composited layer
+   on every card, so the element is not created at all — hence `content: none`
+   rather than a guarded `opacity: 0`. */
+@media not all and (hover: hover) {
+  .sheen::after { content: none; }
+}
+
+/* The touch replacement for the hover lift (brief §5): a press, not a hover.
+   `:active` is the only pseudo-class that reliably fires on iOS, and it clears
+   itself on touchend, so it cannot stick the way `:hover` does. */
+@media (hover: none) {
+  .card:active,
+  .tool-card:active { translate: 0 -2px; }
+}
 
 /* Flow connectors: marching dashes in Iron Edge. */
 .flow-dash {
@@ -226,6 +309,31 @@ html.reveal-all :is(.reveal, [data-reveal], .rv) {
 /* Barcode scan line. */
 .hero-barcode::after { animation: tl-scan 2.6s var(--ease-in-out) infinite; }
 
+/* ---------------------------------------------------------------------------
+   LOOP BUDGET ON SMALL SCREENS (brief §5)
+
+   Between them, the loops above run continuously: three status dots, a
+   760px-wide radial glow, a full-hero grid drift, a barcode scan, the
+   marquee, two ribbon segments, a bloom, and — above 768px only — three
+   floating chips and four lock lights. That is a dozen concurrent animations
+   on a page whose whole point is that it is quiet.
+
+   Below 768px the four decorative hero loops stop. They are the ones nobody
+   consciously sees (a 24s grid drift is invisible by design), they are the
+   most expensive (two of them animate a layer the size of the viewport), and
+   the hero on a phone is 320px tall where a 760px bloom covers everything.
+
+   What is KEPT below 768px: the status dots (they carry meaning), the barcode
+   (small, and it is the one thing that draws the eye to the accent card), and
+   the marquee (it is the trust strip, and a stationary one reads as a bug).
+   What is dropped: the grid drift, the hero glow, and the two ribbon segments —
+   the last of these because `hero3d.css` already stops them at the same
+   breakpoint and setting `stroke-dashoffset` here would fight it. */
+@media (width < 768px) {
+  .hero-glow,
+  .hero-grid-lines { animation: none; }
+}
+
 /* Nav entrance: the bar drops in once. */
 html.js #navbar > .shell { animation: tl-fade 600ms var(--ease-out-quint) both; }
 
@@ -247,6 +355,32 @@ html.js #navbar > .shell { animation: tl-fade 600ms var(--ease-out-quint) both; 
 @keyframes tl-flip {
   from { opacity: 0; transform: rotateX(70deg); }
   to   { opacity: 1; transform: rotateX(0deg); }
+}
+
+/* ============================================================================
+   TAB VISIBILITY AND VIEWPORT EXIT (brief §5)
+
+   Two pauses that are not motion PREFERENCES but attention budgets. A loop
+   running for a tab nobody is looking at, or for a hero that has scrolled off
+   screen, is battery spent on an animation with no audience.
+
+   `animation-play-state: paused` rather than removing the animation, because
+   removing it resets the timeline — a paused loop resumes from where it was,
+   which is what keeps the ribbon mid-travel instead of snapping back to the
+   start. `document.hidden` is the tab switch; the hero part is toggled by
+   js/hero3d.js, which already has the observer and writes `.is-paused`.
+
+   The `!important` is required: `#hero.is-paused *` has specificity (1,1,0)
+   against a per-element `animation` shorthand's (0,1,0), and there are a dozen
+   elements that would each otherwise need to repeat this rule.
+
+   js/hero3d.js already wrote this for the hero subtree. It is restated here
+   for the loops that live OUTSIDE #hero — the marquee and the three status
+   dots — which the hero's own `!important` cannot reach. */
+html.is-tab-hidden *,
+html.is-tab-hidden *::before,
+html.is-tab-hidden *::after {
+  animation-play-state: paused !important;
 }
 
 /* ============================================================================
@@ -291,14 +425,36 @@ html.motion-reduced .word-reveal {
   transform: none !important;
   opacity: 1 !important;
 }
-html.motion-reduced :is(.status-dot, .activity__dot, .footer-status .status-dot,
+/* Every loop on the page, in one place, so "what still moves with motion off"
+   has a single answer. The hero-scene loops are listed here as well as in
+   hero3d.css: hero3d.css owns their resting values, this owns the kill. */
+html.motion-reduced :is(
+  .status-dot, .activity__dot, .footer-status .status-dot,
   .hero-glow, .hero-grid-lines, .flow-dash, .pt-dot, .hero-barcode::after,
-  .toolpass__field-value) {
+  .toolpass__field-value,
+  .ribbon-flow, .ribbon-flow--inner, .hero-scene__bloom, .hero-chip,
+  .lock__light, .terminal__caret, .marquee__track,
+  .feed__row--in, .mock__shine
+) {
   animation: none !important;
 }
+/* Loops that would otherwise leave a half-drawn or empty-looking state get an
+   explicit finished value instead of simply stopping. */
+html.motion-reduced .marquee__track { transform: none; }
+html.motion-reduced .terminal__caret { display: none; }
+html.motion-reduced .mock__shine { display: none; }
+html.motion-reduced .flow__trace { stroke-dashoffset: 0 !important; }
+html.motion-reduced .flow__step .flow__node::after { animation: none !important; }
+html.motion-reduced .ba { --ba: 52%; }
+
+/* `translate` for the cards (see components.css for why), `transform` for the
+   button, whose lift is not competing with the reveal system. */
 html.motion-reduced .card:hover,
 html.motion-reduced .tool-card:hover,
+html.motion-reduced .card:active,
+html.motion-reduced .tool-card:active { translate: none; }
 html.motion-reduced .btn-accent:hover { transform: none; }
+html.motion-reduced .spot-card::before { opacity: 0; }
 html.motion-reduced .card::after,
 html.motion-reduced .tool-card::after,
 html.motion-reduced .sheen::after { display: none; }

@@ -20,9 +20,11 @@
    An uppercase eyebrow with wide tracking above a display heading. The eyebrow
    is the section's quiet signal; the heading carries the weight.
    ========================================================================== */
-.section-head {
-  max-width: 720px;
-}
+/* `.section-head`'s own rules live in css/base.css with the rest of the layout
+   primitives — this file used to redefine `max-width: 720px` here as well,
+   which meant the measure cap had two owners and base.css's copy only won
+   because it happened to be first in the bundle. Only the section-local
+   adjustment stays. */
 .section-head .t-heading { margin-top: 2px; }
 
 /* =============================================================================
@@ -115,7 +117,7 @@
    `max-width: 899px` override dropping it to 1, which meant the narrow case
    was an exception to the default rather than the starting point. */
 .bento > * { min-width: 0; }
-@media (min-width: 600px) and (max-width: 1023px) {
+@media (600px <= width < 1024px) {
   .bento { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 @media (min-width: 1024px) {
@@ -658,7 +660,7 @@
 .feature__copy .copy { max-width: min(48ch, 100%); }
 /* Below 480px the CTA goes full width — same rule as .btn in components.css,
    applied to the anchor rather than the button so the two cannot disagree. */
-@media (max-width: 479px) {
+@media (width < 480px) {
   .feature__copy .btn { width: 100%; }
 }
 
@@ -772,7 +774,7 @@
     min-height: 232px;
   }
 }
-@media (max-width: 559px) {
+@media (width < 560px) {
   .mock__side { display: none; }
 }
 .mock__side span {
@@ -1110,7 +1112,7 @@
 }
 /* Below 480px the three CTAs stack full-width rather than wrapping into a
    ragged two-plus-one. */
-@media (max-width: 479px) {
+@media (width < 480px) {
   .cta-band__actions { flex-direction: column; align-items: stretch; }
   .cta-band__actions .btn { width: 100%; }
 }
@@ -1204,7 +1206,7 @@
   padding-top: var(--spacing-24);
   border-top: 1px solid var(--color-steel-border);
 }
-@media (max-width: 767px) {
+@media (width < 768px) {
   .footer-bottom {
     flex-direction: column;
     align-items: flex-start;
@@ -1216,7 +1218,7 @@
   color: var(--color-cinder);
 }
 .footer-social { display: flex; align-items: center; gap: 10px; margin-left: auto; }
-@media (max-width: 767px) { .footer-social { margin-left: 0; } }
+@media (width < 768px) { .footer-social { margin-left: 0; } }
 /* 44px targets. They render as 32px discs visually via the icon size, so the
    tap area is bigger than the mark without the row looking padded. */
 .footer-social a {

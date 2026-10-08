@@ -1,172 +1,8 @@
 <!DOCTYPE html>
 <html lang="en" class="dark">
 <head>
-  <!-- Charset first, ahead of the failsafe script below. It has to land inside
-       the first 1024 bytes to be honoured, and the bootstrap runs long before
-       this line used to sit — so the declaration was arriving too late to be
-       the document's encoding. A meta charset does not gate script execution,
-       so moving it up costs the failsafe nothing. -->
   <meta charset="UTF-8">
 
-  <!-- ==========================================================================
-       INTRO FAILSAFE — first thing in <head>, deliberately inline and tiny.
-       It has NO dependency on the module, Three.js, fonts or the network.
-       If anything at all goes wrong later, this still hands the page back.
-       ========================================================================== -->
-  <script>
-    (function () {
-      /* ==========================================================================
-         1. FIRST STATEMENTS. The browser must never own the scroll position,
-            and an empty / #overview hash must never become a jump to the
-            tool-cards section. Both happen here, before the page has a layout,
-            so nothing can beat them to it.
-         ========================================================================== */
-      try { if ('scrollRestoration' in history) history.scrollRestoration = 'manual'; } catch (e) {}
-      var h = '';
-      try {
-        h = (location.hash || '').toLowerCase();
-        if (h === '' || h === '#' || h === '#overview') {
-          history.replaceState(null, '', location.pathname + location.search);
-          h = '';
-        }
-      } catch (e) {}
-
-      /* A deliberate deep link (#features, #flow, #clarity) is honoured AFTER
-         the intro by js/intro.js. Everything else means the hero, always. */
-      var DEEP_LINK = h.charAt(0) === '#' && h.length > 1;
-
-      function forceTop() {
-        try {
-          var d = document.documentElement;
-          if (!d) return;
-          var prev = d.style.scrollBehavior;
-          var prevAnchor = d.style.overflowAnchor;
-          var prevOver = d.style.overscrollBehavior;
-          d.style.scrollBehavior = 'auto';
-          d.style.overflowAnchor = 'none';
-          d.style.overscrollBehavior = 'none';
-          try { window.scrollTo({ top: 0, left: 0, behavior: 'instant' }); }
-          catch (e) { try { window.scrollTo(0, 0); } catch (e2) {} }
-          d.scrollTop = 0;
-          try { if (document.body) document.body.scrollTop = 0; } catch (e) {}
-          d.style.scrollBehavior = prev;
-          d.style.overflowAnchor = prevAnchor;
-          d.style.overscrollBehavior = prevOver;
-        } catch (e) {}
-      }
-      /* js/intro.js reuses this exact function instead of owning a second one. */
-      window.__tlForceTop = forceTop;
-      forceTop();
-
-      /* Hoisted declaration — not an executed statement. */
-      function cleanup() {
-        try { forceTop(); } catch (e) {}
-        try {
-          var o = document.getElementById('intro-overlay');
-          if (o) { o.classList.add('is-hidden'); o.style.display = 'none';
-                   if (o.parentNode) o.parentNode.removeChild(o); }
-          var d = document.documentElement, b = document.body;
-          if (d) { d.classList.remove('intro-active'); d.style.overflow = '';
-                   d.style.touchAction = ''; d.classList.add('intro-done'); }
-          if (b) { b.style.overflow = ''; b.style.touchAction = ''; b.classList.add('intro-done'); }
-        } catch (e) {}
-        /* The top is re-asserted AFTER the overlay leaves the flow, because
-           that reflow is the classic moment for a restored position to snap
-           back in. */
-        try {
-          requestAnimationFrame(function () { forceTop(); requestAnimationFrame(forceTop); });
-          setTimeout(forceTop, 60);
-          setTimeout(forceTop, 250);
-        } catch (e) {}
-      }
-
-      /* The hard failsafe, still the one independent of every module. */
-      window.setTimeout(cleanup, 3000);
-
-      /* The scroll-reveal failsafe, same clock, same argument. script.js sets
-         `html.js` on its first line and js/reveal.js sets `data-reveal-live`.
-         By 3s the curtain is long gone; if either half is missing, snap
-         everything visible so nothing is stranded at opacity 0. */
-      window.setTimeout(function () {
-        try {
-          var d = document.documentElement;
-          var scriptAlive = !!(d && d.classList.contains('js'));
-          var revealAlive = !!(d && d.hasAttribute('data-reveal-live'));
-          if (scriptAlive && revealAlive) return;
-          d.classList.add('reveal-all');
-          if (d) d.setAttribute('data-reveal-failsafe', '1');
-        } catch (e) {}
-      }, 3000);
-
-      var BOOT = performance.now();
-
-      document.documentElement.classList.add('intro-active');
-      document.documentElement.setAttribute('data-intro-stage', '0');
-
-      try {
-        document.documentElement.style.overflow = 'hidden';
-        if (document.body) document.body.style.overflow = 'hidden';
-      } catch (e) {}
-
-      var tick = setInterval(function () {
-        if (performance.now() - BOOT >= 3000) { clearInterval(tick); cleanup(); }
-      }, 500);
-      function wake() {
-        if (performance.now() - BOOT >= 3000) { clearInterval(tick); cleanup(); }
-        forceTop();
-      }
-      window.addEventListener('pageshow', wake, true);
-      document.addEventListener('visibilitychange', wake, true);
-
-      /* The guard. A browser restore can land at any time up to (and just
-         after) the load event, so the position is re-asserted every frame for
-         the first ~1.2s and again for ~600ms after load, and for as long as the
-         intro still owns the screen. It stops the instant the visitor touches
-         the page, so it can never fight them. */
-      var guardStop = false;
-      ['wheel', 'touchstart', 'keydown', 'pointerdown', 'mousedown'].forEach(function (type) {
-        window.addEventListener(type, function () {
-          try {
-            if (document.documentElement.classList.contains('intro-done')) guardStop = true;
-          } catch (e) {}
-        }, { passive: true, capture: true });
-      });
-
-      function startGuard(spanMs) {
-        var t0 = performance.now();
-        function step() {
-          /* A deep link owns the destination; never fight it. */
-          if (guardStop || DEEP_LINK) return;
-          var done = false;
-          try { done = document.documentElement.classList.contains('intro-done'); } catch (e) {}
-          var within = performance.now() - t0 < spanMs;
-          if (done && !within) return;
-          if (window.scrollY || window.scrollX) forceTop();
-          requestAnimationFrame(step);
-        }
-        requestAnimationFrame(step);
-      }
-      startGuard(1200);
-
-      document.addEventListener('DOMContentLoaded', forceTop, true);
-      window.addEventListener('load', function () {
-        forceTop();
-        startGuard(600);
-        [0, 100, 300, 800, 1500].forEach(function (ms) {
-          setTimeout(function () {
-            try { if (guardStop) return; } catch (e) {}
-            forceTop();
-          }, ms);
-        });
-      }, true);
-      window.addEventListener('pageshow', function (e) {
-        forceTop();
-        if (e && e.persisted) startGuard(600);
-      }, true);
-      window.addEventListener('pagehide', forceTop, true);
-      window.addEventListener('beforeunload', forceTop, true);
-    })();
-  </script>
   <!-- ==========================================================================
        MOTION CLASS BOOTSTRAP — runs before any stylesheet, so there is never a
        frame with the wrong class on <html>.
@@ -224,7 +60,28 @@
     })();
   </script>
 
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <!-- The scroll-reveal failsafe. script.js sets `html.js` on its first line and
+       js/reveal.js sets `data-reveal-live`. If either half is missing at 3s the
+       reveal system never started, so snap everything visible rather than
+       leave the page stranded at opacity 0. Idempotent; the reveal system is
+       still the real trigger. -->
+  <script>
+    window.setTimeout(function () {
+      try {
+        var d = document.documentElement;
+        var scriptAlive = !!(d && d.classList.contains('js'));
+        var revealAlive = !!(d && d.hasAttribute('data-reveal-live'));
+        if (scriptAlive && revealAlive) return;
+        d.classList.add('reveal-all');
+      } catch (e) {}
+    }, 3000);
+  </script>
+
+  <!-- viewport-fit=cover lets the page paint into the safe-area insets on a
+       notched device, which is what makes the `env(safe-area-inset-*)` values
+       in css/base.css resolve to something other than 0. Without it the browser
+       letterboxes the page inside the notch and those declarations are dead. -->
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <meta name="description" content="TOOLAPIS is a small hub of real web tools: upscale TikTok clips to HD, share your PC's internet with Android over USB, or jump into the social media hub.">
   <meta name="theme-color" content="#070707">
   <meta name="color-scheme" content="dark">
@@ -239,19 +96,23 @@
   <title>TOOLAPIS — Web Tools Hub</title>
 
   <!-- ==========================================================================
-       FONTS — DESIGN.md "Tokens / Typography"
-       Display face: Calsans is a paid face, so the substitute DESIGN.md
-       nominates ships instead: Space Grotesk, weight 300 & 600, positive
-       tracking preserved at every size.
-       Body face: Geist (300–600), with DESIGN.md's own fallback (Inter) behind
-       it. Mono: Geist Mono, falling back to JetBrains Mono.
+       FONTS — Google Sans for every role, Google Sans Code for the mono
+       surfaces (terminal, code block, chips, small metadata). One combined
+       request.
 
-       Loaded non-render-blocking. A plain stylesheet link here blocks first
-       paint until the CSS2 endpoint answers, and on a throttled mobile run that
-       alone was most of the gap between FCP 3.2s and FCP 1.0s. `media="print"`
-       makes the sheet non-render-blocking; the inline onload promotes it to
-       `all` the moment it arrives. The preconnects still go out first, so the
-       fetch itself starts early — only the *blocking* is removed, not the load.
+       WEIGHTS: 400 / 500 / 600 for Google Sans, 400 / 500 for Google Sans Code.
+       There is deliberately NO 300 — Google's static cut of Google Sans does
+       not have one (`wght@300` returns HTTP 400, and inside a multi-weight
+       request it is silently dropped). DESIGN.md's hero specifies 300, so the
+       display role runs at 400 with the airiness recovered through tracking and
+       line-height instead. Nothing anywhere reaches 700.
+
+       Loaded non-render-blocking. A plain stylesheet link blocks first paint
+       until the CSS2 endpoint answers, and on a throttled mobile run that alone
+       was most of the gap between FCP 3.2s and FCP 1.0s. `media="print"` makes
+       the sheet non-render-blocking; the inline onload promotes it to `all` the
+       moment it arrives. The preconnects still go out first, so the fetch
+       itself starts early — only the *blocking* is removed, not the load.
        `font-display=swap` is in the URL, so text paints in the fallback face
        and swaps when the real one lands. The <noscript> keeps it working
        without scripting, which the media trick would otherwise silently break.
@@ -259,35 +120,36 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="preload" as="style"
-        href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Geist:wght@300;400;500;600&family=Geist+Mono:wght@400;500&display=swap">
+        href="https://fonts.googleapis.com/css2?family=Google+Sans:wght@400;500;600&family=Google+Sans+Code:wght@400;500&display=swap">
   <link rel="stylesheet"
-        href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Geist:wght@300;400;500;600&family=Geist+Mono:wght@400;500&display=swap"
+        href="https://fonts.googleapis.com/css2?family=Google+Sans:wght@400;500;600&family=Google+Sans+Code:wght@400;500&display=swap"
         media="print" onload="this.media='all'">
   <noscript>
     <link rel="stylesheet"
-          href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Geist:wght@300;400;500;600&family=Geist+Mono:wght@400;500&display=swap">
+          href="https://fonts.googleapis.com/css2?family=Google+Sans:wght@400;500;600&family=Google+Sans+Code:wght@400;500&display=swap">
   </noscript>
 
   <!-- ==========================================================================
-       STYLESHEET — one request, built from seven sources.
+       STYLESHEET — one request, built from eight sources.
+
        tokens.css  : the DESIGN.md values, and nothing else
        base.css    : reset, document, type scale, focus, selection
        animations  : keyframes + the reveal system (before components, so a
                      component can override a duration)
        components  : every component skin
        hero.css    : the hero's own layout and ground
+       hero3d.css  : the light-ribbon scene
+       sections.css: marquee, bento, features, flow, clarity, footer layouts
        toolpass.css: the Phosphor accent card's two moving parts
-       intro.css   : the loader skin (last: purely additive, loses nothing)
 
-       Those seven are linked individually again only because they used to be.
-       Seven stylesheet tags are seven chances to block first paint, and under
-       mobile throttling they measured ~3.2s of it — components.css alone 1.2s,
-       hero.css and animations.css 600ms each — for 80KB of same-origin CSS
-       that fits in one round trip. tools/build-css.mjs concatenates them into
-       css/bundle.css in the order above; run it after editing anything in
-       css/, and `node tools/build-css.mjs --check` fails if the bundle has
-       gone stale. The split files stay the sources: tokens.css is still the
-       DESIGN.md reference and components.css is still the component library.
+       Those are linked individually again only because they used to be. Eight
+       stylesheet tags are eight chances to block first paint, and under mobile
+       throttling they measured ~3.2s of it for same-origin CSS that fits in one
+       round trip. tools/build-css.mjs concatenates them into css/bundle.css in
+       the order above; run it after editing anything in css/, and
+       `node tools/build-css.mjs --check` fails if the bundle has gone stale.
+       The split files stay the sources: tokens.css is still the DESIGN.md
+       reference and components.css is still the component library.
        ========================================================================== -->
   <link rel="stylesheet" href="css/bundle.css">
 
@@ -297,9 +159,9 @@
     The font was one deferred CDN script that injected SIX stylesheets
     (regular/thin/light/bold/fill/duotone), every one of them a full icon
     catalog to serve and parse for the fifteen glyphs this page actually draws,
-    and it made icons invisible until it landed. The same fifteen glyphs now
-    live inline as <symbol>s: no extra request, no FOIT, and no render-blocking
-    CSS between the stylesheets and first paint.
+    and it made icons invisible until it landed. The same glyphs now live inline
+    as <symbol>s: no extra request, no FOIT, and no render-blocking CSS between
+    the stylesheets and first paint.
 
     Glyph shapes are unchanged — these are the same paths the font shipped, at
     the same weights the markup asked for (bold for the solid set, regular for
@@ -322,6 +184,9 @@
     <symbol id="i-check-circle" viewBox="0 0 256 256"><path d="M128,24A104,104,0,1,0,232,128,104.11,104.11,0,0,0,128,24Zm45.66,85.66-56,56a8,8,0,0,1-11.32,0l-24-24a8,8,0,0,1,11.32-11.32L112,148.69l50.34-50.35a8,8,0,0,1,11.32,11.32Z"/></symbol>
     <symbol id="i-waveform" viewBox="0 0 256 256"><path d="M56,96v64a8,8,0,0,1-16,0V96a8,8,0,0,1,16,0ZM88,24a8,8,0,0,0-8,8V224a8,8,0,0,0,16,0V32A8,8,0,0,0,88,24Zm40,32a8,8,0,0,0-8,8V192a8,8,0,0,0,16,0V64A8,8,0,0,0,128,56Zm40,32a8,8,0,0,0-8,8v64a8,8,0,0,0,16,0V96A8,8,0,0,0,168,88Zm40-16a8,8,0,0,0-8,8v96a8,8,0,0,0,16,0V80A8,8,0,0,0,208,72Z"/></symbol>
     <symbol id="i-pause" viewBox="0 0 256 256"><path d="M200,32H160a16,16,0,0,0-16,16V208a16,16,0,0,0,16,16h40a16,16,0,0,0,16-16V48A16,16,0,0,0,200,32Zm0,176H160V48h40ZM96,32H56A16,16,0,0,0,40,48V208a16,16,0,0,0,16,16H96a16,16,0,0,0,16-16V48A16,16,0,0,0,96,32Zm0,176H56V48H96Z"/></symbol>
+    <symbol id="i-lock" viewBox="0 0 256 256"><path d="M128,88a48,48,0,0,1,48,48v8h8a16,16,0,0,1,16,16v56a16,16,0,0,1-16,16H72a16,16,0,0,1-16-16v-56a16,16,0,0,1,16-16h8v-8A48,48,0,0,1,128,88Zm0,32a16,16,0,0,0-16,16v8h32v-8A16,16,0,0,0,128,120Z"/></symbol>
+    <symbol id="i-arrows-h" viewBox="0 0 256 256"><path d="M88,64v40H48a8,8,0,0,0,0,16H88v40a8,8,0,0,0,14.06,4.94l48-48a8,8,0,0,0,0-11.32l-48-48A8,8,0,0,0,88,64Zm80,128v-40h40a8,8,0,0,0,0-16H168V96a8,8,0,0,0-14.06-4.94l-48,48a8,8,0,0,0,0,11.32l48,48A8,8,0,0,0,168,192Z"/></symbol>
+    <symbol id="i-github-logo" viewBox="0 0 256 256"><path d="M128,24a104,104,0,0,0-32.9,202.8c5.2,1,7.1-2.3,7.1-5v-9.7c-29,6.3-35.1-12.4-35.1-12.4-4.7-12-11.6-15.2-11.6-15.2-9.5-6.4.7-6.3.7-6.3,10.5.8,16,10.8,16,10.8,9.3,16,24.5,11.4,30.5,8.7,1-6.8,3.6-11.4,6.6-14-23.1-2.6-47.5-11.6-47.5-51.6,0-11.4,4.1-20.7,10.7-28a9.9,9.9,0,0,1,2.8-13.6,9.2,9.2,0,0,1,.1-13.5s8.7-.7,28.6,10.4a98.8,98.8,0,0,1,52,0c19.9-11.1,28.6-10.4,28.6-10.4a9.2,9.2,0,0,1,.1,13.5,9.9,9.9,0,0,1,2.8,13.6c6.6,7.3,10.7,16.6,10.7,28,0,40.1-23.5,49-46.8,51.5,3.6,3.2,6.9,9.6,6.9,19.4v28.8c0,2.7,1.8,6,7.2,5A104,104,0,0,0,128,24Z"/></symbol>
   </svg>
 
   <!-- Motion Vanilla (deferred, non-blocking; progressive enhancement only) -->
@@ -337,34 +202,8 @@
   <!-- Film Grain -->
   <div class="grain" aria-hidden="true"></div>
 
-  <!-- Cursor spotlight. Phosphor, barely there, never interactive. -->
-  <div id="spotlight" class="pointer-events-none" aria-hidden="true"></div>
-
   <!-- Scroll progress -->
   <div id="scroll-progress" aria-hidden="true"></div>
-
-  <!-- Intro Overlay. Hidden by default; only visible while <html> has
-       "intro-active". Removed from the DOM by js/intro.js or the failsafe. -->
-  <div id="intro-overlay" role="progressbar" aria-label="Loading TOOLAPIS" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" aria-hidden="true">
-    <div class="intro-inner">
-      <div class="intro-logo">
-        <span class="intro-dot"></span>
-        <span class="intro-wordmark">TOOLAPIS</span>
-      </div>
-      <div class="intro-progress">
-        <div class="intro-progress-bar" id="intro-bar"></div>
-      </div>
-      <div class="intro-meta">
-        <span class="intro-counter" id="intro-counter">000</span>
-        <span class="intro-sep">/</span>
-        <span class="intro-status" id="intro-status">Initializing tools</span>
-      </div>
-      <div class="intro-panel">
-        <div class="intro-title">Three tools. One hub. No friction.</div>
-        <div class="intro-subtitle">HD upscaling, USB tethering and a social hub — all from the browser.</div>
-      </div>
-    </div>
-  </div>
 
   <!-- Page Transition Overlay -->
   <div id="page-transition" aria-hidden="true">
@@ -375,8 +214,13 @@
   <!-- ==========================================================================
        HEADER NAVIGATION — DESIGN.md "Navigation Bar"
        Sticky, 64px, Void Canvas, hairline under it once scrolled.
+
+       The right-hand CTA is a GHOST pill, not a filled one: DESIGN.md rations
+       filled white buttons at exactly one per viewport, and the navbar is sticky
+       so it shares every screen with the hero's "Get started", which owns the
+       single filled pill there.
        ========================================================================== -->
-  <header id="navbar" data-intro-reveal="5">
+  <header id="navbar" data-load-reveal="5">
     <div class="shell">
       <!-- No aria-label here on purpose. The link's visible text is "TOOLAPIS."
            (the mint dot is a real full stop, not decoration), and an
@@ -398,12 +242,18 @@
       </nav>
 
       <div class="navbar-actions">
+        <!-- The share button is NOT desktop-only. Brief §4 asks for
+             logo + share + hamburger below 900px, and 44px + 12px of gap
+             costs 56px of a 320px bar — which the brand can spare (the wordmark
+             scales down under 360px). It is the one shortcut a phone user has
+             no other route to. -->
         <a href="https://newsocapis.vercel.app" target="_blank" rel="noopener noreferrer"
-           class="social-btn desktop-only" data-magnetic aria-label="Open Social Media hub">
+           class="social-btn" data-magnetic aria-label="Open Social Media hub">
           <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-share-network"></use></svg>
         </a>
-        <!-- Ghost pill, not a filled one: DESIGN.md allows exactly ONE filled
-             white button per screen and the hero's "Get started" owns it. -->
+        <!-- The CTA moves into the panel below 900px: at 900px the bar has
+             295px of centre links, 44px of share, 136px of CTA and the brand,
+             and there is no honest way to also keep a hamburger. -->
         <a href="https://tiktok-hd-enhancer-by-apis-fgtkuxmpzmi7h8gifh4a8o.streamlit.app/"
            target="_blank" rel="noopener noreferrer" data-magnetic
            class="btn btn-outline btn-sm desktop-only">
@@ -411,7 +261,7 @@
           <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-arrow-up-right"></use></svg>
         </a>
 
-        <button id="nav-toggle" class="btn-outline-icon" aria-label="Toggle menu"
+        <button id="nav-toggle" class="btn-outline-icon" aria-label="Open menu"
                 aria-expanded="false" aria-controls="mobile-menu">
           <svg id="nav-icon" class="icon pointer-events-none" aria-hidden="true" focusable="false"><use href="#i-list"></use></svg>
         </button>
@@ -419,8 +269,23 @@
     </div>
   </header>
 
-  <!-- Mobile Navigation Panel. Full-screen dark sheet, display-face links. -->
-  <div id="mobile-menu" class="mobile-menu pointer-events-none" aria-hidden="true">
+  <!-- Mobile Navigation Panel. Full-screen dark sheet, display-face links.
+
+       The panel carries its OWN header row and close button rather than relying
+       on the navbar's hamburger showing through above it. The panel is
+       `position: fixed; inset: 0` — genuinely full-screen — so the navbar is
+       behind it, and a close control hidden behind the overlay is not a close
+       control. The hamburger still works when the panel is open (the bar is
+       left interactive on purpose) but it should not be the only way out. -->
+  <div id="mobile-menu" class="mobile-menu pointer-events-none" aria-hidden="true" role="dialog"
+       aria-modal="true" aria-label="Site menu">
+    <div class="mobile-menu__head">
+      <span class="mobile-menu__brand" aria-hidden="true">TOOLAPIS<span class="brand__dot">.</span></span>
+      <button type="button" id="mobile-menu-close" class="mobile-menu__close" aria-label="Close menu">
+        <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-x"></use></svg>
+      </button>
+    </div>
+
     <nav aria-label="Mobile">
       <a href="#overview">Overview <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-arrow-right"></use></svg></a>
       <a href="#features">Features <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-arrow-right"></use></svg></a>
@@ -444,34 +309,36 @@
 
     <!-- ======================================================================
          HERO — DESIGN.md "Hero Headline (Calsans Display)"
-         Copy left, accent card right. The ground is entirely css/hero.css: a
-         Void Canvas gradient, a masked 56px grid, one phosphor bloom, a
-         horizon hairline, and the fade that dissolves all of it into the
-         canvas. No video, no WebGL, no violet.
+         Copy left, the light-ribbon scene right, accent card overlapping
+         below it. The scene is entirely CSS + SVG: a phosphor bloom, a
+         perspective floor on --gradient-ground, three curved light tracks and a
+         travelling segment, plus three floating readout chips. No video, no
+         WebGL, no violet, and no hard edge where it meets the next section.
          ====================================================================== -->
     <section id="hero" data-section="hero">
       <div class="hero-bg" aria-hidden="true"></div>
-      <div class="hero-grid-lines" aria-hidden="true"></div>
+
+
       <div class="hero-glow" aria-hidden="true"></div>
       <div class="hero-horizon" aria-hidden="true"></div>
       <div class="hero-fade" aria-hidden="true"></div>
 
       <div class="shell hero-inner">
         <div class="hero-copy">
-          <span class="eyebrow" data-intro-reveal="1">Tool hub · 2026</span>
+          <span class="eyebrow" data-load-reveal="1">Tool hub · 2026</span>
 
-          <h1 class="hero-title" data-intro-reveal="1">
+          <h1 class="hero-title" data-load-reveal="1">
             <span class="hero-title-line word-mask"><span class="word-reveal"><span class="accent">Web Tools</span></span></span>
             <span class="hero-title-line word-mask"><span class="word-reveal">For</span> <span class="word-reveal">You,</span></span>
             <span class="hero-title-line word-mask"><span class="word-reveal">All</span> <span class="word-reveal">in</span> <span class="word-reveal">One</span> <span class="word-reveal">Place.</span></span>
           </h1>
 
-          <p class="hero-subtitle reveal" data-intro-reveal="3">
+          <p class="hero-subtitle reveal" data-load-reveal="3">
             Boost TikTok clips to HD, tether your PC's internet to Android over USB,
             or jump into the social media hub. One hub, three tools, zero friction.
           </p>
 
-          <div class="hero-cta-row reveal" data-intro-reveal="4">
+          <div class="hero-cta-row reveal" data-load-reveal="4">
             <!-- The single filled white button in this viewport. -->
             <a href="#overview" class="btn btn-accent">
               <span>Get started</span>
@@ -484,8 +351,59 @@
           </div>
         </div>
 
-        <!-- TOOL PASS — the one Phosphor Accent Card in the hero viewport. -->
-        <div class="hero-boarding toolpass" data-intro-reveal="2">
+    <div class="hero-scene" aria-hidden="true">
+      <div class="hero-scene__ground"></div>
+      <div class="hero-scene__floor"></div>
+      <div class="hero-scene__bloom"></div>
+      <svg class="hero-ribbon" viewBox="0 0 760 520" preserveAspectRatio="xMidYMid slice" focusable="false">
+        <defs>
+          <!-- Mint at the leading end, Ice Blue where it trails. -->
+          <linearGradient id="ribbonGrad" x1="0" y1="0" x2="1" y2="0.4">
+            <stop offset="0%" stop-color="#70dcd3" stop-opacity="0"/>
+            <stop offset="22%" stop-color="#70dcd3" stop-opacity="0.9"/>
+            <stop offset="62%" stop-color="#a6e5f2" stop-opacity="0.75"/>
+            <stop offset="100%" stop-color="#a6e5f2" stop-opacity="0"/>
+          </linearGradient>
+          <linearGradient id="ribbonFlowGrad" x1="0" y1="0" x2="1" y2="0">
+            <stop offset="0%" stop-color="#70dcd3" stop-opacity="0"/>
+            <stop offset="35%" stop-color="#ffffff" stop-opacity="1"/>
+            <stop offset="100%" stop-color="#a6e5f2" stop-opacity="0"/>
+          </linearGradient>
+        </defs>
+        <!-- Two structural tracks plus the travelling segment on each. The
+             paths fade to transparent at both ends, which is what keeps the
+             scene from ending on a visible cut. -->
+        <path class="hero-ribbon__grad ribbon-base"
+              d="M-40,392 C150,392 168,196 358,196 C548,196 566,392 756,392" />
+        <path class="hero-ribbon__grad ribbon-track"
+              d="M-40,438 C150,438 176,268 358,268 C540,268 566,438 756,438" />
+        <path class="hero-ribbon__grad ribbon-flow"
+              d="M-40,392 C150,392 168,196 358,196 C548,196 566,392 756,392" />
+        <path class="hero-ribbon__grad ribbon-flow ribbon-flow--inner"
+              d="M-40,438 C150,438 176,268 358,268 C540,268 566,438 756,438" />
+        <path class="hero-ribbon__grad ribbon-track"
+              d="M-40,318 C140,318 190,120 358,120 C526,120 576,318 756,318" opacity="0.14" />
+      </svg>
+      <div class="hero-chips">
+        <span class="hero-chip hero-chip--1">
+          <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-sparkle"></use></svg>
+          enhance clip_0412.mp4
+        </span>
+        <span class="hero-chip hero-chip--2">
+          <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-usb"></use></svg>
+          adb reverse tcp:8000
+        </span>
+        <span class="hero-chip hero-chip--3">
+          <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-check-circle"></use></svg>
+          link copied
+        </span>
+      </div>
+    </div>
+
+        <!-- TOOL PASS — the one Phosphor Accent Card in the hero viewport. It
+             overlaps the scene's lower left, which is what ties the copy column
+             and the visual into one composition. -->
+        <div class="hero-boarding toolpass" data-load-reveal="2">
           <div class="toolpass__head">
             <span class="toolpass__label">TOOL PASS</span>
             <div class="hero-barcode" aria-hidden="true"></div>
@@ -508,58 +426,97 @@
                target="_blank" rel="noopener noreferrer" class="hero-pill-outline">
               <span>Open HD Enhancer</span>
             </a>
-            <a href="https://drive.google.com/file/d/1gH_huKs7Pf9XP2uJcRfMaLqJonLfJcbI/view"
-               target="_blank" rel="noopener noreferrer" class="hero-pill-outline">
+            <a href="https://github.com/Genymobile/gnirehtet" target="_blank" rel="noopener noreferrer"
+               class="hero-pill-outline">
               <span>Open Gnirehtet</span>
             </a>
           </div>
         </div>
       </div>
-
-      <!-- Stamped meta strip. Kept (and restyled) because js/hero-extras.js
-           drives [data-coords] from it. -->
-      <div class="hero-bottom-strip" aria-hidden="true">
-        <div class="hero-strip-left">
-          <span>+</span>
-          <span>Fly direct</span>
-          <span class="hero-strip-sep">|</span>
-          <span>Web tools</span>
-        </div>
-        <div class="hero-strip-right">
-          <span data-coords>37.7681° N, -122.0039° W</span>
-          <span class="hero-heart">♥</span>
-        </div>
-      </div>
     </section>
 
     <!-- ======================================================================
-         OVERVIEW — the three tools. Dark Surface Cards, stroke icons, display
-         titles, outlined status badges, a ghost "Open" pill each.
+         4.3 · TRUST MARQUEE
+         A ruled band of mono uppercase words, drifting slowly. Pauses on hover.
+         ====================================================================== -->
+    <div class="marquee" role="presentation">
+      <div class="marquee__track" data-marquee>
+        <div class="marquee__group">
+          <span class="marquee__item">No install</span>
+          <span class="marquee__item">No account</span>
+          <span class="marquee__item">No filler</span>
+          <span class="marquee__item">Web-first</span>
+          <span class="marquee__item">Free</span>
+          <span class="marquee__item">Runs in the browser</span>
+          <span class="marquee__item">Nothing stored</span>
+        </div>
+        <div class="marquee__group" aria-hidden="true">
+          <span class="marquee__item">No install</span>
+          <span class="marquee__item">No account</span>
+          <span class="marquee__item">No filler</span>
+          <span class="marquee__item">Web-first</span>
+          <span class="marquee__item">Free</span>
+          <span class="marquee__item">Runs in the browser</span>
+          <span class="marquee__item">Nothing stored</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- ======================================================================
+         4.4 · OVERVIEW — "Three tools. One hub."
+         A bento grid, not a row of equal cards: one dominant tile carrying the
+         before/after comparison, two half-width tiles (terminal, activity feed),
+         and a wide privacy panel. Every card holds a visual.
          ====================================================================== -->
     <section id="overview" class="section">
       <div class="shell">
-        <div class="section-head max-w-3xl reveal">
+        <div class="section-head reveal">
           <span class="eyebrow">Overview</span>
           <h2 class="t-heading">Three tools. One hub.</h2>
           <p class="copy">No installs, no accounts, no filler. Three tools that do the job and get out of your way.</p>
         </div>
 
-        <div class="reveal-group grid">
-          <!-- Card 1: TikTok HD Enhancer -->
-          <article class="card glass-panel spot-card sheen tool-card reveal">
-            <span class="tool-card-eyebrow"><i>01</i> Enhance</span>
-            <div class="tool-card-icon">
-              <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-sparkle"></use></svg>
-            </div>
-            <h3 class="t-heading-sm">TikTok HD Enhancer</h3>
-            <p class="copy-sm">
-              A Streamlit app that automatically raises the resolution and sharpness
-              of your TikTok clips. Drop the file in, get a clean HD version out.
-            </p>
-            <div>
+        <div class="bento reveal-group">
+
+          <!-- HD Enhancer — the dominant tile. Its evidence is the before/after
+               comparison, not a code block: the code block that used to sit here
+               belonged to USB Tethering and has moved to that card below. -->
+          <article class="card spot-card bento__hd reveal">
+            <div class="bento__head">
+              <span class="tool-card-eyebrow"><i>01</i> Enhance</span>
               <span class="badge">Live</span>
             </div>
-            <div style="margin-top:auto;padding-top:8px">
+
+            <div class="ba">
+              <div class="ba__layer ba__before" aria-hidden="true"></div>
+              <div class="ba__layer ba__after" aria-hidden="true"></div>
+              <span class="ba__tag ba__tag--before">Before</span>
+              <span class="ba__tag ba__tag--after">After</span>
+              <!-- A real range input over the frame: pointer drag AND keyboard
+                   (arrow keys) for free, with the value announced. The visible
+                   divider is a label for it, not the handle itself. -->
+              <input class="ba__input" type="range" min="0" max="100" value="52"
+                     aria-label="Compare the clip before and after upscaling"
+                     data-ba>
+              <div class="ba__divider" aria-hidden="true">
+                <span class="ba__handle">
+                  <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-arrows-h"></use></svg>
+                </span>
+              </div>
+            </div>
+
+            <div class="ba__stats" aria-hidden="true">
+              <span><b>540p</b> in</span>
+              <span>→</span>
+              <span><b>1080p</b> out</span>
+            </div>
+
+            <h3 class="t-heading-sm">TikTok HD Enhancer</h3>
+            <p class="bento__caption">
+              <strong>Enhance:</strong> raises the resolution and sharpness of your
+              TikTok clips automatically. Drop the file in, get a clean HD version out.
+            </p>
+            <div>
               <a href="https://tiktok-hd-enhancer-by-apis-fgtkuxmpzmi7h8gifh4a8o.streamlit.app/"
                  target="_blank" rel="noopener noreferrer" class="btn btn-outline">
                 <span>Open</span>
@@ -568,21 +525,27 @@
             </div>
           </article>
 
-          <!-- Card 2: Gnirehtet Tethering -->
-          <article class="card glass-panel spot-card sheen tool-card reveal">
-            <span class="tool-card-eyebrow"><i>02</i> Connect</span>
-            <div class="tool-card-icon">
-              <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-usb"></use></svg>
-            </div>
-            <h3 class="t-heading-sm">USB Tethering</h3>
-            <p class="copy-sm">
-              Share your PC's internet with an Android phone over a USB cable.
-              Fast, free, and no extra modem or router setup.
-            </p>
-            <div>
+          <!-- USB Tethering — the terminal lives here, which is where the
+               gnirehtet / adb commands actually belong. -->
+          <article class="card spot-card bento__tether reveal">
+            <div class="bento__head">
+              <span class="tool-card-eyebrow"><i>02</i> Connect</span>
               <span class="badge badge--info">Setup guide</span>
             </div>
-            <div style="margin-top:auto;padding-top:8px">
+
+            <div class="terminal" data-terminal aria-label="USB tethering commands">
+              <span class="terminal__line terminal__comment"># tether your phone over USB</span>
+              <span class="terminal__line"><span class="terminal__prompt">$</span> <span class="terminal__cmd" data-type>gnirehtet run</span></span>
+              <span class="terminal__line"><span class="terminal__prompt">$</span> <span class="terminal__cmd" data-type>adb reverse tcp:8000 tcp:8000</span></span>
+              <span class="terminal__line terminal__comment"># phone now shares the PC connection</span>
+            </div>
+
+            <h3 class="t-heading-sm">USB Tethering</h3>
+            <p class="bento__caption">
+              <strong>Connect:</strong> share your PC's internet with an Android
+              phone over a USB cable. Fast, free, no router setup.
+            </p>
+            <div>
               <a href="https://github.com/Genymobile/gnirehtet" target="_blank" rel="noopener noreferrer" class="btn btn-outline">
                 <span>Open</span>
                 <svg class="icon btn-arrow" aria-hidden="true" focusable="false"><use href="#i-arrow-right"></use></svg>
@@ -590,96 +553,246 @@
             </div>
           </article>
 
-          <!-- Card 3: Social Media Hub -->
-          <article class="card glass-panel spot-card sheen tool-card reveal">
-            <span class="tool-card-eyebrow"><i>03</i> Share</span>
-            <div class="tool-card-icon">
-              <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-share-network"></use></svg>
-            </div>
-            <h3 class="t-heading-sm">Social Media Hub</h3>
-            <p class="copy-sm">
-              One clean place for your social media tools and links.
-              Everything you normally keep in twelve tabs, in one tab.
-            </p>
-            <div>
+          <!-- Social Media Hub — the live activity feed. -->
+          <article class="card spot-card bento__social reveal">
+            <div class="bento__head">
+              <span class="tool-card-eyebrow"><i>03</i> Share</span>
               <span class="badge">Live</span>
             </div>
-            <div style="margin-top:auto;padding-top:8px">
+
+            <div class="feed" data-feed aria-label="Recent activity" aria-live="off">
+              <!-- Seed rows are server-rendered so the card is never empty
+                   without JS; widgets.js takes over and cycles them. -->
+              <div class="feed__row" data-status="pass">
+                <span class="feed__rail" aria-hidden="true"><span class="feed__node"></span></span>
+                <span class="feed__avatar" aria-hidden="true">TK</span>
+                <span class="feed__body">
+                  <span class="feed__title">clip_0412.mp4 → 1080p</span>
+                  <span class="feed__meta">HD Enhancer · just now</span>
+                </span>
+                <span class="feed__dot" aria-hidden="true"></span>
+              </div>
+              <div class="feed__row" data-status="done">
+                <span class="feed__rail" aria-hidden="true"><span class="feed__node"></span></span>
+                <span class="feed__avatar" aria-hidden="true">USB</span>
+                <span class="feed__body">
+                  <span class="feed__title">usb0 connected</span>
+                  <span class="feed__meta">Tethering · 2 min ago</span>
+                </span>
+                <span class="feed__dot" aria-hidden="true"></span>
+              </div>
+              <div class="feed__row" data-status="pass">
+                <span class="feed__rail" aria-hidden="true"><span class="feed__node"></span></span>
+                <span class="feed__avatar" aria-hidden="true">SM</span>
+                <span class="feed__body">
+                  <span class="feed__title">link shared</span>
+                  <span class="feed__meta">Social Hub · 4 min ago</span>
+                </span>
+                <span class="feed__dot" aria-hidden="true"></span>
+              </div>
+              <div class="feed__row" data-status="warn">
+                <span class="feed__rail" aria-hidden="true"><span class="feed__node"></span></span>
+                <span class="feed__avatar" aria-hidden="true">HD</span>
+                <span class="feed__body">
+                  <span class="feed__title">clip_0388.mp4 queued</span>
+                  <span class="feed__meta">Enhancer · 6 min ago</span>
+                </span>
+                <span class="feed__dot" aria-hidden="true"></span>
+              </div>
+            </div>
+
+            <h3 class="t-heading-sm">Social Media Hub</h3>
+            <p class="bento__caption">
+              <strong>Share:</strong> one clean place for your social tools and
+              links. Everything you keep in twelve tabs, in one tab.
+            </p>
+            <div>
               <a href="https://newsocapis.vercel.app" target="_blank" rel="noopener noreferrer" class="btn btn-outline">
                 <span>Open</span>
                 <svg class="icon btn-arrow" aria-hidden="true" focusable="false"><use href="#i-arrow-right"></use></svg>
               </a>
             </div>
           </article>
+
+          <!-- Privacy — the lock panel, full width. Four warm light points at
+               the corners of a bordered circle, one caption underneath. -->
+          <article class="card spot-card bento__privacy reveal">
+            <div class="lock">
+              <div class="lock__stage" aria-hidden="true">
+                <span class="lock__light"></span>
+                <span class="lock__light"></span>
+                <span class="lock__light"></span>
+                <span class="lock__light"></span>
+                <span class="lock__ring">
+                  <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-lock"></use></svg>
+                </span>
+              </div>
+              <p class="bento__caption">
+                <strong>Privacy:</strong> no accounts. Nothing stored, nothing
+                uploaded, nothing to sign in to.
+              </p>
+            </div>
+          </article>
+
         </div>
       </div>
     </section>
 
     <!-- ======================================================================
-         FEATURES — eyebrow + 56px display heading, then a wide tile, two
-         half-width tiles, and a code surface for the tethering commands.
+         4.6 · FEATURES — "Click. Connect. Code."
+         Two-column rows that swap sides, each pairing copy with a mock window.
          ====================================================================== -->
     <section id="features" class="section">
       <div class="shell">
-        <div class="section-head max-w-3xl reveal">
+        <div class="section-head reveal">
           <span class="eyebrow">Features</span>
-          <h2 class="t-heading">Small hub. Real tools.</h2>
-          <p class="copy">No installs, no accounts, no filler. Just a few tools that do the job and get out of your way.</p>
+          <h2 class="t-heading">Click. Connect. Code.</h2>
+          <p class="copy">Each tool is one link away and opens straight in the browser. Nothing to install, nothing to configure.</p>
         </div>
 
-        <div class="reveal-group grid">
-          <!-- Wide tile: HD upscaling + the command surface -->
-          <div class="card glass-panel spot-card wide reveal" style="gap:24px">
-            <div style="display:flex;gap:24px;align-items:flex-start;flex-wrap:wrap">
-              <div class="feature-tile__icon feature-tile__icon--lg">
-                <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-magic-wand"></use></svg>
-              </div>
-              <div style="flex:1 1 260px;display:flex;flex-direction:column;gap:8px">
-                <h3 class="t-heading-sm">HD upscaling</h3>
-                <p class="copy-sm">
-                  Raises the resolution and sharpness of low-quality TikTok clips
-                  automatically. No sliders, no settings, no guesswork.
+        <div>
+          <!-- Row 1 -->
+          <div class="feature reveal">
+            <div class="feature__copy">
+              <h3 class="t-heading-sm">One click to launch</h3>
+              <p class="copy">
+                Every tool lives at a link you can bookmark, share or pin. Open it
+                from the hub or straight from the URL — the browser does the rest.
+              </p>
+              <div class="feature__points">
+                <p class="feature__point">
+                  <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-arrow-up-right"></use></svg>
+                  <span>Opens in a new tab, no install step</span>
+                </p>
+                <p class="feature__point">
+                  <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-share-network"></use></svg>
+                  <span>Shareable link, ready for your team</span>
+                </p>
+                <p class="feature__point">
+                  <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-globe-hemisphere-west"></use></svg>
+                  <span>Runs on any device with a browser</span>
                 </p>
               </div>
+              <a href="#overview" class="btn btn-outline">
+                <span>See the tools</span>
+                <svg class="icon btn-arrow" aria-hidden="true" focusable="false"><use href="#i-arrow-right"></use></svg>
+              </a>
             </div>
-
-            <!-- DESIGN.md "Code/Syntax Surface": Obsidian, 16px radius, mono. -->
-            <div class="code" aria-label="USB tethering commands">
-              <div><span class="code__comment"># tether your phone over USB</span></div>
-              <div><span class="code__prompt">$</span> gnirehtet run</div>
-              <div><span class="code__prompt">$</span> adb reverse tcp:8000 tcp:8000</div>
-              <div><span class="code__comment"># phone now shares the PC connection</span></div>
+            <div class="feature__visual">
+              <div class="mock" data-mock>
+                <div class="mock__bar">
+                  <span class="mock__dot"></span><span class="mock__dot"></span><span class="mock__dot"></span>
+                  <span class="mock__url">toolapis · hub</span>
+                </div>
+                <div class="mock__body">
+                  <div class="mock__side">
+                    <span></span><span></span><span></span><span></span>
+                  </div>
+                  <div class="mock__main">
+                    <span class="mock__title"></span>
+                    <div class="mock__row"><span></span><span></span><span></span></div>
+                    <div class="mock__row"><span></span><span></span></div>
+                  </div>
+                </div>
+                <span class="mock__shine" aria-hidden="true"></span>
+              </div>
             </div>
           </div>
 
-          <!-- Tile: USB tethering -->
-          <div class="card glass-panel spot-card reveal">
-            <div style="display:flex;gap:20px;align-items:flex-start">
-              <div class="feature-tile__icon">
-                <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-usb"></use></svg>
-              </div>
-              <div style="display:flex;flex-direction:column;gap:8px">
-                <h3 class="t-heading-sm">USB tethering</h3>
-                <p class="copy-sm">
-                  Shares your PC's internet with an Android phone over a USB cable,
-                  no extra modem or router setup.
+          <!-- Row 2 — copy on the right, visual on the left. -->
+          <div class="feature reveal">
+            <div class="feature__copy">
+              <h3 class="t-heading-sm">Wire it up once</h3>
+              <p class="copy">
+                Tethering is two commands and a cable. Run them once and the phone
+                shares the PC's connection until you unplug it.
+              </p>
+              <div class="feature__points">
+                <p class="feature__point">
+                  <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-usb"></use></svg>
+                  <span>No extra modem or router</span>
                 </p>
+                <p class="feature__point">
+                  <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-check-circle"></use></svg>
+                  <span>Reversible the moment you unplug</span>
+                </p>
+                <p class="feature__point">
+                  <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-lock"></use></svg>
+                  <span>Traffic never leaves your machine</span>
+                </p>
+              </div>
+              <a href="https://github.com/Genymobile/gnirehtet" target="_blank" rel="noopener noreferrer"
+                 class="btn btn-outline">
+                <span>Open Gnirehtet</span>
+                <svg class="icon btn-arrow" aria-hidden="true" focusable="false"><use href="#i-arrow-up-right"></use></svg>
+              </a>
+            </div>
+            <div class="feature__visual">
+              <div class="mock" data-mock>
+                <div class="mock__bar">
+                  <span class="mock__dot"></span><span class="mock__dot"></span><span class="mock__dot"></span>
+                  <span class="mock__url">adb · tethering</span>
+                </div>
+                <div class="mock__body">
+                  <div class="mock__side">
+                    <span></span><span></span><span></span><span></span>
+                  </div>
+                  <div class="mock__main">
+                    <span class="mock__title"></span>
+                    <div class="mock__row"><span></span><span></span><span></span></div>
+                    <div class="mock__row"><span></span><span></span></div>
+                  </div>
+                </div>
+                <span class="mock__shine" aria-hidden="true"></span>
               </div>
             </div>
           </div>
 
-          <!-- Tile: Web-first -->
-          <div class="card glass-panel spot-card reveal">
-            <div style="display:flex;gap:20px;align-items:flex-start">
-              <div class="feature-tile__icon">
-                <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-globe-hemisphere-west"></use></svg>
-              </div>
-              <div style="display:flex;flex-direction:column;gap:8px">
-                <h3 class="t-heading-sm">Web-first</h3>
-                <p class="copy-sm">
-                  Every tool launches straight from the browser. Grab a link,
-                  share it, and you're done.
+          <!-- Row 3 -->
+          <div class="feature reveal">
+            <div class="feature__copy">
+              <h3 class="t-heading-sm">Sharper by default</h3>
+              <p class="copy">
+                The enhancer reads the clip, picks the scale factor and writes a
+                clean HD file back out. You get a download, not a settings page.
+              </p>
+              <div class="feature__points">
+                <p class="feature__point">
+                  <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-sparkle"></use></svg>
+                  <span>Resolution and sharpness together</span>
                 </p>
+                <p class="feature__point">
+                  <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-magic-wand"></use></svg>
+                  <span>No sliders, no guesswork</span>
+                </p>
+                <p class="feature__point">
+                  <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-waveform"></use></svg>
+                  <span>Handles a batch at once</span>
+                </p>
+              </div>
+              <a href="https://tiktok-hd-enhancer-by-apis-fgtkuxmpzmi7h8gifh4a8o.streamlit.app/"
+                 target="_blank" rel="noopener noreferrer" class="btn btn-outline">
+                <span>Open HD Enhancer</span>
+                <svg class="icon btn-arrow" aria-hidden="true" focusable="false"><use href="#i-arrow-up-right"></use></svg>
+              </a>
+            </div>
+            <div class="feature__visual">
+              <div class="mock" data-mock>
+                <div class="mock__bar">
+                  <span class="mock__dot"></span><span class="mock__dot"></span><span class="mock__dot"></span>
+                  <span class="mock__url">enhancer · queue</span>
+                </div>
+                <div class="mock__body">
+                  <div class="mock__side">
+                    <span></span><span></span><span></span><span></span>
+                  </div>
+                  <div class="mock__main">
+                    <span class="mock__title"></span>
+                    <div class="mock__row"><span></span><span></span><span></span></div>
+                    <div class="mock__row"><span></span><span></span></div>
+                  </div>
+                </div>
+                <span class="mock__shine" aria-hidden="true"></span>
               </div>
             </div>
           </div>
@@ -688,57 +801,46 @@
     </section>
 
     <!-- ======================================================================
-         FLOW — DESIGN.md "Activity Row": 32px mark, 14px/500 title, 12px meta,
-         8px status dot, Iron Edge dividers. Three steps, left to right.
+         4.7 · FLOW — three steps on a connector that draws itself on scroll.
          ====================================================================== -->
     <section id="flow" class="section">
       <div class="shell">
-        <div class="section-head max-w-3xl reveal">
+        <div class="section-head reveal">
           <span class="eyebrow">Flow</span>
           <h2 class="t-heading">Pick it up in a minute.</h2>
           <p class="copy">Open a tool, run it, done. Nothing else on the page gets in your way.</p>
         </div>
 
-        <div class="reveal-group">
-          <!-- Step 1 -->
-          <div class="card glass-panel reveal" style="gap:0;padding-top:8px;padding-bottom:8px">
-            <div class="activity">
-              <span class="activity__mark w-12 h-12" aria-hidden="true">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7.6 3.4v12.4l3.2-3.1 2.2 5.4 2.9-1.2-2.2-5.4h4.5z"/></svg>
-              </span>
-              <span class="activity__body">
-                <span class="activity__title">Pick a tool</span>
-                <span class="activity__meta">Enhancer for video, tethering for connection, hub for the rest</span>
-              </span>
-              <span class="activity__dot" aria-hidden="true"></span>
-            </div>
-          </div>
+        <div class="flow reveal-group" data-flow>
+          <!-- The connector spans node-centre to node-centre. The viewBox is
+               1200 wide to match the row at full bleed; preserveAspectRatio
+               "none" lets the same path stretch when the row narrows. -->
+          <svg class="flow__line" viewBox="0 0 1200 34" preserveAspectRatio="none" aria-hidden="true" focusable="false">
+            <path d="M28.3,17 H1171.7" />
+            <path class="flow__trace" data-flow-trace d="M28.3,17 H1171.7" />
+          </svg>
 
-          <!-- Step 2 -->
-          <div class="card glass-panel reveal" style="gap:0;padding-top:8px;padding-bottom:8px">
-            <div class="activity">
-              <span class="activity__mark w-12 h-12" aria-hidden="true">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2.8c2.7 2.1 4.1 5.1 4.1 8.4 0 1.9-.3 3.6-1 5.1H8.9c-.7-1.5-1-3.2-1-5.1 0-3.3 1.4-6.3 4.1-8.4Z"/><circle cx="12" cy="9.4" r="1.9"/><path d="M8.9 16.3 6.7 19.4l3-1.1"/><path d="M15.1 16.3l2.2 3.1-3-1.1"/><path d="M10.5 19.1c.5 1.2 1 1.9 1.5 1.9s1-.7 1.5-1.9"/></svg>
-              </span>
-              <span class="activity__body">
-                <span class="activity__title">Launch it</span>
-                <span class="activity__meta">One click opens the app in your browser</span>
-              </span>
-              <span class="activity__dot" aria-hidden="true"></span>
+          <div class="flow__steps">
+            <div class="flow__step reveal" data-flow-step>
+              <span class="flow__node">01</span>
+              <h3 class="t-heading-sm">Pick a tool</h3>
+              <p class="copy-sm">
+                Enhancer for video, tethering for connection, hub for everything else.
+              </p>
             </div>
-          </div>
-
-          <!-- Step 3 -->
-          <div class="card glass-panel reveal" style="gap:0;padding-top:8px;padding-bottom:8px">
-            <div class="activity">
-              <span class="activity__mark w-12 h-12" aria-hidden="true">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8.6"/><path d="m8.3 12.2 2.7 2.7 4.7-5.3"/></svg>
-              </span>
-              <span class="activity__body">
-                <span class="activity__title">You're done</span>
-                <span class="activity__meta">Upscale the clip or share the connection right away</span>
-              </span>
-              <span class="activity__dot" aria-hidden="true"></span>
+            <div class="flow__step reveal" data-flow-step>
+              <span class="flow__node">02</span>
+              <h3 class="t-heading-sm">Launch it</h3>
+              <p class="copy-sm">
+                One click opens the app in your browser. No install, no account.
+              </p>
+            </div>
+            <div class="flow__step reveal" data-flow-step>
+              <span class="flow__node">03</span>
+              <h3 class="t-heading-sm">You're done</h3>
+              <p class="copy-sm">
+                Upscale the clip or share the connection right away.
+              </p>
             </div>
           </div>
         </div>
@@ -746,36 +848,88 @@
     </section>
 
     <!-- ======================================================================
-         CLARITY — closing band. Carbon Plate card, one filled pill, one ghost
-         pill, and the copy action. No mint here: the accent is already spent
-         on the TOOL PASS card in the hero.
+         4.8 · CLARITY — the questions, then the closing band.
+         No mint here: the accent is already spent on the TOOL PASS card in the
+         hero, and DESIGN.md rations it at one accent card per viewport.
          ====================================================================== -->
     <section id="clarity" class="section">
       <div class="shell">
-        <div class="reveal">
-          <div class="relative" style="display:flex;flex-direction:column;gap:24px;align-items:center;text-align:center">
-            <span class="eyebrow">Clarity</span>
-            <h2 class="t-heading">Clear tools, zero clutter.</h2>
-            <p class="copy">One hub for the tools you actually use. Open it, use it, move on.</p>
-            <div style="display:flex;flex-wrap:wrap;gap:16px;justify-content:center;align-items:center">
-              <a href="https://tiktok-hd-enhancer-by-apis-fgtkuxmpzmi7h8gifh4a8o.streamlit.app/"
-                 target="_blank" rel="noopener noreferrer" data-magnetic data-3d="hd"
-                 class="btn btn-accent">
-                <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-magic-wand"></use></svg>
-                <span>Open HD Enhancer</span>
-                <svg class="icon btn-arrow" aria-hidden="true" focusable="false"><use href="#i-arrow-right"></use></svg>
-              </a>
-              <button type="button"
-                      onclick="copyToClipboard('https://tiktok-hd-enhancer-by-apis-fgtkuxmpzmi7h8gifh4a8o.streamlit.app/', 'Enhancer link copied!')"
-                      class="btn btn-outline">
-                <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-copy"></use></svg>
-                <span>Copy enhancer link</span>
-              </button>
-              <a href="https://newsocapis.vercel.app" target="_blank" rel="noopener noreferrer"
-                 data-magnetic data-3d="social" class="btn btn-outline">
-                <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-share-network"></use></svg>
-                <span>Social Media</span>
-              </a>
+        <div class="section-head reveal">
+          <span class="eyebrow">Clarity</span>
+          <h2 class="t-heading">The short answers.</h2>
+          <p class="copy">Four things people usually ask, answered before you have to ask.</p>
+        </div>
+
+        <div class="acc reveal-group" data-acc>
+          <div class="acc__item">
+            <button class="acc__btn" type="button" aria-expanded="false" aria-controls="acc-a1">
+              <span class="acc__q">Do I need to install anything?</span>
+              <span class="acc__icon" aria-hidden="true"></span>
+            </button>
+            <div class="acc__panel" id="acc-a1" role="region">
+              <div><p class="acc__a">No. Every tool here runs in the browser. Open the link, use the tool, close the tab — nothing is installed and nothing is left behind on your machine.</p></div>
+            </div>
+          </div>
+
+          <div class="acc__item">
+            <button class="acc__btn" type="button" aria-expanded="false" aria-controls="acc-a2">
+              <span class="acc__q">Do I have to create an account?</span>
+              <span class="acc__icon" aria-hidden="true"></span>
+            </button>
+            <div class="acc__panel" id="acc-a2" role="region">
+              <div><p class="acc__a">No accounts anywhere. There is nothing to sign up for, nothing to verify, and no profile behind the hub. If a tool needed one, it would not be listed here.</p></div>
+            </div>
+          </div>
+
+          <div class="acc__item">
+            <button class="acc__btn" type="button" aria-expanded="false" aria-controls="acc-a3">
+              <span class="acc__q">What happens to the clips I upscale?</span>
+              <span class="acc__icon" aria-hidden="true"></span>
+            </button>
+            <div class="acc__panel" id="acc-a3" role="region">
+              <div><p class="acc__a">They are processed and handed back as a download. TOOLAPIS itself stores nothing: the hub is a set of links, not a service with a database.</p></div>
+            </div>
+          </div>
+
+          <div class="acc__item">
+            <button class="acc__btn" type="button" aria-expanded="false" aria-controls="acc-a4">
+              <span class="acc__q">Does USB tethering need a second device?</span>
+              <span class="acc__icon" aria-hidden="true"></span>
+            </button>
+            <div class="acc__panel" id="acc-a4" role="region">
+              <div><p class="acc__a">Yes — an Android phone and a USB cable. Gnirehtet shares your PC's connection over the cable itself, so no extra modem, router or SIM is involved.</p></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="reveal" style="margin-top:56px">
+          <div class="cta-band">
+            <div class="cta-band__floor" aria-hidden="true"></div>
+            <div class="cta-band__inner">
+              <span class="eyebrow eyebrow--iris">Get started</span>
+              <h2 class="t-heading-lg">Three tools.<br>One tab open.</h2>
+              <p class="copy">Start with the enhancer, keep the tethering guide handy, and leave the rest of the internet to the browser.</p>
+              <div class="cta-band__actions">
+                <!-- The filled white pill for THIS screen. The hero's own filled
+                     pill is on a different screen, so the rationing holds. -->
+                <a href="https://tiktok-hd-enhancer-by-apis-fgtkuxmpzmi7h8gifh4a8o.streamlit.app/"
+                   target="_blank" rel="noopener noreferrer" data-magnetic class="btn btn-accent">
+                  <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-magic-wand"></use></svg>
+                  <span>Open HD Enhancer</span>
+                  <svg class="icon btn-arrow" aria-hidden="true" focusable="false"><use href="#i-arrow-right"></use></svg>
+                </a>
+                <button type="button"
+                        onclick="copyToClipboard('https://tiktok-hd-enhancer-by-apis-fgtkuxmpzmi7h8gifh4a8o.streamlit.app/', 'Enhancer link copied!')"
+                        class="btn btn-outline">
+                  <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-copy"></use></svg>
+                  <span>Copy enhancer link</span>
+                </button>
+                <a href="https://newsocapis.vercel.app" target="_blank" rel="noopener noreferrer"
+                   data-magnetic class="btn btn-outline">
+                  <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-share-network"></use></svg>
+                  <span>Social Media</span>
+                </a>
+              </div>
             </div>
           </div>
         </div>
@@ -797,32 +951,34 @@
   </div>
 
   <!-- ==========================================================================
-       FOOTER — DESIGN.md "Footer Link Column": four columns, 14px/500 white
-       headings, Graphite links with no underline, Steel Border rule on top.
+       FOOTER — DESIGN.md "Footer Link Column"
+       Four columns, 14px/500 white headings, 14px Graphite links with no
+       underline, 12px row gap, 40px column gap, Steel Border rule on top.
        ========================================================================== -->
   <footer class="site-footer">
     <div class="shell">
       <div class="footer-grid">
-        <div class="footer-col">
-          <span class="footer-col__head">TOOLAPIS.</span>
-          <a href="https://github.com/mgarox836-a11y/toolapis" target="_blank" rel="noopener noreferrer">GitHub</a>
-          <a href="https://newsocapis.vercel.app" target="_blank" rel="noopener noreferrer">Social hub</a>
-          <span class="footer-status"><span class="status-dot" aria-hidden="true"></span> All systems operational</span>
-        </div>
-
         <nav class="footer-col" aria-label="Product">
           <span class="footer-col__head">Product</span>
+          <a href="#overview">Overview</a>
+          <a href="#features">Features</a>
+          <a href="#flow">Flow</a>
+          <a href="#clarity">Clarity</a>
+        </nav>
+
+        <nav class="footer-col" aria-label="Tools">
+          <span class="footer-col__head">Tools</span>
           <a href="https://tiktok-hd-enhancer-by-apis-fgtkuxmpzmi7h8gifh4a8o.streamlit.app/" target="_blank" rel="noopener noreferrer">HD Enhancer</a>
           <a href="https://github.com/Genymobile/gnirehtet" target="_blank" rel="noopener noreferrer">USB Tethering</a>
           <a href="https://newsocapis.vercel.app" target="_blank" rel="noopener noreferrer">Social Media Hub</a>
         </nav>
 
-        <nav class="footer-col" aria-label="Sections">
-          <span class="footer-col__head">Sections</span>
-          <a href="#overview">Overview</a>
-          <a href="#features">Features</a>
-          <a href="#flow">Flow</a>
-          <a href="#clarity">Clarity</a>
+        <nav class="footer-col" aria-label="Resources">
+          <span class="footer-col__head">Resources</span>
+          <a href="https://github.com/mgarox836-a11y/toolapis" target="_blank" rel="noopener noreferrer">Source code</a>
+          <a href="#features">How it works</a>
+          <a href="#clarity">FAQ</a>
+          <span class="footer-status"><span class="status-dot" aria-hidden="true"></span> All systems operational</span>
         </nav>
 
         <div class="footer-col">
@@ -836,8 +992,20 @@
             <span class="motion-toggle-label">Reduce motion</span>
             <span class="sr-only" id="motion-toggle-hint">Turns off animation for this site</span>
           </button>
-          <span class="copy-sm">© 2026 TOOLAPIS. All rights reserved.</span>
+          <div class="footer-social">
+            <a href="https://github.com/mgarox836-a11y/toolapis" target="_blank" rel="noopener noreferrer" aria-label="GitHub">
+              <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-github-logo"></use></svg>
+            </a>
+            <a href="https://newsocapis.vercel.app" target="_blank" rel="noopener noreferrer" aria-label="Social hub">
+              <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-share-network"></use></svg>
+            </a>
+          </div>
         </div>
+      </div>
+
+      <div class="footer-bottom">
+        <small>&copy; 2026 TOOLAPIS. All rights reserved.</small>
+        <small>Built for the browser.</small>
       </div>
     </div>
   </footer>
@@ -850,8 +1018,9 @@
   <script type="module" src="js/motion-boot.js"></script>
   <script type="module" src="js/motion-toggle.js"></script>
   <script type="module" src="js/motion-fx.js"></script>
-  <script type="module" src="js/intro.js"></script>
   <script type="module" src="js/reveal.js"></script>
+  <script type="module" src="js/hero3d.js"></script>
+  <script type="module" src="js/widgets.js"></script>
   <script defer src="js/hero-extras.js"></script>
 </body>
 </html>

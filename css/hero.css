@@ -22,12 +22,30 @@
 #hero {
   position: relative;
   isolation: isolate;
+  /* `100svh`, not `100vh`. On mobile Safari `vh` is the viewport with the
+     browser chrome EXCLUDED, so a hero sized to 100vh pushes its bottom third
+     under the address bar. `svh` is the smaller, always-visible height.
+     `100dvh` is deliberately NOT used here: this is a `min-height`, so it
+     does not need to track the collapsing chrome, and `svh` keeps the hero
+     stable when the bar hides on scroll instead of resizing under the reader.
+
+     Safe-area top padding as well as the navbar offset, because in landscape
+     on a notched phone the bar sits under the notch. */
   min-height: 100svh;
-  padding-top: calc(var(--navbar-height) + clamp(40px, 8vh, 88px));
+  padding-top: calc(clamp(56px, 4.5vw + 44px, var(--navbar-height))
+                    + clamp(32px, 6vh, 88px)
+                    + env(safe-area-inset-top, 0px));
   padding-bottom: clamp(28px, 4vh, 48px);
+  padding-inline: env(safe-area-inset-left, 0px) env(safe-area-inset-right, 0px);
   display: flex;
   flex-direction: column;
-  overflow: hidden;
+  /* `clip`, not `hidden`, and this is the important one: the hero's decorative
+     layers (.hero-glow at right:-6%, .hero-grid-lines at inset:-56px) all
+     extend outside the hero by design, so SOMETHING has to confine them.
+     `hidden` would make #hero a scroll container, which is the mechanism
+     behind the `position: sticky` breakage that `overflow-x: hidden` on body
+     caused. `clip` confines the paint and leaves the box a normal one. */
+  overflow: clip;
 }
 
 /* ---- The ground: a dark gradient with a hairline grid --------------------
@@ -73,7 +91,13 @@
   z-index: -1;
   top: -10%;
   right: -6%;
-  width: min(760px, 90vw);
+  /* Percentages, not `min(760px, 90vw)`. `90vw` is the viewport width, which
+     is wrong the moment the hero is not the viewport — and it counts the
+     scrollbar on desktop, so the "90% of the page" it resolves to is 90% of
+     something 15px wider than the page. A percentage of the hero is both
+     simpler and actually correct. `max-width` keeps the desktop size. */
+  width: 90%;
+  max-width: 760px;
   aspect-ratio: 1;
   border-radius: 50%;
   pointer-events: none;
@@ -129,25 +153,45 @@
   position: relative;
   z-index: 1;
   display: grid;
-  grid-template-columns: 1fr;
-  gap: clamp(40px, 6vw, 64px);
+  grid-template-columns: minmax(0, 1fr);
+  gap: clamp(32px, 6vw, 64px);
   align-items: center;
-  width: 100%;
   /* The hero owns the viewport, so the grid takes the slack and centres inside
      it, and the stamped strip below is pushed to the bottom by its own
      margin-top. Without this the strip rode up under the copy. */
   flex: 1;
   align-content: center;
 }
+/* Children must be allowed to shrink: the copy column holds a nowrap line mask
+   per headline line, and without `min-width: 0` a grid item's automatic minimum
+   is its min-content, which is set by the longest unbreakable word. */
+.hero-inner > * { min-width: 0; }
+
 @media (min-width: 1024px) {
   .hero-inner {
-    /* Slightly wider than a true 50/50: the display face is tracked out to
-       0.056em, so the headline needs the extra room to hold three lines at
-       its intended size instead of wrapping inside a line mask (where a wrap
-       would be clipped). The pass card keeps its own 360px. */
-    grid-template-columns: minmax(0, 1.2fr) minmax(320px, 0.8fr);
-    gap: clamp(48px, 6vw, 80px);
+    /* The copy column takes whatever is left; the accent card is a fixed
+       column. Sizing the copy by the CONTENT it has to hold rather than by a
+       ratio is what keeps "All in One Place." on one line — and the content it
+       has to hold is a 3-word line that measures 516px at 67px type.
+
+       340px here, not 380px, and that number is load-bearing rather than
+       taste: at a 1024 viewport the shell is 944px (it has not reached its
+       1200px maximum and will not until 1280), so a 380px card plus a 51px gap
+       left the copy column 511px for 516px of headline. Five pixels short, and
+       the headline wrapped inside a line mask into a 4-line desktop hero. The
+       card at 340px gives the column 553px and 37px of margin. */
+    grid-template-columns: minmax(0, 1fr) 340px;
+    gap: clamp(40px, 5vw, 56px);
   }
+  /* The scene spans both columns on desktop too, so its `right` edge is the
+     hero's rather than the copy column's. */
+  .hero-inner > .hero-scene { grid-column: 1 / -1; }
+}
+
+/* From 1280 the shell IS 1200px wide, so there is finally room for the full
+   380px card beside the copy without squeezing the headline. */
+@media (min-width: 1280px) {
+  .hero-inner { grid-template-columns: minmax(0, 1fr) 380px; }
 }
 
 .hero-copy {
@@ -155,7 +199,11 @@
   flex-direction: column;
   align-items: flex-start;
   gap: var(--spacing-24);
-  max-width: 720px;
+  /* `min()` rather than a bare 780px: 780px is wider than a 390px phone, and
+     a `max-width` larger than the container is a no-op that reads as though it
+     were doing something. */
+  max-width: min(780px, 100%);
+  min-width: 0;
 }
 
 /* ---- Hero headline -------------------------------------------------------
@@ -164,69 +212,122 @@
    is Pure White. The accent here is TYPE, not a fill, which is DESIGN.md's own
    two-tone treatment of the same headline.
 
-   The 88px ceiling is reached only where the copy column can hold it. Tracked
-   out to 0.056em the display face is wide, and a headline that wraps INSIDE a
-   line mask would be clipped, so the size is bound to the column (vw-based)
-   rather than to the raw token. */
+   RECALIBRATED FOR GOOGLE SANS. Google's static cut has no weight 300, so the
+   hero runs at 400 (the brief sanctions this) and the "airborne" quality is
+   recovered two ways: tracking stays positive but drops to 0.03em, and
+   line-height tightens to 0.94. Google Sans is narrower than Space Grotesk at
+   equal size and tracking (measured 926px vs 1034px on this headline at
+   56px), so the vw coefficient rises to give back the line count the reference
+   reads at.
+
+   The 88px ceiling is reached only where the copy column can hold it, and a
+   headline that wraps INSIDE a line mask would be clipped, so the size is
+   bound to the column (vw-based) rather than to the raw token. */
+/* THE HERO KEEPS ITS OWN SIZE BOUND, AND IT HAS TO.
+
+   `--text-display` is the right token everywhere else, but the hero is the one
+   place where the headline is bounded by a GRID COLUMN rather than by the
+   viewport: from 1024px the copy column is `minmax(0, 1fr)` beside a fixed
+   380px card, so at a 1024 viewport it is 944 - 380 - 40 = 524px wide while the
+   shell is nowhere near its 1200px maximum. Reading the token's clamp here
+   gave 85px in 524px of room, and "All in One Place." — 660px at 88px — wrapped
+   to a second line inside a `.hero-title-line` mask. Measured across the
+   desktop range with the token: 3 lines at 768, 4 at 1024, 3 again at 1280.
+   The layout is fine; the type was simply too big for its column.
+
+   `5vw + 16px` is the coefficient that keeps the third line on one line in
+   every column this page actually builds: 40px at 320 (the brief's floor),
+   46px at 600, 67px at 1024 (504px of type in 524px of column), 80px at 1280
+   and the token's 88px ceiling from 1440. The `!important`-free way to say it
+   is simply not to use the viewport token for a column-bounded headline. */
 .hero-title {
   margin: 0;
   font-family: var(--font-display);
   font-weight: var(--weight-light);
-  font-size: clamp(40px, 6.2vw, var(--text-display));
-  line-height: var(--leading-display);
+  font-size: clamp(40px, 5vw + 16px, var(--text-display));
+  line-height: 0.94;
   letter-spacing: var(--tracking-display-face);
   color: var(--color-pure-white);
+  text-wrap: balance;
+  /* A long word must break rather than widen the mask it lives in. */
+  overflow-wrap: break-word;
 }
-.hero-title-line {
+/* THE LINE MASK — one rule, because it is one element.
+
+   The markup puts BOTH classes on the same <span>:
+     <span class="hero-title-line word-mask">…</span>
+   so `.hero-title-line` and `.word-mask` are two rule blocks describing one
+   box, each declaring `padding-bottom`. Whichever came last in this file won —
+   which is a worse failure than it sounds, because the two values were chosen
+   for different reasons and neither is obviously the "real" one.
+
+   `0.16em` is the value that matters. The mask has to be taller than the
+   descender box of the 400-weight display face at every size this headline
+   reaches: the previous `0.04em` shaved the bottom off "Web Tools" at 320px
+   through 1440px, which is what the overflow detector was reporting as clipped
+   text at all nine widths.
+
+   `overflow: clip` rather than `hidden`, because this box's whole job is to
+   confine the reveal transform and it has no reason to become a scroll
+   container. */
+.hero-title-line,
+.word-mask {
   display: block;
-  overflow: hidden;
-  padding-bottom: 0.06em;
+  overflow: clip;
+  padding-bottom: 0.16em;
 }
-.hero-title-line > span { display: inline-block; }
-.word-mask { display: block; overflow: hidden; padding-bottom: 0.04em; }
+/* The reveal spans are `inline-block` so they can be translated independently;
+   css/animations.css already sets that on `.word-reveal`. */
 
 /* Two-tone: the opening phrase in Phosphor Mint, the rest in Pure White. */
 .hero-title .accent { color: var(--color-phosphor-mint); }
 
-/* Sub-copy: Geist 18px in Ash (DESIGN.md "Subheading" tone). */
+/* Sub-copy: 18px in Ash (DESIGN.md "Subheading" tone). */
 .hero-subtitle {
-  max-width: 34ch;
+  /* 34ch is ~500px at 18px, which is wider than a 320px phone's content box
+     — harmless on its own, but `min()` states the intent and there is no
+     version of this rule that can be wrong about it. */
+  max-width: min(34ch, 100%);
   color: var(--color-ash);
   font-size: 18px;
   line-height: 1.5;
   font-weight: var(--weight-regular);
+  text-wrap: pretty;
+  min-width: 0;
 }
 
 /* CTA row: the filled white pill is the single primary action in this
-   viewport; "See how in 30s" is the ghost pill beside it. */
+   viewport; "See how in 30s" is the ghost pill beside it.
+
+   `width: 100%` below 480px is in components.css, where `.btn` itself opts out
+   of `nowrap` — the two must agree or one of the two pills overflows. */
 .hero-cta-row {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: 12px;
+  min-width: 0;
+  max-width: 100%;
 }
 .hero-link-see {
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  min-height: 44px;
+  min-height: var(--tap-target);
   padding: 12px 24px;
   border-radius: var(--radius-buttons);
   border: 1px solid var(--color-pure-white);
   color: var(--color-pure-white);
   font-size: var(--text-body-sm);
   font-weight: var(--weight-medium);
+  max-width: 100%;
   transition: background-color var(--duration-fast) var(--ease-out-quint);
 }
-.hero-link-see:hover { background: rgba(255, 255, 255, 0.08); }
-.hero-link-see .btn-arrow { transition: transform var(--duration-fast) var(--ease-out-quint); }
-.hero-link-see:hover .btn-arrow { transform: translateX(4px); }
-
 .hero-play-btn {
   display: inline-flex;
   align-items: center;
   gap: 10px;
-  min-height: 44px;
+  min-height: var(--tap-target);
   padding: 12px 20px;
   border-radius: var(--radius-buttons);
   border: 1px solid var(--color-pure-white);
@@ -234,9 +335,20 @@
   color: var(--color-pure-white);
   font-size: var(--text-body-sm);
   font-weight: var(--weight-medium);
+  /* The same `max-width: 100%` every other control here carries: this is a
+     flex item, and a flex item's automatic minimum is its min-content, so a
+     long label in a narrow row overflows without it. */
+  max-width: 100%;
   transition: background-color var(--duration-fast) var(--ease-out-quint);
 }
-.hero-play-btn:hover { background: rgba(255, 255, 255, 0.08); }
+@media (hover: hover) {
+  .hero-link-see:hover,
+  .hero-play-btn:hover { background: rgba(255, 255, 255, 0.08); }
+}
+.hero-link-see .btn-arrow { transition: transform var(--duration-fast) var(--ease-out-quint); }
+@media (hover: hover) {
+  .hero-link-see:hover .btn-arrow { transform: translateX(4px); }
+}
 
 /* ---- Hero meta strip ------------------------------------------------------
    The old "boarding gate" strip. Kept as a stamped micro-label row, mono and
@@ -252,38 +364,66 @@
      minimum breathing room under the copy when the hero is short. */
   margin-top: auto;
   padding-top: var(--spacing-24);
-  width: 100%;
-  max-width: var(--page-max-width);
+  /* `min()` on the way out so this strip cannot be wider than the page it
+     sits in, whatever the gutter resolves to. */
+  width: min(100% - 2 * var(--gutter), var(--page-max-width));
   margin-inline: auto;
-  padding-inline: clamp(20px, 4vw, 32px);
   font-family: var(--font-mono);
-  font-size: 10px;
-  letter-spacing: 0.18em;
+  /* 12px floor per brief §7 — this was 10px with 0.18em tracking, the
+     tightest type on the page, and it is a strip of real information rather
+     than decoration. */
+  font-size: var(--text-caption);
+  letter-spacing: 0.12em;
   text-transform: uppercase;
   color: var(--color-cinder);
 }
 .hero-strip-left,
-.hero-strip-right { display: flex; align-items: center; gap: 10px; }
-.hero-strip-sep { color: var(--color-iron-edge); }
+.hero-strip-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  /* The strip's two halves must be able to give ground: they hold mono text at
+     12px with 0.12em tracking, and on a 320px screen that is the widest
+     unbreakable content in the hero. */
+  flex: 0 1 auto;
+}
+.hero-strip-left > *,
+.hero-strip-right > * { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.hero-strip-sep { color: var(--color-iron-edge); flex: none; }
 .hero-heart {
   display: inline-grid;
   place-items: center;
   width: 18px; height: 18px;
+  flex: none;
   border-radius: var(--radius-badges);
   border: 1px solid var(--color-iron-edge);
-  font-size: 9px;
+  font-size: 12px;
   line-height: 1;
   color: var(--color-graphite);
 }
 
 /* ---- The removed aircraft / contrail -------------------------------------
-   `.hero-aircraft`, `.hero-contrail` and `.hero-plane` are display:none. They
-   were an aviation motif that DESIGN.md does not have; js/hero-extras.js still
-   toggles `.is-drawn` / `.is-loop` on the contrail, which is harmless, and its
-   video hooks are all guarded, so no JS had to change. Kept as a documented
-   no-op rather than deleted from the markup, because removing elements the
-   existing scripts query is a behavioural change, not a visual one. */
-.hero-aircraft { display: none; }
+   `.hero-aircraft`, `.hero-contrail` and `.hero-plane` were an aviation motif
+   DESIGN.md does not have, and they are gone from the markup too — the previous
+   build kept a `display:none` rule for them on the belief that
+   js/hero-extras.js still toggled `.is-drawn` / `.is-loop` on them. It does
+   not; that file only drives the TOOL PASS parallax and the [data-coords]
+   readout. So the rule was dead CSS guarding a comment that described a
+   version of the JS that no longer exists. Removed rather than kept as a
+   documented no-op. */
+
+/* ---- Pause off-screen -----------------------------------------------------
+   js/hero3d.js toggles `.is-paused` on the hero when it scrolls away, the tab
+   is hidden, or motion is reduced. Every CSS loop in the hero and the scene
+   honours it, so nothing runs for a screen nobody is looking at. The
+   `!important` is what makes this beat the per-element `animation` shorthand
+   below without every declaration having to repeat it. */
+#hero.is-paused *,
+#hero.is-paused *::before,
+#hero.is-paused *::after {
+  animation-play-state: paused !important;
+}
 
 /* ---- Reduced motion ------------------------------------------------------- */
 @media (prefers-reduced-motion: reduce) {
@@ -296,27 +436,13 @@ html.motion-reduced .hero-glow,
 html.motion-reduced .hero-grid-lines { animation: none !important; }
 
 /* ============================================================================
-   SECTION LAYOUT
-   The three content sections share one rhythm: eyebrow, 56px display heading,
-   Graphite paragraph, then content. 80px between sections, 24px between cards.
+   SECTION LAYOUT — MOVED
+   The Overview, Features, Flow and Clarity layouts now live in css/sections.css
+   (bento grid, alternating features, scroll-drawn flow, accordion, CTA band,
+   footer). What remains here is the hero's own layout and the few heads it
+   used to own. Keeping a copy of the old grid rules would have meant two
+   sources of truth for every section's column count.
    ========================================================================== */
-#overview .reveal-group { grid-template-columns: 1fr; }
-@media (min-width: 768px) { #overview .reveal-group { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
-
-#features .reveal-group { grid-template-columns: 1fr; }
-@media (min-width: 768px) {
-  #features .reveal-group { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  #features .reveal-group > .wide { grid-column: span 2; }
-}
-
-#flow .reveal-group {
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: var(--spacing-24);
-}
-@media (min-width: 900px) {
-  #flow .reveal-group { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-}
 
 /* Feature tile icon wells: 56px for the wide tile, 48px for the pair. */
 .feature-tile__icon {
@@ -331,16 +457,8 @@ html.motion-reduced .hero-grid-lines { animation: none !important; }
 .feature-tile__icon--lg { width: 56px; height: 56px; flex-basis: 56px; }
 .feature-tile__icon .icon { width: 24px; height: 24px; }
 
-/* Closing band: a full-width Carbon Plate card with a Fog hairline, holding
-   one filled pill. The `.reveal` is a child of `.shell`, not of the section —
-   `#clarity > .reveal` never matched, which is why the plate had no surface. */
-#clarity .shell > .reveal {
-  position: relative;
-  padding: clamp(32px, 6vw, 64px);
-  border-radius: var(--radius-cards);
-  background: var(--color-carbon-plate);
-  border: 1px solid var(--color-fog);
-  text-align: center;
-  overflow: hidden;
-}
-#clarity .copy { max-width: 56ch; margin-inline: auto; }
+/* The closing CTA band is now `.cta-band` in css/sections.css — it carries the
+   --gradient-ground and the perspective floor rather than a flat plate. The
+   only rule left here is the measure cap on its body copy, which is a type
+   decision rather than a layout one. */
+#clarity .cta-band .copy { max-width: 56ch; margin-inline: auto; }

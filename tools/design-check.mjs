@@ -368,12 +368,30 @@ for (const vp of VIEWPORTS) {
 
   await bring('.bento__hd');
   /* The arrow is a CHILD of the button, so the hover has to land on the button
-     and the read has to be taken on the icon inside it. */
+     and the read has to be taken on the icon inside it.
+
+     WAIT FOR THE TRANSITION TO SETTLE rather than sleeping a fixed 450ms. The
+     arrow's transition is `var(--duration-fast)` = 200ms, so 450ms is normally
+     plenty — but the value read here is a live compositor animation, and on a
+     loaded machine the read lands a frame or two early and returns
+     `matrix(1,0,0,1,3.96639,0)` instead of `...,4,0)`. The old regex demanded
+     the exact value, which made this assertion fail roughly one run in three
+     for a reason that has nothing to do with the stylesheet. */
   await page.hover('.bento__hd a.btn-outline', { force: true });
   await page.waitForTimeout(450);
-  const arrowHover = await page.evaluate(() => {
+  const arrowHover = await page.evaluate(async () => {
     const a = document.querySelector('.bento__hd a.btn-outline .btn-arrow');
-    return a ? getComputedStyle(a).transform : 'no arrow';
+    if (!a) return 'no arrow';
+    /* Poll the computed transform until it stops changing. Two identical reads
+       in a row means the transition has landed, whatever the machine's load. */
+    let prev = null;
+    for (let i = 0; i < 40; i++) {
+      const now = getComputedStyle(a).transform;
+      if (now === prev) return now;
+      prev = now;
+      await new Promise((r) => setTimeout(r, 50));
+    }
+    return getComputedStyle(a).transform;
   });
 
   const blurOut = await page.evaluate(() => {

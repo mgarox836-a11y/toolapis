@@ -41,6 +41,27 @@
   const finePointer = window.matchMedia && window.matchMedia('(pointer: fine)').matches;
 
   /* ---------------------------------------------------------------------
+     Pause every CSS loop while the tab is in the background.
+
+     Brief §5. Each loop is a `transform` or `opacity` animation, so it is
+     already cheap individually — but the page runs about a dozen of them at
+     once (status dots, marquee, ribbon segments, hero glow, grid drift, lock
+     lights), and a backgrounded tab does not need any of them. The CSS reads
+     `html.is-tab-hidden` and sets `animation-play-state: paused`, which
+     RESUMES where it left off; removing the animation outright would reset
+     the timeline and make the ribbon snap back to its start.
+
+     js/hero3d.js writes the same class for the hero subtree on its own
+     visibilitychange listener; this one covers the loops outside #hero,
+     which the hero's scoped rule cannot reach.
+     --------------------------------------------------------------------- */
+  const markTabHidden = () => {
+    document.documentElement.classList.toggle('is-tab-hidden', document.hidden);
+  };
+  document.addEventListener('visibilitychange', markTabHidden, { passive: true });
+  markTabHidden();
+
+  /* ---------------------------------------------------------------------
      Page transition: fade in on load, fade out just before navigation.
      --------------------------------------------------------------------- */
   const pageTransition = document.getElementById('page-transition');
@@ -78,26 +99,11 @@
     });
   }
 
-  /* ---------------------------------------------------------------------
-     Cursor spotlight. Phosphor mint, tracked with one passive listener and
-     written as a CSS custom property, so the gradient itself lives in the
-     stylesheet with every other colour.
-     --------------------------------------------------------------------- */
-  const spotlight = document.getElementById('spotlight');
-  if (spotlight && finePointer) {
-    let spotRaf = null;
-    let spotX = 0, spotY = 0;
-    window.addEventListener('pointermove', (e) => {
-      spotX = e.clientX; spotY = e.clientY;
-      if (spotRaf) return;
-      spotRaf = requestAnimationFrame(() => {
-        spotRaf = null;
-        spotlight.style.setProperty('--spot-x', spotX + 'px');
-        spotlight.style.setProperty('--spot-y', spotY + 'px');
-        spotlight.classList.add('is-live');
-      });
-    }, { passive: true });
-  }
+  /* The cursor spotlight moved into the bento cards: js/widgets.js writes
+     --mx/--my on each `.spot-card` and css/sections.css paints it. The global
+     fixed overlay this replaced tinted every surface the pointer passed over,
+     including the mint accent card, which is exactly the co-occurrence
+     DESIGN.md rules out. */
 
   /* ---------------------------------------------------------------------
      Magnetic controls. DESIGN.md's filled pill lifts 1px on hover and the
@@ -180,8 +186,16 @@
 
   /* ---------------------------------------------------------------------
      Navbar scrolled state + back-to-top visibility.
-     `.nav-solid` is the single switch: it turns the navbar's bottom hairline on
-     and lets the 3D solver reserve the bar's band.
+
+     `.nav-solid` has exactly one writer: this observer. js/motion-fx.js used to
+     re-assert it from a raw `scrollY > 8` comparison as a fallback, which meant
+     two definitions of "scrolled" racing to set one class. A sentinel is the
+     better measurement anyway — it fires on layout, not on a magic number — so
+     the fallback was both redundant and less correct.
+
+     The sentinel's only fallback path is the absence of IntersectionObserver,
+     which no target browser lacks; the bar simply starts transparent, as
+     DESIGN.md specifies for the top of the page.
      --------------------------------------------------------------------- */
   const sentinel = document.getElementById('nav-sentinel');
   const navbar = document.getElementById('navbar');
@@ -199,6 +213,12 @@
         if (backToTop) backToTop.classList.toggle('visible', scrolled);
       });
     }, { threshold: 0 }).observe(sentinel);
+  } else if (backToTop) {
+    /* No observer: keep the button reachable via a scroll listener instead of
+       stranding it at opacity 0 for the life of the page. */
+    window.addEventListener('scroll', () => {
+      backToTop.classList.toggle('visible', window.scrollY > 400);
+    }, { passive: true });
   }
 
   /* ---------------------------------------------------------------------
@@ -241,42 +261,178 @@
   const navToggle = document.getElementById('nav-toggle');
   const mobileMenu = document.getElementById('mobile-menu');
   const navIcon = document.getElementById('nav-icon');
+  const menuClose = document.getElementById('mobile-menu-close');
+
   if (navToggle && mobileMenu) {
     /* The icon is a sprite <use>, so swapping the glyph means repointing the
-       href — the class list stays put because it carries the layout rules. */
-    const navGlyph = (name) => {
-      if (!navIcon) return;
-      const use = navIcon.querySelector('use');
-      if (use) use.setAttribute('href', '#i-' + name);
-      else navIcon.innerHTML = '<use href="#i-' + name + '"></use>';
+       href — the class list stays put because it carries the layout rules.
+
+       The label moves too: a button that says "Toggle menu" is announced as a
+       toggle with no state, whereas "Open menu" / "Close menu" says what
+       pressing it will do, which is the WCAG 2.5.3 reading. `aria-expanded`
+       still carries the state for anyone reading the expanded state. */
+    const navGlyph = (name, label) => {
+      if (navIcon) {
+        const use = navIcon.querySelector('use');
+        if (use) use.setAttribute('href', '#i-' + name);
+        else navIcon.innerHTML = '<use href="#i-' + name + '"></use>';
+      }
+      navToggle.setAttribute('aria-label', label);
     };
-    const closeMenu = () => {
+
+    const isOpen = () => mobileMenu.classList.contains('open');
+
+    /* Focusable descendants, in DOM order, minus anything inert. Queried fresh
+       on each Tab because the panel's contents are static but its VISIBILITY
+       changes, and a cached list would happily hand focus to a hidden link. */
+    const focusables = () => Array.prototype.filter.call(
+      mobileMenu.querySelectorAll('a[href], button:not([disabled]), [tabindex]:not([tabindex="-1"])'),
+      (el) => el.offsetParent !== null || el.getClientRects().length > 0
+    );
+
+    /* THE SCROLL LOCK, and why it is a class and nothing else.
+
+       Measured before this existed: with the panel open, a wheel event and an
+       `End` keypress both scrolled the page underneath the overlay.
+
+       It is a class on <html> and it sets `overflow: clip` in the stylesheet,
+       because the lock is a TRANSIENT state that has to be fully reversible.
+       A permanent `overflow` rule in the base sheet would be correct only while
+       the menu happens to be open; if anything ever failed to undo it, the page
+       would be unscrollable for good. One class, added and removed by exactly
+       the code that knows whether the panel is open, cannot get stuck.
+
+       The earlier version of this ALSO pinned `body` to `position: fixed` with
+       a compensating width, on the theory that iOS Safari needs it. It does not,
+       and it cost two things that were worse than the problem: `window.scrollY`
+       reads 0 while the body is pinned (so every scroll-position check in the
+       repo's own harnesses became meaningless), and restoring the position
+       needed a `scrollTo` that fought `scroll-behavior: smooth` and landed 61px
+       short. `overflow: clip` blocks the user's wheel and keyboard scrolling
+       while leaving `scrollY` exactly where it was — no restore needed, because
+       nothing moved. */
+    const lockScroll = () => document.documentElement.classList.add('menu-open');
+    const unlockScroll = () => document.documentElement.classList.remove('menu-open');
+
+    /* `restoreFocus` is separate from `closeMenu` because the click and
+       outside-click paths must NOT steal focus back to a button the user is
+       not looking at — only the paths that were opened by keyboard interaction
+       (the toggle, Escape, the panel's own close button) should.
+
+       The target is always the HAMBURGER, never the panel's close button. That
+       is what the brief asks for, and it is also the only choice that works:
+       by the time focus is restored the panel is back to `visibility: hidden`,
+       so focusing anything inside it is a no-op and the user is dropped on
+       <body> with no idea where they are. */
+    const closeMenu = (restoreFocus) => {
+      if (!isOpen()) return;
       mobileMenu.classList.remove('open', 'pointer-events-auto');
       mobileMenu.classList.add('pointer-events-none');
       mobileMenu.setAttribute('aria-hidden', 'true');
       navToggle.setAttribute('aria-expanded', 'false');
-      navGlyph('list');
+      navGlyph('list', 'Open menu');
+      unlockScroll();
+      if (restoreFocus && navToggle && typeof navToggle.focus === 'function') {
+        navToggle.focus();
+      }
     };
+
     const openMenu = () => {
+      if (isOpen()) return;
       mobileMenu.classList.add('open', 'pointer-events-auto');
       mobileMenu.classList.remove('pointer-events-none');
       mobileMenu.setAttribute('aria-hidden', 'false');
       navToggle.setAttribute('aria-expanded', 'true');
-      navGlyph('x');
+      navGlyph('x', 'Close menu');
+      lockScroll();
+      /* Move focus into the panel so the next Tab is inside it rather than
+         somewhere behind the overlay. Synchronous, and it has to be: the
+         closed panel is `visibility: hidden` (which is what makes it inert),
+         and `.mobile-menu.open` sets `visibility` on a 0s duration with 0s
+         delay precisely so the flip lands in this same tick. Deferring to a
+         rAF worked and then didn't, depending on whether a style recalc had
+         happened in between. */
+      const first = focusables()[0];
+      if (first && typeof first.focus === 'function') first.focus();
     };
+
     navToggle.addEventListener('click', () => {
-      mobileMenu.classList.contains('open') ? closeMenu() : openMenu();
+      isOpen() ? closeMenu(true) : openMenu();
     });
-    mobileMenu.querySelectorAll('a').forEach(a => a.addEventListener('click', closeMenu));
+
+    if (menuClose) {
+      menuClose.addEventListener('click', () => closeMenu(true));
+    }
+
+    mobileMenu.querySelectorAll('a').forEach(a => a.addEventListener('click', () => closeMenu(false)));
+
+    /* "CLOSE ON CLICK OUTSIDE", which for a full-screen panel has to be spelled
+       out because there is no literal outside: `#mobile-menu` is
+       `position: fixed; inset: 0`, so every pixel of the viewport belongs to
+       it. What the user means by "outside" is the empty padding around the
+       content — and that is exactly `e.target === mobileMenu`, the panel's own
+       box rather than anything inside it.
+
+       The document-level handler below is kept as well: it is the correct
+       guard for any state where the panel does not cover the viewport, and it
+       costs one listener. */
+    mobileMenu.addEventListener('click', (e) => {
+      if (e.target === mobileMenu) closeMenu(false);
+    });
+
     document.addEventListener('click', (e) => {
-      if (!e.target.closest('#navbar') && !e.target.closest('#mobile-menu')) closeMenu();
+      if (!isOpen()) return;
+      if (!e.target.closest('#navbar') && !e.target.closest('#mobile-menu')) closeMenu(false);
     });
+
     document.addEventListener('keydown', (e) => {
-      if (e.key === 'Escape' && mobileMenu.classList.contains('open')) {
-        closeMenu();
-        navToggle.focus();
+      if (!isOpen()) return;
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        closeMenu(true);
+        return;
+      }
+      /* A FOCUS TRAP, which the panel needs because it is `aria-modal`: a
+         dialog that claims to be modal and lets Tab walk into the page behind
+         it is worse than one that admits it is not. Tab from the last
+         focusable wraps to the first and Shift+Tab from the first wraps to
+         the last; everything else is left alone so arrow keys, Enter and Space
+         still reach the focused control. */
+      if (e.key === 'Tab') {
+        const items = focusables();
+        if (!items.length) return;
+        const first = items[0];
+        const last = items[items.length - 1];
+        const active = document.activeElement;
+        if (e.shiftKey && (active === first || !mobileMenu.contains(active))) {
+          e.preventDefault();
+          last.focus();
+        } else if (!e.shiftKey && active === last) {
+          e.preventDefault();
+          first.focus();
+        }
       }
     });
+
+    /* Crossing 900px while the panel is open would leave <html> carrying
+       `menu-open` — and a `position: fixed` body — with no visible panel to
+       close it, because the bar becomes a horizontal nav at that width. Any
+       viewport that is 900px or wider closes it.
+
+       `matchMedia(...).addEventListener('change')` rather than a resize
+       listener, because this fires exactly once at the crossing instead of on
+       every frame of a drag across the boundary. The Safari <14 fallback is
+       `addListener`, which is deprecated but is the only API that version has. */
+    try {
+      const wide = window.matchMedia('(min-width: 900px)');
+      const onWide = (e) => { if (e.matches) closeMenu(false); };
+      if (typeof wide.addEventListener === 'function') wide.addEventListener('change', onWide);
+      else if (typeof wide.addListener === 'function') wide.addListener(onWide);
+    } catch (err) {
+      window.addEventListener('resize', () => {
+        if (isOpen() && window.innerWidth >= 900) closeMenu(false);
+      }, { passive: true });
+    }
   }
 
   /* ---------------------------------------------------------------------

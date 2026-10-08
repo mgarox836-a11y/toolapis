@@ -51,7 +51,7 @@
    the composition the brief asks for is copy → visual → accent card, which means
    the scene wants its light in the UPPER part of its own box here, not the
    middle. */
-@media (max-width: 899px) {
+@media (width < 900px) {
   /* In flow, between the copy and the accent card. Full-bleed: it breaks out
      of .shell's gutter so the light runs to both viewport edges, which is what
      makes it read as a scene rather than as an inset panel.
@@ -281,7 +281,7 @@
    Rather than chase the crossover with more offsets, the middle chip moves to
    the scene's bottom band — below the card's bottom edge — which stays clear at
    every width from 1024 up. The card's bottom is the hero's vertical centre. */
-@media (max-width: 1279px) {
+@media (width < 1280px) {
   .hero-chip--3 { left: 24%; }
   .hero-chip--2 { top: 78%; left: 6%; }
 }
@@ -296,7 +296,7 @@
    The chips are hidden entirely below 900px by the rule above; they are
    12px mono labels positioned against a scene that is now a horizontal band,
    and there is nowhere in that band they would not be in the way. */
-@media (max-width: 767px) {
+@media (width < 768px) {
   .ribbon-flow,
   .ribbon-flow--inner { animation: none; }
   .ribbon-flow { stroke-dashoffset: 640; }

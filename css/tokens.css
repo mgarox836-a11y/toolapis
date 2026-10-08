@@ -9,15 +9,20 @@
    Nothing in this file is invented: each entry is the token, value and role
    exactly as DESIGN.md states it.
 
-   THE 3D BRIDGE
-   --------------
-   `--surface`, `--surface-card`, `--surface-border`, `--accent-mint` and
-   `--accent-mint-hover` are read at runtime by js/config.js (PALETTE) to tint
-   the WebGL layer and its fog. They are aliases of the DESIGN.md values below,
-   so the 3D props follow the page without a line of JS changing. `--surface`
-   MUST stay identical to the html/body background: the 3D fog IS the page
-   background, and two different blacks make distant geometry dissolve into a
-   visible halo instead of into the void.
+   TYPOGRAPHY DEVIATION (deliberate, documented)
+   -----------------------------------------------------------------------------
+   DESIGN.md names Calsans for display and Geist for body. Google's static cut
+   of Google Sans has no weight 300 — `wght@300` returns HTTP 400, and inside a
+   multi-weight request it is silently dropped — while DESIGN.md's hero is
+   weight 300. The brief sanctions 400 as the fallback, so display runs at 400
+   and the airiness is recovered through tracking and line-height instead.
+
+   The tracking scale below is therefore SMALLER than DESIGN.md's 0.056em.
+   Google Sans is already narrower than Space Grotesk (measured: the hero
+   string at 56px is 926px at +0.02em vs 1034px for Space Grotesk at +0.056em),
+   so the wide Calsans tracking would push the display face into "friendly UI"
+   territory. --tracking-display-face stays a variable so it can be nudged
+   during visual verification without touching any rule that reads it.
    ========================================================================== */
 
 :root {
@@ -50,53 +55,75 @@
   --surface-obsidian: var(--color-obsidian);
   --surface-iron-edge: var(--color-iron-edge);
 
-  /* --- 3D bridge (read by js/config.js -> PALETTE). Do not rename. ------- */
-  --surface: var(--color-void-canvas);            /* fog == page bg        */
-  --surface-card: var(--color-carbon-plate);       /* prop bodies           */
-  --surface-border: var(--color-steel-border);     /* prop edges            */
-  --accent-mint: var(--color-phosphor-mint);       /* the one accent        */
-  /* The emissive highlight on a 3D prop. Ice Blue is a token in its own
-     right (light accent strokes) and is only ever seen on the WebGL layer,
-     never on a UI surface — DESIGN.md's "no mint + blue on one surface" rule
-     is about UI, and this is not UI. */
-  --accent-mint-hover: var(--color-ice-blue);
+  /* The ground the hero's light-ribbon visual sits on. DESIGN.md "Imagery"
+     describes dark gradient grounds; every stop resolves onto a token so the
+     ribbon dissolves into the canvas instead of ending on a hard edge. */
+  --gradient-ground: linear-gradient(180deg, rgb(22, 48, 82) 0%, #0d0e12 60%, #070707 100%);
 
   /* ---------------------------------------------------------------------
-     TYPOGRAPHY — DESIGN.md "Tokens / Typography"
-     Calsans is a paid face, so the substitute DESIGN.md nominates
-     (Space Grotesk) is what ships. Its POSITIVE tracking (0.056em) is
-     structural and is kept at every size: that is what makes a headline read
-     as an instrument-panel readout instead of an editorial one.
-     Geist is the body face; DESIGN.md nominates Inter as the substitute and
-     it is kept as the fallback so the page never loses its texture.
+     TYPOGRAPHY — DESIGN.md "Tokens / Typography", recalibrated for Google
+     Sans. One family for display, heading, body and UI; Google Sans Code for
+     the mono surfaces (terminal, code, chips, small metadata).
      --------------------------------------------------------------------- */
-  --font-display: 'Space Grotesk', 'Calsans', ui-sans-serif, system-ui, sans-serif;
-  --font-body: 'Geist', 'Inter', ui-sans-serif, system-ui, -apple-system,
-    BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  --font-mono: 'Geist Mono', ui-monospace, 'JetBrains Mono', SFMono-Regular,
-    Menlo, Consolas, monospace;
+  --font-sans: 'Google Sans', 'Google Sans Flex', 'Outfit', ui-sans-serif,
+    system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-display: var(--font-sans);
+  --font-body: var(--font-sans);
+  --font-mono: 'Google Sans Code', 'Geist Mono', 'JetBrains Mono', ui-monospace,
+    SFMono-Regular, Menlo, Consolas, monospace;
 
-  /* Legacy aliases kept so the existing markup/utility names keep resolving. */
-  --font-sans: var(--font-body);
-  --font-display-serif: var(--font-display);
+  /* DESIGN.md's own family names, aliased onto the variable above so a rule
+     still asking for --font-geist or --font-calsans resolves to Google Sans
+     instead of silently falling back to the system face. */
+  --font-geist: var(--font-sans);
+  --font-calsans: var(--font-display);
 
-  /* Type scale — DESIGN.md "Type Scale". Tracking is per-size, not global. */
-  --text-caption: 12px;      --leading-caption: 1.22;   --tracking-caption: 0.5px;
-  --text-body-sm: 14px;      --leading-body-sm: 1.44;
-  --text-body: 16px;         --leading-body: 1.5;
-  --text-subheading: 20px;   --leading-subheading: 1.5; --tracking-subheading: -0.34px;
-  --text-heading-sm: 32px;   --leading-heading-sm: 1.1; --tracking-heading-sm: 1.8px;
-  --text-heading: 56px;      --leading-heading: 1.1;    --tracking-heading: 3.1px;
-  --text-heading-lg: 72px;   --leading-heading-lg: 1;   --tracking-heading-lg: 4px;
-  --text-display: 88px;      --leading-display: 0.96;   --tracking-display: 4.9px;
+  /* Type scale — DESIGN.md "Type Scale", with tracking restated for Google
+     Sans. Tracking is per-size, not global, and never negative.
 
-  /* The tracking constant DESIGN.md states for EVERY Calsans size. Headings
-     use it verbatim at desktop; the fluid rules below tighten it only because
-     a narrow viewport physically cannot hold 4.9px of space per glyph. */
-  --tracking-display-face: 0.056em;
+     FLUID, NOT STEPPED. The display sizes are `clamp()`s, so the scale is one
+     continuous function of the viewport rather than four buckets stitched
+     together by media queries. They still RESOLVE to DESIGN.md's exact values
+     at the widths DESIGN.md describes (88px at the top, 56px at the hero,
+     32px for card titles) — that is what the upper bound and the vw
+     coefficient are chosen for — so the design reads identically on desktop
+     while gaining the small-screen floors the brief requires. The floors are
+     40px (display), 32px (heading), 24px (heading-sm), 17px (subheading):
+     anything smaller stops being a headline and starts being a label.
 
-  /* Weights */
-  --weight-light: 300;
+     Body and caption are deliberately NOT fluid. They are the two sizes that
+     must not change, because a body size that moves with the viewport is a
+     body size nobody can reason about. */
+  --text-caption: 12px;      --leading-caption: 1.22;   --tracking-caption: 0.05em;
+  --text-body-sm: 14px;      --leading-body-sm: 1.44;   --tracking-body-sm: 0.002em;
+  --text-body: 16px;         --leading-body: 1.5;      --tracking-body: 0;
+  --text-subheading: clamp(17px, 0.5rem + 0.6vw, 20px);
+  --leading-subheading: 1.5;  --tracking-subheading: 0.002em;
+  --text-heading-sm: clamp(24px, 1.2rem + 1.1vw, 32px);
+  --leading-heading-sm: 1.1;  --tracking-heading-sm: 0.014em;
+  --text-heading: clamp(32px, 1.6rem + 2.2vw, 56px);
+  --leading-heading: 1.1;     --tracking-heading: 0.024em;
+  --text-heading-lg: clamp(38px, 1.9rem + 3.4vw, 72px);
+  --leading-heading-lg: 1;    --tracking-heading-lg: 0.028em;
+  --text-display: clamp(40px, 2rem + 5.2vw, 88px);
+  --leading-display: 0.96;    --tracking-display: 0.03em;
+
+  /* The tracking constant the display face uses at every size. Positive by
+     rule (DESIGN.md "Don't": never negatively track the display face) and
+     capped at 0.056em. Tuned down from DESIGN.md's own 0.056em because Google
+     Sans is the wider-bodied face; see the deviation note at the top.
+
+     Tracking tightens as the size drops, because the tracking is a share of
+     the font size: 0.03em of an 88px glyph is 2.6px of air, 0.03em of a 40px
+     glyph is 1.2px, and at the small end that air turns into wasted measure
+     that pushes the last word of a headline onto its own line. The floor is
+     0.012em, below DESIGN.md's 0.056em but still positive — the "never
+     negatively track the display face" rule is about the SIGN, not the size. */
+  --tracking-display-face: 0.03em;
+
+  /* Weights. DESIGN.md's display face runs light, but Google's static cut has
+     no 300, so the display role sits at 400 and nothing anywhere reaches 700. */
+  --weight-light: 400;
   --weight-regular: 400;
   --weight-medium: 500;
   --weight-semibold: 600;
@@ -146,52 +173,98 @@
      LAYOUT — DESIGN.md "Layout"
      --------------------------------------------------------------------- */
   --page-max-width: 1200px;
-  --section-gap: 80px;
-  --card-padding: 24px;
   --element-gap: 16px;
 
-  /* Legacy aliases used by the existing markup rules */
+  /* ---------------------------------------------------------------------
+     RESPONSIVE FOUNDATION
+     -----------------------------------------------------------------------------
+     Every responsive decision in the project resolves to one of these four
+     numbers. They used to be scattered as literals — `clamp(20px, 4vw, 32px)`
+     appeared in three files and 640px/767px/899px/1099px/1279px each appeared
+     in exactly one rule, so a breakpoint change was a hunt. Now the scale is
+     declared once and read by name.
+
+     --gutter is the page inset. It is a `clamp()` rather than a step, so the
+     inset grows smoothly from 16px on a 320px phone to 40px on a desktop,
+     which is what stops the content from touching the bezel at one size and
+     floating in the middle at the next.
+
+     --section-gap and --card-padding are fluid for the same reason: section
+     rhythm that jumps from 56px to 80px between two adjacent breakpoints
+     reads as a layout bug on the device that lands on the wrong side of it. */
+  --gutter: clamp(16px, 5vw, 40px);
+  --section-gap: clamp(48px, 8vw, 80px);
+  --card-padding: clamp(16px, 3vw, 24px);
+
+  /* The four breakpoints, mobile-first. These are the ONLY numbers any media
+     query in css/ is allowed to name. Anything else is a layout bug waiting
+     for the next redesign.
+
+       600px  two columns become affordable for a simple card grid
+       768px  tablet: the primary nav fits, the hero starts to split
+       1024px desktop: 12-column bento, 50/50 hero, 4-column footer
+       1280px the 1200px max-width is reached and the page centres
+
+     Kept as custom properties rather than written into the queries, so a
+     grep for a breakpoint finds the definition and not forty uses. */
+  --bp-sm: 600px;
+  --bp-md: 768px;
+  --bp-lg: 1024px;
+  --bp-xl: 1280px;
+
+  /* The height of the sticky bar, and the minimum size of anything you can
+     put your finger on. DESIGN.md sets the bar at ~64px; the brief sets the
+     target at 44px, and both are floors rather than exact values. */
+  --navbar-height: 64px;
+  --tap-target: 44px;
+
+  /* The largest horizontal inset a fixed element should use: the normal
+     gutter, floored at the safe-area inset so a fixed button never lands
+     under a rounded corner or a home indicator on a notched device. */
+  --edge-inset: max(16px, env(safe-area-inset-left, 0px));
+
+  /* Legacy aliases (same values, old names) */
   --page-max: var(--page-max-width);
   --card-pad: var(--card-padding);
 
   /* ---------------------------------------------------------------------
      MOTION — DESIGN.md does not define motion, so it is interpreted as
      "instrument panel": precise, calm, never showy. One global easing curve,
-     200ms for state changes, 600–800ms for reveals. Only transform and opacity
+     200ms for state changes, 500-900ms for reveals. Only transform and opacity
      are ever animated (compositor-only, so nothing shifts layout at 60fps).
      --------------------------------------------------------------------- */
-  --ease-out-quint: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
   --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
-  --duration-fast: 200ms;
-  --duration-reveal: 700ms;
-  --duration-slow: 800ms;
+  --dur-fast: 200ms;
+  --dur-base: 500ms;
+  --dur-slow: 900ms;
   --stagger-step: 80ms;
 
-  /* Height of the sticky bar. DESIGN.md "Navigation Bar": ~64px. */
-  --navbar-height: 64px;
-  --nav-h: var(--navbar-height);
+  /* Longer names the existing rules already read, mapped onto the same values
+     so no rule has to change to pick up the new scale. */
+  --ease-out-quint: var(--ease-out);
+  --duration-fast: var(--dur-fast);
+  --duration-reveal: var(--dur-base);
+  --duration-slow: var(--dur-slow);
+
+  /* Long names the existing rules already read, mapped onto the same values
+     so no rule has to change to pick up the new scale. */
 }
 
 /* -----------------------------------------------------------------------------
-   FLUID TYPE
-   DESIGN.md gives fixed sizes; these clamps keep the same sizes at desktop and
-   step down on small screens so nothing overflows at 375px. The display face
-   lands at 88px on a wide viewport and ~44px at 375px, which is the floor the
-   brief asks for. Tracking eases with the size for the same reason.
-   -------------------------------------------------------------------------- */
-@media (max-width: 767px) {
-  :root {
-    --text-heading: 34px;
-    --text-heading-lg: 40px;
-    --text-display: 44px;
-    --section-gap: 56px;
-    --card-padding: 20px;
-  }
-}
-@media (min-width: 768px) and (max-width: 1199px) {
-  :root {
-    --text-heading: 44px;
-    --text-heading-lg: 56px;
-    --text-display: 64px;
-  }
+   FLUID TYPE — no media queries
+   -----------------------------------------------------------------------------
+   This file used to end with two breakpoint blocks that rewrote --text-heading,
+   --text-heading-lg and --text-display to step down on small screens, and
+   rewrote --tracking-display-face alongside them. Both are gone.
+
+   The sizes are `clamp()`s now (see the type scale above), so the scale is a
+   continuous function of the viewport: there is no width at which the hero
+   headline is 34px and the width either side of it is 56px, and no step to
+   land between. The tracking follows the size through one `clamp()` on
+   --tracking-display-face for the same reason — positive everywhere, tighter
+   as the type gets smaller, never negative.
+   ========================================================================== */
+:root {
+  --tracking-display-face: clamp(0.012em, 0.004em + 0.28vw, 0.03em);
 }

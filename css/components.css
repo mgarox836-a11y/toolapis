@@ -23,7 +23,10 @@
   position: fixed;
   top: 0; left: 0; right: 0;
   z-index: 40;
-  height: var(--navbar-height);
+  /* Fluid between the brief's 56px floor and DESIGN.md's 64px. A fixed 64px
+     bar is 18% of a landscape phone's height, which is a lot of a 390px-tall
+     viewport spent on nothing. */
+  height: clamp(56px, 4.5vw + 44px, var(--navbar-height));
   display: flex;
   align-items: center;
   background-color: var(--color-void-canvas);
@@ -35,25 +38,43 @@
   border-bottom-color: var(--color-slate-mute);
 }
 
+/* The bar's own container. `width: 100%` with `max-width` (not the `min()`
+     form the flow containers use) because a FIXED element is already viewport
+     wide, and the safe-area padding has to be inside that. */
 #navbar > .shell {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: var(--spacing-24);
+  /* min-width: 0 on the row, and on both of its children, is what lets the
+     wordmark ellipsis instead of pushing the actions off the right edge. The
+     brand is `flex: 0 0 auto` with a nowrap wordmark, so without this the
+     shortest thing that can happen at a narrow width is a clipped navbar —
+     which is what happened at 200% zoom before this rule existed. */
+  gap: var(--spacing-16);
+  min-width: 0;
 }
 
 /* Brand: TL mark + wordmark. The mark is a plain white disc on the void — the
    one place the page's own white fill appears as an object rather than a
    button. */
+/* The brand is the one flex child that must be allowed to shrink, because it
+   holds the longest unbreakable string on the page ("TOOLAPIS." at 18px with
+   nowrap). `min-width: 0` plus `overflow: hidden` on the word lets the text
+   ellipsis at absurd widths instead of shoving the buttons out of the bar. */
 .brand {
   display: inline-flex;
   align-items: center;
   gap: 12px;
-  flex: 0 0 auto;
+  flex: 0 1 auto;
+  min-width: 0;
+  /* 44px tall: the brief's minimum touch target. The mark inside is 32px, so
+     the extra 12px is invisible padding that makes the logo tappable. */
+  min-height: var(--tap-target);
 }
 .brand__mark {
   display: grid;
   place-items: center;
+  flex: none;
   width: 32px; height: 32px;
   border-radius: var(--radius-badges);
   background: var(--color-pure-white);
@@ -64,36 +85,64 @@
   letter-spacing: 0.02em;
   transition: transform var(--duration-fast) var(--ease-out-quint);
 }
-.brand:hover .brand__mark { transform: scale(1.06); }
+@media (hover: hover) {
+  .brand:hover .brand__mark { transform: scale(1.06); }
+}
 .brand__word {
-  font-family: var(--font-display);
+  font-family: var(--font-sans);
   font-size: 18px;
-  font-weight: var(--weight-semibold);
-  letter-spacing: var(--tracking-display-face);
+  font-weight: var(--weight-medium);
+  /* +0.02em, not the display face's 0.03em: this is a wordmark in a 56–64px
+     bar, and the display tracking is tuned for 32px and up. */
+  letter-spacing: 0.02em;
   color: var(--color-pure-white);
   white-space: nowrap;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .brand__dot { color: var(--color-phosphor-mint); }
 
-/* Centre links. DESIGN.md: Geist 14px, white when active, #a2a4a9 when not,
-   with the current page marked in Current Blue. */
+/* Below 360px the bar tightens. The wordmark SCALES rather than disappearing:
+   hiding it would leave a "TL" disc as the only visible label, which is a
+   WCAG 2.5.3 label-in-name failure (the accessible name would no longer
+   contain the visible text) and would leave a 32px target in a 56px bar.
+   Measured: at 320px the brand needs ~139px of the ~172px available beside two
+   44px controls, so the wordmark fits at 16px with room to spare. */
+@media (width < 360px) {
+  .brand { gap: 8px; }
+  .brand__word { font-size: 16px; letter-spacing: 0.01em; }
+  .brand__mark { width: 28px; height: 28px; font-size: 12px; }
+}
+
+/* Centre links. DESIGN.md: 14px, white when active, #a2a4a9 when not, with the
+   current page marked in Current Blue. */
 #navbar .nav-link {
   position: relative;
-  /* 44px tall: the brief's minimum touch target, even on a pointer device.
-     The bar is 64px, so this fits without crowding. */
+  /* 44px in BOTH axes (brief §4). It was `min-height: 44px` with
+     `padding-inline: 2px`, which left the tap target 35px wide — tall enough,
+     not wide enough, and the width is the half a thumb actually misses on. The
+     padding pays for it, and the 32px flex gap between links means adjacent
+     targets still have 8px+ of clearance (brief §4) even where the row
+     compresses to a 16px gap below 1024px. */
   display: inline-flex;
   align-items: center;
-  min-height: 44px;
-  padding-inline: 2px;
+  justify-content: center;
+  min-height: var(--tap-target);
+  min-width: var(--tap-target);
+  padding-inline: 6px;
   font-family: var(--font-body);
   font-size: var(--text-body-sm);
-  font-weight: var(--weight-regular);
+  font-weight: var(--weight-medium);
   line-height: 1;
-  letter-spacing: 0.016em;
+  letter-spacing: 0.01em;
   color: var(--color-slate-mute);
+  border-radius: var(--radius-buttons);
   transition: color var(--duration-fast) var(--ease-out-quint);
 }
-#navbar .nav-link:hover { color: var(--color-pure-white); }
+@media (hover: hover) {
+  #navbar .nav-link:hover { color: var(--color-pure-white); }
+}
 #navbar .nav-link.active { color: var(--color-pure-white); }
 #navbar .nav-link.active::after {
   content: "";
@@ -102,13 +151,40 @@
   height: 1px;
   background: var(--color-current-blue);
 }
+/* THE 900px LINE, and it is the only one in this file.
+
+   The brief asks for a single source of truth for breakpoints, and it asks for
+   this specific behaviour: below 900px the bar is logo + share + hamburger,
+   and the centre links plus the "HD Enhancer" CTA live inside the mobile
+   panel. 900 is where that stops being true.
+
+   The old arrangement used two different numbers for two halves of one
+   decision — 640px for the action buttons and 768px for the links — which
+   produced a 640–767px band with NO centre links at all and no hamburger
+   either, i.e. the widest, emptiest nav state on the site, and a 768–899px
+   band with every group visible and no way to reach the panel. */
 #navbar nav[aria-label="Primary"] {
   display: none;
   align-items: center;
   gap: var(--spacing-32);
 }
-@media (min-width: 768px) {
+/* Only the CTA is `desktop-only` now. The share button is available at every
+   width (brief §4), and the two used to share one class and therefore one
+   breakpoint — which is why they could never be split. */
+.navbar-actions .desktop-only { display: none; }
+#nav-toggle { display: inline-flex; }
+
+@media (min-width: 900px) {
   #navbar nav[aria-label="Primary"] { display: flex; }
+  .navbar-actions .desktop-only { display: inline-flex; }
+  #nav-toggle { display: none; }
+}
+
+/* The centre links get their own hairline padding rather than relying on the
+   32px flex gap alone, so a tap target is 44px tall AND has 8px of clearance
+   from its neighbour (brief §4) even where the gap is compressed. */
+@media (width < 1024px) {
+  #navbar nav[aria-label="Primary"] { gap: var(--spacing-16); }
 }
 
 /* Right cluster: a ghost icon button (share) then the single filled pill. */
@@ -116,18 +192,11 @@
   display: flex;
   align-items: center;
   gap: 12px;
+  /* Never shrinks: these are the controls, and a control that scrolls out of
+     reach is worse than a wordmark that ellipsis. */
   flex: 0 0 auto;
+  min-width: 0;
 }
-.navbar-actions .desktop-only { display: none; }
-@media (min-width: 640px) {
-  .navbar-actions .desktop-only { display: inline-flex; }
-}
-
-/* The hamburger is mobile-only (it used to be Tailwind's `md:hidden`, which no
-   longer exists now the CDN is gone). The bar is 44px tall at every size, so
-   the touch target is the same either way. */
-#nav-toggle { display: inline-flex; }
-@media (min-width: 768px) { #nav-toggle { display: none; } }
 
 /* =============================================================================
    BUTTONS — DESIGN.md "Filled Pill Button" / "Ghost Pill Button"
@@ -140,22 +209,48 @@
   align-items: center;
   justify-content: center;
   gap: 10px;
-  min-height: 44px;               /* touch target, brief section 6 */
+  min-height: var(--tap-target);  /* touch target, brief §4 */
   padding: 12px 24px;
   border-radius: var(--radius-buttons);
   font-family: var(--font-body);
-  font-size: var(--text-body-sm);
+  /* Brief §4: buttons sit at 500, 15–16px, +0.01em. They were 14px, which is
+     the body-sm reading size and made the CTAs feel like labels. */
+  font-size: 15px;
   font-weight: var(--weight-medium);
   line-height: 1;
-  letter-spacing: 0.016em;
+  letter-spacing: 0.01em;
+  /* `nowrap` is right on a desktop bar and wrong on a 320px phone, where
+     "Open HD Enhancer" at 15px plus 48px of padding is wider than the screen.
+     The label is allowed to break below 480px rather than push the page wide;
+     every button in a flex-wrap row still lands on its own line at that size. */
   white-space: nowrap;
   cursor: pointer;
+  /* A button in a wrapping row must be allowed to be narrower than its
+     content, or `min-width: auto` (the flex default) makes it overflow the
+     row. */
+  min-width: 0;
+  max-width: 100%;
   transition: background-color var(--duration-fast) var(--ease-out-quint),
               border-color var(--duration-fast) var(--ease-out-quint),
               color var(--duration-fast) var(--ease-out-quint),
               box-shadow var(--duration-fast) var(--ease-out-quint),
               transform var(--duration-fast) var(--ease-out-quint);
 }
+/* Below 480px every CTA goes full width and the primary sits on top, which is
+   the brief's §4 requirement and also the only arrangement in which two pills
+   with these labels both fit. */
+@media (width < 480px) {
+  .btn { white-space: normal; }
+  .hero-cta-row,
+  .cta-band__actions,
+  .toolpass__actions { width: 100%; }
+  .hero-cta-row .btn,
+  .hero-cta-row .hero-play-btn { width: 100%; }
+}
+
+/* Press feedback belongs to `:active` on every device, and it is the ONLY
+   pointer feedback a touch device gets — so it must not be inside a
+   `hover: hover` guard. */
 .btn:active { transform: translateY(1px); }
 
 /* Filled: white on void, with DESIGN.md's inset lighting. */
@@ -165,9 +260,11 @@
   border: 1px solid var(--color-pure-white);
   box-shadow: var(--shadow-subtle), var(--shadow-subtle-2);
 }
-.btn-accent:hover {
-  transform: translateY(-1px);
-  box-shadow: rgba(0, 0, 0, 0.08) 3px 3px 0 0, var(--shadow-subtle-2);
+@media (hover: hover) {
+  .btn-accent:hover {
+    transform: translateY(-1px);
+    box-shadow: rgba(0, 0, 0, 0.08) 3px 3px 0 0, var(--shadow-subtle-2);
+  }
 }
 
 /* Ghost: transparent, 1px WHITE border — the border is the identity. */
@@ -177,12 +274,14 @@
   color: var(--color-pure-white);
   border: 1px solid var(--color-pure-white);
 }
-.btn-outline:hover,
-.btn-glass:hover { background: rgba(255, 255, 255, 0.08); }
+@media (hover: hover) {
+  .btn-outline:hover,
+  .btn-glass:hover { background: rgba(255, 255, 255, 0.08); }
+}
 
 /* The small variant is a size, not a target: it is still 44px tall so every
    control in the bar clears the brief's minimum touch target. */
-.btn-sm { min-height: 44px; padding: 10px 18px; font-size: var(--text-caption); }
+.btn-sm { min-height: var(--tap-target); padding: 10px 18px; font-size: var(--text-caption); }
 
 /* Square-ish icon control in the bar. Still a pill: DESIGN.md makes every
    interactive control 800px. */
@@ -199,8 +298,10 @@
   transition: background-color var(--duration-fast) var(--ease-out-quint),
               transform var(--duration-fast) var(--ease-out-quint);
 }
-.social-btn:hover,
-.btn-outline-icon:hover { background: rgba(255, 255, 255, 0.08); }
+@media (hover: hover) {
+  .social-btn:hover,
+  .btn-outline-icon:hover { background: rgba(255, 255, 255, 0.08); }
+}
 .social-btn:active,
 .btn-outline-icon:active { transform: translateY(1px); }
 /* The glyph is the only thing in the pill, so it takes the optical centre and
@@ -213,7 +314,9 @@
 .btn .btn-arrow {
   transition: transform var(--duration-fast) var(--ease-out-quint);
 }
-.btn:hover .btn-arrow { transform: translateX(4px); }
+@media (hover: hover) {
+  .btn:hover .btn-arrow { transform: translateX(4px); }
+}
 
 /* =============================================================================
    ICONS — the inline sprite that replaced the Phosphor icon font
@@ -236,6 +339,8 @@
   overflow: hidden;
   pointer-events: none;
 }
+/* Icons keep their explicit 1em box: `height: auto` from the base reset would
+   collapse a glyph that carries only a viewBox. */
 .icon {
   display: inline-block;
   width: 1em;
@@ -264,9 +369,27 @@
               transform var(--duration-fast) var(--ease-out-quint),
               border-color var(--duration-fast) var(--ease-out-quint);
 }
-.card:hover {
-  background: var(--color-obsidian);
-  transform: translateY(-4px);
+/* The hover lift uses the independent `translate` property, NOT `transform`.
+
+   The scroll-reveal system (css/animations.css) owns `transform` on every
+   `.reveal` element, and its selector is a ten-deep `:not(#id)` chain that
+   resolves to about (10, 3, 2) — far above this rule's (0, 2, 0). A
+   `transform: translateY(-4px)` here therefore loses: the card's background
+   still changed on hover, but the lift never applied, and it did so silently
+   because the failure was in a DIFFERENT property of the SAME rule.
+
+   `translate` composes with `transform` per CSS Transforms Level 2 rather than
+   competing with it, so the reveal animates `transform` and the hover writes
+   `translate`, and the card gets both. No specificity war, no !important. */
+/* Hover is gated on `hover: hover` per brief §3/§5: on a touch device a
+   `:hover` rule sticks after a tap, so an un-gated lift leaves cards visually
+   raised long after the finger is gone. The `:active` press below replaces it
+   there. */
+@media (hover: hover) {
+  .card:hover {
+    background: var(--color-obsidian);
+    translate: 0 -4px;
+  }
 }
 
 /* Legacy alias: js/scroll.js measures `.glass-panel` as a card obstacle, so
@@ -287,9 +410,11 @@
   border: 1px solid var(--color-phosphor-mint);
   color: var(--color-void-canvas);
 }
-.card--accent:hover {
-  background: var(--color-phosphor-mint);
-  transform: translateY(-4px);
+@media (hover: hover) {
+  .card--accent:hover {
+    background: var(--color-phosphor-mint);
+    translate: 0 -4px;
+  }
 }
 .card--accent .muted,
 .card--accent .copy,
@@ -316,22 +441,28 @@
   transition: border-color var(--duration-fast) var(--ease-out-quint),
               color var(--duration-fast) var(--ease-out-quint);
 }
-.tool-card:hover .tool-card-icon { border-color: var(--color-fog); }
+@media (hover: hover) {
+  .tool-card:hover .tool-card-icon { border-color: var(--color-fog); }
+}
 .tool-card-icon .icon { width: 24px; height: 24px; }
 #overview .w-12.h-12 > svg.ph,
 #flow .w-12.h-12 > svg.ph { width: 24px; height: 24px; stroke-width: 2; }
 
-/* Stamped label above a card icon: mono, uppercase, wide tracking. */
+/* Stamped label above a card icon: mono, uppercase, wide tracking.
+   12px, not the 10px it used to be: the brief sets 12px as the floor for
+   readable text anywhere on the page, and Cinder on Carbon Plate at 10px was
+   already at the edge of legibility at desktop scale, never mind on a phone. */
 .tool-card-eyebrow {
   display: inline-flex;
   align-items: center;
   gap: 10px;
   font-family: var(--font-mono);
-  font-size: 10px;
-  line-height: 1;
+  font-size: var(--text-caption);
+  line-height: 1.2;
   letter-spacing: 0.094em;
   text-transform: uppercase;
-  color: var(--color-cinder);
+  color: var(--color-ash);
+  min-width: 0;
 }
 .tool-card-eyebrow i { font-style: normal; color: var(--color-graphite); }
 
@@ -427,17 +558,23 @@
    ========================================================================== */
 .field {
   width: 100%;
-  min-height: 44px;
+  max-width: 100%;
+  min-height: var(--tap-target);
   padding: 12px;
   border-radius: var(--radius-inputs);
   background: var(--color-carbon-plate);
   border: 1px solid var(--color-iron-edge);
   color: var(--color-pure-white);
   font-family: var(--font-body);
-  font-size: var(--text-body-sm);
-  line-height: var(--leading-body-sm);
+  /* 16px, not 14px, and this is not a style choice: iOS Safari zooms the
+     viewport on focus for any input under 16px, and the user cannot zoom back
+     out without a gesture that is easy to miss. Brief §4 asks for it by name. */
+  font-size: 16px;
+  line-height: var(--leading-body);
   transition: border-color var(--duration-fast) var(--ease-out-quint);
 }
+/* Same rule for textarea, which inherits nothing useful here. */
+textarea.field { min-height: calc(var(--tap-target) * 2); resize: vertical; }
 .field::placeholder { color: var(--color-cinder); }
 .field:focus-visible,
 .field:focus {
@@ -445,11 +582,16 @@
   outline: none;
 }
 
+/* The dropzone is fluid: its padding was a fixed 40px top/bottom, which on a
+   320px screen made a 100px-tall target wider than it needed to be, and the
+   whole component inherited `width: auto` from the grid it sits in. */
 .dropzone {
   display: grid;
   place-items: center;
   gap: 12px;
-  padding: var(--spacing-40) var(--spacing-24);
+  width: 100%;
+  max-width: 100%;
+  padding: clamp(20px, 6vw, var(--spacing-40)) clamp(12px, 4vw, var(--spacing-24));
   border-radius: var(--radius-inputs);
   border: 1px dashed var(--color-iron-edge);
   background: var(--color-carbon-plate);
@@ -459,7 +601,9 @@
   transition: border-color var(--duration-fast) var(--ease-out-quint),
               background-color var(--duration-fast) var(--ease-out-quint);
 }
-.dropzone:hover { border-style: solid; border-color: var(--color-fog); }
+@media (hover: hover) {
+  .dropzone:hover { border-style: solid; border-color: var(--color-fog); }
+}
 
 /* =============================================================================
    TOOL PASS CARD — the hero's single Phosphor Accent Card.
@@ -484,9 +628,11 @@
 }
 .toolpass__label {
   font-family: var(--font-mono);
-  font-size: 11px;
-  line-height: 1;
-  letter-spacing: 0.18em;
+  /* 12px floor (brief §7). At 0.18em tracking the longer string would eat the
+     barcode's room, so the tracking comes down a little to pay for it. */
+  font-size: var(--text-caption);
+  line-height: 1.2;
+  letter-spacing: 0.14em;
   text-transform: uppercase;
   color: rgba(7, 7, 7, 0.72);
 }
@@ -503,8 +649,12 @@
 .toolpass__field { display: flex; flex-direction: column; gap: 4px; }
 .toolpass__field-label {
   font-family: var(--font-mono);
-  font-size: 9px;
-  letter-spacing: 0.18em;
+  /* Was 9px — the smallest text anywhere on the site, and on the MINT card
+     rather than on dark, so it had to work against the brightest surface on
+     the page. 12px is the brief's floor and it is what this takes. */
+  font-size: var(--text-caption);
+  line-height: 1.2;
+  letter-spacing: 0.12em;
   text-transform: uppercase;
   /* 0.66, not the 0.6 this started at: on the mint accent card 60% Void Canvas
      composites to #2f5754 over #6acfc7, which is 4.35:1 — under the 4.5:1
@@ -519,12 +669,15 @@
   letter-spacing: var(--tracking-display-face);
   color: var(--color-void-canvas);
 }
+/* Card-title scale, not display scale. At 24px the hero's 0.03em tracking is
+   visibly looser than the 0.01em the same role gets elsewhere, because the
+   display tracking tokens are sized for 32px and up. */
 .toolpass__title {
   font-family: var(--font-display);
   font-size: 24px;
-  font-weight: var(--weight-light);
-  letter-spacing: var(--tracking-display-face);
-  line-height: 1.1;
+  font-weight: var(--weight-medium);
+  letter-spacing: 0.01em;
+  line-height: 1.2;
   color: var(--color-void-canvas);
   margin-bottom: var(--spacing-16);
 }
@@ -552,9 +705,11 @@
   transition: background-color var(--duration-fast) var(--ease-out-quint),
               color var(--duration-fast) var(--ease-out-quint);
 }
-.toolpass .hero-pill-outline:hover {
-  background: var(--color-void-canvas);
-  color: var(--color-phosphor-mint);
+@media (hover: hover) {
+  .toolpass .hero-pill-outline:hover {
+    background: var(--color-void-canvas);
+    color: var(--color-phosphor-mint);
+  }
 }
 
 /* Barcode: repeating vertical rules, with a scan line (see animations.css). */
@@ -583,53 +738,214 @@
    MOBILE MENU — DESIGN.md: full-screen dark panel, display-face links,
    staggered. aria-hidden + inert handled by script.js's open/close.
    ========================================================================== */
+/* FULL-SCREEN, and the top inset is what changed.
+
+   It used to be `inset: var(--navbar-height) 0 0`, which left the navbar
+   visible above a panel that started below it — measured at 390×844 that gave
+   a 780px panel in an 844px viewport, i.e. not full-screen at all, with the
+   page behind the bottom 64px still scrolling under the panel edge.
+
+   `inset: 0` makes it genuinely full-screen, so the close control can sit
+   where a thumb expects it (top-right) rather than requiring the user to find
+   the hamburger again under the panel. `height: 100dvh` rather than 100vh:
+   100vh on mobile Safari is the viewport with the browser chrome EXCLUDED, so
+   a 100vh fixed panel is taller than what is actually visible and its bottom
+   row (the CTA) lands under the home indicator.
+
+   `overflow: hidden` + `overflow-y: auto` is the flex-column panel pattern:
+   the whole panel does not scroll, the link list does, so the close button and
+   the CTA stay reachable without scrolling the header away. */
 .mobile-menu {
   position: fixed;
-  inset: var(--navbar-height) 0 0;
-  z-index: 39;
+  inset: 0;
+  /* `100dvh`, not `100vh`, because `inset: 0` already sizes this box and the
+     height only has to agree with it. `100dvh` is the height that tracks the
+     collapsing browser chrome, which is what the bottom row of a full-screen
+     panel needs in order to stay above the home indicator. The 100vh line is a
+     fallback for a browser without `dvh` (Chrome < 108). */
+  height: 100vh;
+  height: 100dvh;
+  /* ABOVE the navbar's 40. The panel is full-screen and carries its own
+     wordmark and close button precisely because it covers the bar; at 39 the
+     bar sat on top of it and its hamburger intercepted every tap aimed at the
+     panel's close button. Still below the toast (70) and the page-transition
+     plate (100), which are transient surfaces that must win. */
+  z-index: 45;
   display: flex;
   flex-direction: column;
-  gap: var(--spacing-32);
-  padding: var(--spacing-40) clamp(20px, 4vw, 32px);
+  gap: var(--spacing-24);
+  padding: var(--spacing-16) var(--gutter) calc(var(--spacing-24) + env(safe-area-inset-bottom, 0px));
   background: var(--color-void-canvas);
-  border-top: 1px solid var(--color-steel-border);
   opacity: 0;
   visibility: hidden;
   transform: translateY(-8px);
+  /* `visibility` on a 0s duration with a 200ms DELAY. `visibility` is
+     animatable, so a plain `transition: visibility 200ms` holds it at `hidden`
+     for the whole fade — and an element at `visibility: hidden` cannot take
+     focus, which is why the panel's first control could not be focused on open.
+     Delayed-by-0s on the way in, instant on the way out:
+       closing -> visibility flips to hidden AFTER the fade, so it is seen
+       opening -> visibility flips immediately, so `focus()` works in the same
+                  tick that adds `.open` and needs no rAF guesswork. */
   transition: opacity var(--duration-fast) var(--ease-out-quint),
               transform var(--duration-fast) var(--ease-out-quint),
-              visibility var(--duration-fast) var(--ease-out-quint);
-  overflow-y: auto;
+              visibility 0s linear var(--duration-fast);
+  overflow: hidden;
 }
-.mobile-menu.open { opacity: 1; visibility: visible; transform: none; }
-.mobile-menu nav { display: flex; flex-direction: column; }
+/* THE OPEN STATE. `visibility` rather than `display` so the panel can fade and
+   slide; `visibility: hidden` also takes its links out of the tab order and
+   out of the accessibility tree, which is what makes the closed panel inert
+   without needing `inert` or `tabindex="-1"` on every child. */
+.mobile-menu.open {
+  opacity: 1;
+  visibility: visible;
+  transform: none;
+  transition: opacity var(--duration-fast) var(--ease-out-quint),
+              transform var(--duration-fast) var(--ease-out-quint),
+              visibility 0s linear 0s;
+}
+
+/* The panel's own wordmark. `aria-hidden` in the markup: the navbar's brand is
+   behind the overlay and still in the accessibility tree, and two links named
+   "TOOLAPIS." for one logo is a worse screen-reader experience than one. */
+.mobile-menu__brand {
+  font-family: var(--font-sans);
+  font-size: 18px;
+  font-weight: var(--weight-medium);
+  letter-spacing: 0.02em;
+  color: var(--color-pure-white);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* The panel's own header row: wordmark on the left, close button on the
+   right. Both are here so the panel is self-sufficient — the navbar behind it
+   is covered, and reaching a control that is behind the overlay is not a
+   control. */
+.mobile-menu__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-16);
+  flex: none;
+  min-height: var(--tap-target);
+  padding-bottom: var(--spacing-8);
+}
+.mobile-menu__close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--tap-target);
+  height: var(--tap-target);
+  flex: none;
+  border-radius: var(--radius-buttons);
+  background: transparent;
+  border: 1px solid var(--color-pure-white);
+  color: var(--color-pure-white);
+  cursor: pointer;
+  transition: background-color var(--duration-fast) var(--ease-out-quint),
+              transform var(--duration-fast) var(--ease-out-quint);
+}
+@media (hover: hover) {
+  .mobile-menu__close:hover { background: rgba(255, 255, 255, 0.08); }
+}
+.mobile-menu__close:active { transform: translateY(1px); }
+.mobile-menu__close .icon { width: 20px; height: 20px; }
+
+/* The link list scrolls; the header and the actions do not. */
+.mobile-menu nav {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+}
 .mobile-menu nav a {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: var(--spacing-16);
+  min-height: var(--tap-target);
   padding: 16px 0;
   border-bottom: 1px solid var(--color-steel-border);
   font-family: var(--font-display);
-  font-size: 32px;
+  /* Fluid: 32px is DESIGN.md's figure at desktop, and it has to shrink with
+     the screen or "Overview" alone is wider than a 320px panel's content box
+     once the arrow and the gap are accounted for. */
+  font-size: clamp(26px, 7.5vw, 32px);
   font-weight: var(--weight-light);
-  letter-spacing: var(--tracking-display-face);
+  letter-spacing: 0.014em;
   color: var(--color-cloud-mist);
+  min-width: 0;
 }
+.mobile-menu nav a span { min-width: 0; overflow-wrap: anywhere; }
 .mobile-menu nav a .icon { color: var(--color-cinder); width: 20px; height: 20px; }
-.mobile-menu__actions { display: flex; flex-direction: column; gap: 12px; }
+.mobile-menu__actions {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  flex: none;
+  padding-top: var(--spacing-16);
+}
+.mobile-menu__actions .btn { width: 100%; }
+
+/* -----------------------------------------------------------------------------
+   SCROLL LOCK — a class on <html>, and `clip` rather than `hidden`
+   -----------------------------------------------------------------------------
+   Brief §4 asks for the scroll to lock while the panel is open, driven by a
+   class on <html> rather than by a permanent `overflow` rule. Both halves of
+   that matter, and for different reasons.
+
+   THE CLASS, because the lock is a TRANSIENT state. A rule in the base sheet
+   that is only correct while the menu is open has to be fully reversible, and
+   if anything ever failed to undo it the page would be unscrollable for good.
+   One class, added and removed by exactly the code that knows whether the menu
+   is open, cannot get stuck.
+
+   `clip` rather than `hidden`, because `overflow: hidden` — or
+   `overflow-x: hidden`, which is what this stylesheet used to carry on `body`
+   unconditionally — makes the element a SCROLL CONTAINER, and that is the
+   mechanism behind `position: sticky` silently failing on descendants of that
+   element. `clip` confines and paints identically; it just does not become a
+   scroll box. `hidden` is written FIRST as a fallback for browsers without
+   `clip` support (pre-Safari 16.4); any browser that understands the second
+   declaration uses it and never creates the scroll container.
+
+   Measured behaviour of the rule as written (Chromium 390×844, scrolled to
+   1200, class applied): a wheel event moves nothing, `End` moves nothing, and
+   `scrollY` is still 1200. Programmatic `scrollTo` still works, which is
+   correct — an in-page anchor jump should not be defeated by an open menu. */
+html.menu-open,
+html.menu-open body {
+  overflow: hidden;
+  overflow: clip;
+  overscroll-behavior: none;
+}
+/* The lock does not need to keep the bar clickable: the panel is above it now
+   and carries its own close control, so the hamburger is covered while open and
+   there is nothing behind the overlay to reach. The rule is retained only to
+   pin the intent — if the panel is ever moved below the bar again, this is the
+   line that has to change with it. */
+html.menu-open #navbar { pointer-events: none; }
 
 /* =============================================================================
    TOAST — DESIGN.md "pill, light border, no shadow"
    ========================================================================== */
 #toast {
   position: fixed;
-  right: clamp(16px, 4vw, 32px);
+  right: max(var(--gutter), env(safe-area-inset-right, 0px));
   /* Clears the back-to-top button, which owns the same corner. The toast is
      transient and the button is always there once scrolled, so the toast is
      what moves. */
-  bottom: calc(clamp(16px, 4vw, 32px) + 60px);
+  bottom: calc(max(var(--gutter), env(safe-area-inset-bottom, 0px)) + 60px);
   z-index: 70;
+  /* Never wider than the space between the two insets, or the glass panel's
+     own padding plus the message text sets the page width on a narrow phone. */
+  max-width: calc(100% - 2 * max(var(--gutter), env(safe-area-inset-left, 0px)));
   opacity: 0;
   transform: translateY(20px);
   pointer-events: none;
@@ -645,7 +961,9 @@
   border-radius: var(--radius-buttons);
   background: var(--color-carbon-plate);
   border: 1px solid var(--color-fog);
+  min-width: 0;
 }
+#toast-message { min-width: 0; overflow-wrap: anywhere; }
 #toast .icon { color: var(--color-phosphor-mint); width: 18px; height: 18px; }
 #toast-message {
   font-size: var(--text-caption);
@@ -659,12 +977,16 @@
    ========================================================================== */
 .back-to-top {
   position: fixed;
-  right: clamp(16px, 4vw, 32px);
-  bottom: clamp(16px, 4vw, 32px);
+  /* Safe-area aware: on a notched phone in landscape, `right: 0` would put
+     this button under the rounded corner, where it cannot be tapped at all.
+     The brief asks for `max(16px, env(safe-area-inset-*))` by name. */
+  right: max(16px, env(safe-area-inset-right, 0px));
+  bottom: max(16px, env(safe-area-inset-bottom, 0px));
   z-index: 55;
   display: grid;
   place-items: center;
-  width: 44px; height: 44px;
+  width: var(--tap-target);
+  height: var(--tap-target);
   border-radius: var(--radius-buttons);
   background: var(--color-carbon-plate);
   border: 1px solid var(--color-fog);
@@ -678,7 +1000,9 @@
               background-color var(--duration-fast) var(--ease-out-quint);
 }
 .back-to-top.visible { opacity: 1; visibility: visible; transform: none; }
-.back-to-top:hover { background: var(--color-obsidian); }
+@media (hover: hover) {
+  .back-to-top:hover { background: var(--color-obsidian); }
+}
 
 /* =============================================================================
    MOTION TOGGLE (footer) — honest about state: the label names the ACTION and
@@ -689,7 +1013,10 @@
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  min-height: 40px;
+  /* 44px, not the 40px it was: this is a real control and the brief's floor is
+     44. It also keeps the label on one line at 200% zoom, where 40px plus a
+     nowrap label was measured overflowing the viewport. */
+  min-height: var(--tap-target);
   padding: 8px 16px;
   border-radius: var(--radius-buttons);
   border: 1px solid var(--color-iron-edge);
@@ -701,10 +1028,14 @@
   letter-spacing: 0.042em;
   text-transform: uppercase;
   cursor: pointer;
+  max-width: 100%;
   transition: border-color var(--duration-fast) var(--ease-out-quint),
               color var(--duration-fast) var(--ease-out-quint);
 }
-.motion-toggle:hover { border-color: var(--color-fog); color: var(--color-pure-white); }
+.motion-toggle > span:not(.sr-only) { min-width: 0; overflow-wrap: anywhere; }
+@media (hover: hover) {
+  .motion-toggle:hover { border-color: var(--color-fog); color: var(--color-pure-white); }
+}
 .motion-toggle[aria-pressed="true"] {
   border-color: var(--color-current-blue);
   color: var(--color-pure-white);
@@ -713,66 +1044,22 @@
    Only the box is ours to size — the path carries its own viewBox. */
 .motion-toggle-icon { width: 14px; height: 14px; flex: none; }
 
-/* =============================================================================
-   FOOTER — DESIGN.md "Footer Link Column"
-   Four columns, 14px/500 white headings, 13–14px Graphite links with NO
-   underline, 8–16px row gap, 1px Steel Border rule on top.
+/* -----------------------------------------------------------------------------
+   FOOTER LAYOUT LIVES IN css/sections.css
+
+   This block used to define the whole footer — the grid, the columns, the
+   bottom bar, the status dot — and css/sections.css defined all of it again,
+   slightly differently: 1 column here and 2 there below 768px, and a
+   `width: fit-content` on the links that only existed here. Both sets were in
+   the same bundle, sections.css later in source order, so the one that won was
+   whichever had the higher specificity — which is not a design decision
+   anybody made on purpose.
+
+   The footer is LAYOUT, and css/sections.css is where layout lives (it owns
+   the bento, the features rows, the flow and the CTA band). So that file keeps
+   the footer and this one keeps only the two components the footer contains:
+   `.motion-toggle` above, and nothing else. One definition, one file.
    ========================================================================== */
-.site-footer {
-  position: relative;
-  z-index: 1;
-  border-top: 1px solid var(--color-steel-border);
-  background: var(--color-void-canvas);
-  padding-block: var(--spacing-56) var(--spacing-32);
-}
-.footer-grid {
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: var(--spacing-40);
-}
-@media (min-width: 768px) {
-  .footer-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--spacing-32); }
-}
-.footer-col { display: flex; flex-direction: column; gap: 12px; }
-.footer-col__head {
-  font-size: var(--text-body-sm);
-  font-weight: var(--weight-medium);
-  line-height: var(--leading-body-sm);
-  color: var(--color-pure-white);
-}
-.footer-col a {
-  font-size: var(--text-body-sm);
-  color: var(--color-graphite);
-  transition: color var(--duration-fast) var(--ease-out-quint);
-}
-.footer-col a:hover { color: var(--color-pure-white); }
-.footer-nav { display: flex; align-items: center; gap: var(--spacing-16); flex-wrap: wrap; }
-.footer-nav a { font-size: var(--text-body-sm); color: var(--color-graphite); }
-.footer-nav a:hover { color: var(--color-pure-white); }
-.footer-bottom {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: var(--spacing-16);
-  margin-top: var(--spacing-40);
-  padding-top: var(--spacing-24);
-  border-top: 1px solid var(--color-steel-border);
-  font-size: 13px;
-  color: var(--color-cinder);
-}
-@media (min-width: 768px) {
-  .footer-bottom {
-    flex-direction: row;
-    align-items: center;
-    justify-content: space-between;
-  }
-}
-.footer-status { display: inline-flex; align-items: center; gap: 8px; }
-.footer-status .status-dot {
-  width: 8px; height: 8px;
-  border-radius: var(--radius-badges);
-  background: var(--color-phosphor-mint);
-}
 
 /* =============================================================================
    PAGE TRANSITION PLATE
