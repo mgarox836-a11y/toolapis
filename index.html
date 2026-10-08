@@ -469,6 +469,111 @@
          and a wide privacy panel. Every card holds a visual.
          ====================================================================== -->
     <section id="overview" class="section">
+      <!-- HUB CONSTELLATION (css/section-bg.css). Three tools feeding one hub, so
+           every pulse runs inward from a satellite node to the central one. The
+           cards are opaque #0d0e12, so this passes behind them and only the ends
+           are visible. The dots, nodes and pulses are all decorative: aria-hidden,
+           not focusable, and the section's own text sits above at z-index 1. -->
+      <div class="section-bg section-bg--hub" aria-hidden="true">
+        <div class="hub-ground"></div>
+        <div class="hub-grid"></div>
+
+        <svg class="hub-net" viewBox="0 0 1200 820" preserveAspectRatio="none" focusable="false">
+          <defs>
+            <!-- The pulse gradient: lit at the leading end, nothing behind it, so
+                 a travelling segment has a direction and a tail. -->
+            <linearGradient id="hubPulseGrad" x1="1" y1="0.5" x2="0" y2="0.5">
+              <stop offset="0%" stop-color="#a6e5f2" stop-opacity="0"/>
+              <stop offset="45%" stop-color="#a6e5f2" stop-opacity="0.95"/>
+              <stop offset="100%" stop-color="#ffffff" stop-opacity="0"/>
+            </linearGradient>
+          </defs>
+
+          <!-- Three edges, satellite → hub. Same `d` on the base, the pulse and
+               the rider so all three agree on the geometry without JS measuring
+               anything. -->
+          <path class="hub-link hub-link--hd" vector-effect="non-scaling-stroke"
+                d="M112,132 C300,150 470,300 600,430" />
+          <path class="hub-pulse hub-pulse--hd" vector-effect="non-scaling-stroke"
+                d="M112,132 C300,150 470,300 600,430" />
+
+          <path class="hub-link hub-link--tether" vector-effect="non-scaling-stroke"
+                d="M1092,180 C900,206 760,320 600,430" />
+          <path class="hub-pulse hub-pulse--tether" vector-effect="non-scaling-stroke"
+                d="M1092,180 C900,206 760,320 600,430" />
+
+          <path class="hub-link hub-link--social" vector-effect="non-scaling-stroke"
+                d="M1078,706 C900,690 760,570 600,430" />
+          <path class="hub-pulse hub-pulse--social" vector-effect="non-scaling-stroke"
+                d="M1078,706 C900,690 760,570 600,430" />
+
+          <!-- Follower dots riding each edge. Hidden by an @supports fallback if
+               offset-path is unavailable, so they never read as stray specks.
+               These stay in the SVG because offset-path path() is authored in
+               user units and must share the edges' stretched geometry. -->
+          <circle class="hub-rider hub-rider--hd" r="2" fill="#a6e5f2"
+                  style="offset-path: path('M112,132 C300,150 470,300 600,430')" />
+          <circle class="hub-rider hub-rider--tether" r="2" fill="#a6e5f2"
+                  style="offset-path: path('M1092,180 C900,206 760,320 600,430')" />
+          <circle class="hub-rider hub-rider--social" r="2" fill="#a6e5f2"
+                  style="offset-path: path('M1078,706 C900,690 760,570 600,430')" />
+        </svg>
+
+        <!-- The mobile network. Below 768px the long edges can only run straight
+             through the cards, so this replaces them: one node and three short
+             stubs at the top of the section — the same topology at the only scale
+             where it fits. Shown only under 768px; see css/section-bg.css. -->
+        <svg class="hub-net-sm" viewBox="0 0 1200 200" preserveAspectRatio="none" focusable="false">
+          <path class="hub-link" vector-effect="non-scaling-stroke" d="M600,168 L250,44" />
+          <path class="hub-pulse" style="--dur:3.5s" vector-effect="non-scaling-stroke" d="M600,168 L250,44" />
+          <path class="hub-link" vector-effect="non-scaling-stroke" d="M600,168 L600,26" />
+          <path class="hub-pulse" style="--dur:5s;--dly:1.2s" vector-effect="non-scaling-stroke" d="M600,168 L600,26" />
+          <path class="hub-link" vector-effect="non-scaling-stroke" d="M600,168 L950,44" />
+          <path class="hub-pulse" style="--dur:4.25s;--dly:2.4s" vector-effect="non-scaling-stroke" d="M600,168 L950,44" />
+        </svg>
+
+        <!-- The nodes are HTML, not SVG circles, and that is a correctness point
+             rather than a preference: these SVGs use preserveAspectRatio="none" so
+             the edges stretch to whatever shape the section is, and a non-uniform
+             scale turns every <circle> in one into an ellipse — an 8px satellite
+             stretched 2× vertically is a visible smudge. Their --x/--y live in the
+             STYLESHEET, not in inline styles, precisely so a media query can move
+             the hub for the mobile network below. The desktop values mirror the
+             viewBox coordinates the paths are drawn in, so a node and the edge
+             that reaches it stay locked together at any width. -->
+        <span class="hub-sat hub-sat--hd"></span>
+        <span class="hub-sat hub-sat--tether"></span>
+        <span class="hub-sat hub-sat--social"></span>
+        <span class="hub-core"><i class="hub-core-ring"></i></span>
+
+        <!-- The star field. 16 points placed and timed by custom properties in the
+             MARKUP: no per-particle JS, and they still blink with scripting off.
+             They live inside .hub-stars so the responsive `:nth-child` cut-offs
+             count STARS — as direct children of .section-bg they would have been
+             numbered after the ground, grid, two SVGs and four nodes, and every
+             star would have fallen past the first cut-off. -->
+        <div class="hub-stars">
+        <span class="hub-star" style="--x:6%;--y:9%;--d:4.2s;--t:0s;--s:1"></span>
+        <span class="hub-star" style="--x:19%;--y:64%;--d:6.1s;--t:.7s;--s:1.5"></span>
+        <span class="hub-star" style="--x:31%;--y:22%;--d:3.4s;--t:1.6s;--s:1"></span>
+        <span class="hub-star" style="--x:8%;--y:41%;--d:5.5s;--t:2.4s;--s:1.5"></span>
+        <span class="hub-star" style="--x:24%;--y:86%;--d:4.8s;--t:3.1s;--s:1"></span>
+        <span class="hub-star" style="--x:41%;--y:8%;--d:6.7s;--t:.4s;--s:1"></span>
+        <span class="hub-star" style="--x:47%;--y:74%;--d:3.9s;--t:1.9s;--s:1.5"></span>
+        <span class="hub-star" style="--x:57%;--y:16%;--d:5.2s;--t:2.9s;--s:1"></span>
+        <span class="hub-star" style="--x:63%;--y:91%;--d:4.5s;--t:1.2s;--s:1.5"></span>
+        <span class="hub-star" style="--x:69%;--y:38%;--d:6.4s;--t:3.7s;--s:1"></span>
+        <span class="hub-star" style="--x:74%;--y:82%;--d:3.6s;--t:.9s;--s:1"></span>
+        <span class="hub-star" style="--x:79%;--y:12%;--d:5.8s;--t:2.1s;--s:1.5"></span>
+        <span class="hub-star" style="--x:86%;--y:52%;--d:4.1s;--t:3.4s;--s:1"></span>
+        <span class="hub-star" style="--x:92%;--y:26%;--d:6.9s;--t:1.5s;--s:1.5"></span>
+        <span class="hub-star" style="--x:95%;--y:78%;--d:3.8s;--t:2.6s;--s:1"></span>
+        <span class="hub-star" style="--x:34%;--y:52%;--d:5s;--t:3.9s;--s:1"></span>
+        </div>
+
+        <div class="section-bg__spot"></div>
+      </div>
+
       <div class="shell">
         <div class="section-head reveal">
           <span class="eyebrow">Overview</span>
@@ -643,10 +748,112 @@
          Two-column rows that swap sides, each pairing copy with a mock window.
          ====================================================================== -->
     <section id="features" class="section">
+      <!-- SIGNAL FLOW (css/section-bg.css). Overview is a hub with edges running
+           inward; this is deliberately the opposite idea — a signal running left
+           to right, because what this section sells is "opens in the browser":
+           data arriving at the left edge, crossing, reaching a window. Circuit
+           rules, right-angle traces, a ribbon between the rows and code motes.
+           Decorative throughout: aria-hidden, not focusable, no tabindex. -->
+      <div class="section-bg section-bg--signal" aria-hidden="true">
+        <div class="sig-ground"></div>
+        <!-- One glow per feature row. --bx alternates side, matching the rows'
+             own copy/visual swap so the light lands behind the empty half. -->
+        <div class="sig-bloom" style="--by:30%;--bx:78%"></div>
+        <div class="sig-bloom" style="--by:56%;--bx:22%"></div>
+        <div class="sig-bloom" style="--by:82%;--bx:78%"></div>
+        <div class="sig-rules"></div>
+
+        <svg class="sig-trace" viewBox="0 0 1200 900" preserveAspectRatio="none" focusable="false">
+          <defs>
+            <linearGradient id="sigPulseGrad" x1="0" y1="0" x2="1" y2="0">
+              <stop offset="0%" stop-color="#a6e5f2" stop-opacity="0"/>
+              <stop offset="45%" stop-color="#a6e5f2" stop-opacity="0.95"/>
+              <stop offset="100%" stop-color="#ffffff" stop-opacity="0"/>
+            </linearGradient>
+            <linearGradient id="sigRibbonGrad" x1="0" y1="0" x2="1" y2="0">
+              <stop offset="0%" stop-color="#a6e5f2" stop-opacity="0"/>
+              <stop offset="50%" stop-color="#a6e5f2" stop-opacity="0.7"/>
+              <stop offset="100%" stop-color="#a6e5f2" stop-opacity="0"/>
+            </linearGradient>
+          </defs>
+
+          <!-- Right-angle traces entering from the left edge toward each row's
+               visual. Row 1's copy is on the left, row 2's on the right, so the
+               traces alternate which side they arrive from. -->
+          <path class="sig-trace-base" vector-effect="non-scaling-stroke"
+                d="M0,286 H300 V300 H520" />
+          <path class="sig-trace-pulse sig-trace-pulse--1" vector-effect="non-scaling-stroke"
+                d="M0,286 H300 V300 H520" />
+
+          <path class="sig-trace-base" vector-effect="non-scaling-stroke"
+                d="M1200,522 H900 V510 H700" />
+          <path class="sig-trace-pulse sig-trace-pulse--2" vector-effect="non-scaling-stroke"
+                d="M1200,522 H900 V510 H700" />
+
+          <path class="sig-trace-base" vector-effect="non-scaling-stroke"
+                d="M0,742 H240 V760 H430" />
+          <path class="sig-trace-pulse sig-trace-pulse--3" vector-effect="non-scaling-stroke"
+                d="M0,742 H240 V760 H430" />
+        </svg>
+
+        <!-- The ribbon crosses BETWEEN rows, never over one, so it never competes
+             with a mock window for the same area. -->
+        <svg class="sig-ribbon" viewBox="0 0 1200 900" preserveAspectRatio="none" focusable="false">
+          <path class="sig-ribbon-line" vector-effect="non-scaling-stroke"
+                d="M-40,420 C240,300 520,540 780,430 C960,354 1100,372 1240,404" />
+          <path class="sig-ribbon-line sig-ribbon-line--2" vector-effect="non-scaling-stroke"
+                d="M-40,660 C200,720 480,600 740,650 C920,686 1120,620 1240,650" />
+        </svg>
+
+        <!-- Code motes. Wrapped so the responsive `:nth-child` cut-offs count
+             MOTES rather than every sibling of the background. --x/--y are chosen
+             to land in the empty margin beside each row, never behind the copy;
+             at narrower widths the extra ones are hidden. -->
+        <div class="sig-glyphs">
+          <span class="sig-glyph" style="--x:3%;--y:26%;--d:18s">{ }</span>
+          <span class="sig-glyph" style="--x:92%;--y:33%;--d:22s;--t:4s">&lt;/&gt;</span>
+          <span class="sig-glyph" style="--x:6%;--y:47%;--d:16s;--t:8s">=&gt;</span>
+          <span class="sig-glyph" style="--x:89%;--y:52%;--d:20s;--t:2s">01</span>
+          <span class="sig-glyph" style="--x:4%;--y:68%;--d:19s;--t:11s">$</span>
+          <span class="sig-glyph" style="--x:94%;--y:71%;--d:17s;--t:6s">{ }</span>
+          <span class="sig-glyph" style="--x:7%;--y:88%;--d:21s;--t:14s">&lt;/&gt;</span>
+          <span class="sig-glyph" style="--x:88%;--y:91%;--d:15s;--t:1s">01</span>
+          <span class="sig-glyph" style="--x:12%;--y:14%;--d:20s;--t:9s">=&gt;</span>
+          <span class="sig-glyph" style="--x:84%;--y:18%;--d:18s;--t:5s">$</span>
+          <span class="sig-glyph" style="--x:2%;--y:37%;--d:23s;--t:12s">{ }</span>
+          <span class="sig-glyph" style="--x:96%;--y:64%;--d:16s;--t:3s">01</span>
+        </div>
+
+        <div class="section-bg__spot"></div>
+      </div>
+
       <div class="shell">
         <div class="section-head reveal">
           <span class="eyebrow">Features</span>
-          <h2 class="t-heading">Click. Connect. Code.</h2>
+          <div class="title-row">
+            <!-- The title's three words light in turn on a 6s cycle (css/
+                 section-bg.css). Each word is its own inline-block because the
+                 underline needs a box to sit under, and each one cancels the
+                 letter-spacing it inherits so the measure does not grow — see
+                 .sig-word in the stylesheet. Nothing here changes size or
+                 spacing, so there is no layout shift as the highlight moves. -->
+            <h2 class="t-heading t-heading--flow">
+              <span class="sig-word sig-word--1">Click.</span>
+              <span class="sig-word sig-word--2">Connect.</span>
+              <span class="sig-word sig-word--3">Code.</span>
+            </h2>
+            <!-- Three decorative signal marks beside the title, shown only where
+                 there is room for them (>=900px): a click ripple, a link pulse, a
+                 caret. aria-hidden and non-focusable — they say nothing the title
+                 does not already say. A flex row beside the heading rather than
+                 an absolute offset, which would have to guess the title's
+                 position from the eyebrow's height. -->
+            <span class="signal-icons" aria-hidden="true">
+              <span class="sig-ico-ripple"></span>
+              <span class="sig-ico-link"></span>
+              <span class="sig-ico-caret"></span>
+            </span>
+          </div>
           <p class="copy">Each tool is one link away and opens straight in the browser. Nothing to install, nothing to configure.</p>
         </div>
 
@@ -679,20 +886,37 @@
               </a>
             </div>
             <div class="feature__visual">
-              <div class="mock" data-mock>
+              <!-- MOCK 1 · "toolapis · hub" (js/section-mocks.js).
+                   The body is a grid of five tool tiles behind a skeleton shimmer.
+                   The tiles carry a real short label each rather than bare bars,
+                   because a mock of a launcher that shows five grey rectangles
+                   cannot be read as a launcher. .mock__body keeps its single
+                   minmax(0,1fr) track from sections.css — that track is what fixed
+                   the site's only real horizontal overflow, and every child here
+                   sets min-width:0 so nothing can reintroduce it. -->
+              <div class="mock mock--hub" data-mock>
                 <div class="mock__bar">
                   <span class="mock__dot"></span><span class="mock__dot"></span><span class="mock__dot"></span>
                   <span class="mock__url">toolapis · hub</span>
                 </div>
-                <div class="mock__body">
-                  <div class="mock__side">
-                    <span></span><span></span><span></span><span></span>
+                <div class="mock__body mock__body--hub">
+                  <div class="mock-tiles" data-mock-tiles>
+                    <span class="mock-tile"><i></i>HD Enhancer</span>
+                    <span class="mock-tile"><i></i>Tether</span>
+                    <span class="mock-tile"><i></i>Social Hub</span>
+                    <span class="mock-tile"><i></i>Links</span>
+                    <span class="mock-tile"><i></i>Queue</span>
+                    <!-- The simulated pointer and its ripple. Positioned by the
+                         two custom properties section-mocks.js writes from the
+                         active tile's offset box — measured rather than guessed,
+                         so it stays correct when the grid reflows. -->
+                    <span class="mock-cursor" data-mock-cursor aria-hidden="true">
+                      <i class="mock-cursor__ripple"></i>
+                    </span>
                   </div>
-                  <div class="mock__main">
-                    <span class="mock__title"></span>
-                    <div class="mock__row"><span></span><span></span><span></span></div>
-                    <div class="mock__row"><span></span><span></span></div>
-                  </div>
+                  <span class="mock-skeleton" data-mock-skeleton aria-hidden="true">
+                    <i></i><i></i><i></i>
+                  </span>
                 </div>
                 <span class="mock__shine" aria-hidden="true"></span>
               </div>
@@ -728,19 +952,25 @@
               </a>
             </div>
             <div class="feature__visual">
-              <div class="mock" data-mock>
+              <!-- MOCK 2 · "adb · tethering" (js/section-mocks.js).
+                   A terminal that types itself, on its own attribute
+                   `data-mtype` rather than widgets.js's `data-type`: that
+                   typewriter types once and holds, and this one loops with a 4s
+                   pause. Two controllers on one element would interleave and
+                   leave a half-typed line, so the two never meet. -->
+              <div class="mock mock--term" data-mock>
                 <div class="mock__bar">
                   <span class="mock__dot"></span><span class="mock__dot"></span><span class="mock__dot"></span>
                   <span class="mock__url">adb · tethering</span>
                 </div>
-                <div class="mock__body">
-                  <div class="mock__side">
-                    <span></span><span></span><span></span><span></span>
-                  </div>
-                  <div class="mock__main">
-                    <span class="mock__title"></span>
-                    <div class="mock__row"><span></span><span></span><span></span></div>
-                    <div class="mock__row"><span></span><span></span></div>
+                <div class="mock__body mock__body--term">
+                  <div class="mock-term" data-mtype-term>
+                    <span class="mock-term__line mock-term__comment"># tether your phone over USB</span>
+                    <span class="mock-term__line"><b>$</b><span data-mtype>gnirehtet run</span></span>
+                    <span class="mock-term__line"><b>$</b><span data-mtype>adb reverse tcp:8000 tcp:8000</span></span>
+                    <span class="mock-term__line mock-term__status">
+                      <i aria-hidden="true"></i><span data-mtype-status>connected</span>
+                    </span>
                   </div>
                 </div>
                 <span class="mock__shine" aria-hidden="true"></span>
@@ -777,19 +1007,33 @@
               </a>
             </div>
             <div class="feature__visual">
-              <div class="mock" data-mock>
+              <!-- MOCK 3 · "enhancer · queue". The 540p → 1080p progress bar and
+                   its label crossfade are PURE CSS (a width keyframe and two
+                   stacked labels), so this third mock costs zero JavaScript: the
+                   only thing section-mocks.js does for it is nothing. It pauses
+                   with the section like every other loop on the page. -->
+              <div class="mock mock--hd" data-mock>
                 <div class="mock__bar">
                   <span class="mock__dot"></span><span class="mock__dot"></span><span class="mock__dot"></span>
                   <span class="mock__url">enhancer · queue</span>
                 </div>
-                <div class="mock__body">
-                  <div class="mock__side">
-                    <span></span><span></span><span></span><span></span>
-                  </div>
-                  <div class="mock__main">
-                    <span class="mock__title"></span>
-                    <div class="mock__row"><span></span><span></span><span></span></div>
-                    <div class="mock__row"><span></span><span></span></div>
+                <div class="mock__body mock__body--hd">
+                  <div class="mock-hd">
+                    <div class="mock-hd__head">
+                      <span class="mock-hd__file">clip_0412.mp4</span>
+                      <!-- Both labels occupy the same cell and cross-fade; two
+                           stacked spans rather than one whose textContent is
+                           swapped, because swapping text would reflow and the
+                           crossfade would stutter. -->
+                      <span class="mock-hd__label">
+                        <span class="mock-hd__res mock-hd__res--in">540p</span>
+                        <span class="mock-hd__res mock-hd__res--out">1080p</span>
+                      </span>
+                    </div>
+                    <div class="mock-hd__bar"><i></i></div>
+                    <div class="mock-hd__foot">
+                      <span>reading</span><span>writing hd</span>
+                    </div>
                   </div>
                 </div>
                 <span class="mock__shine" aria-hidden="true"></span>
@@ -1021,6 +1265,8 @@
   <script type="module" src="js/reveal.js"></script>
   <script type="module" src="js/hero3d.js"></script>
   <script type="module" src="js/widgets.js"></script>
+  <script type="module" src="js/section-bg.js"></script>
+  <script type="module" src="js/section-mocks.js"></script>
   <script defer src="js/hero-extras.js"></script>
 </body>
 </html>

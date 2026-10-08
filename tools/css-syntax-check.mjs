@@ -29,8 +29,16 @@ import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const SRC = ['tokens', 'base', 'animations', 'components', 'hero', 'hero3d', 'sections', 'toolpass']
-  .map((n) => path.join(ROOT, 'css', `${n}.css`));
+
+/* The source list is build-css.mjs's SOURCES, not a second copy of it. This
+ * file used to hardcode the same eight names, which is exactly the drift the
+ * tool exists to catch: adding css/section-bg.css to the build left this
+ * checker reading eight files and reporting eight passes while saying nothing
+ * about the ninth. The browser parse below still covered the new file through
+ * the bundle, so nothing shipped broken — but a checker that silently skips the
+ * file you just added is a checker you stop trusting. One list, one owner. */
+const { SOURCES } = await import('./build-css.mjs');
+const SRC = SOURCES.map((n) => path.join(ROOT, 'css', n));
 
 let failures = 0;
 const fail = (file, msg) => { failures++; console.log(`  FAIL  ${path.basename(file)}: ${msg}`); };
