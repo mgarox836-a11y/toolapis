@@ -373,8 +373,9 @@ section[id] { scroll-margin-top: calc(var(--navbar-height) + 24px); }
 .skip-link:focus { top: var(--spacing-16); }
 
 /* The scroll progress hairline. Flat white: the fill IS the signal, and
-   DESIGN.md rations colour to one accent, which is already spent on the
-   TOOL PASS card in this viewport. */
+   DESIGN.md rations colour to one accent per viewport, which the hero already
+   spends on its eyebrow and headline phrase. A second chromatic bar here would
+   be a third thing asking to be looked at. */
 #scroll-progress {
   position: fixed;
   top: 0; left: 0; right: 0;

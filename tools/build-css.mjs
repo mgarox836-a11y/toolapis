@@ -47,7 +47,6 @@ export const SOURCES = [
   'hero.css',
   'hero3d.css',
   'sections.css',
-  'toolpass.css',
   'section-bg.css',
 ];
 

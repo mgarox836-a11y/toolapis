@@ -38,11 +38,6 @@
   50%      { opacity: 0.85; transform: scale(1.06); }
 }
 
-@keyframes tl-scan {
-  0%   { transform: translateY(0); }
-  100% { transform: translateY(62px); }
-}
-
 /* The grid drifts one cell over 24s — slow enough to be felt, not seen.
    `transform`, not `background-position`. A background-position animation is
    not a compositable property: the browser has to repaint the whole layer on
@@ -306,26 +301,22 @@ html.reveal-all :is(.reveal, [data-reveal], .rv) {
 /* The hero grid drifts one cell over 24s — slow enough to be felt, not seen. */
 .hero-grid-lines { animation: tl-grid-drift 24s linear infinite; }
 
-/* Barcode scan line. */
-.hero-barcode::after { animation: tl-scan 2.6s var(--ease-in-out) infinite; }
-
 /* ---------------------------------------------------------------------------
    LOOP BUDGET ON SMALL SCREENS (brief §5)
 
    Between them, the loops above run continuously: three status dots, a
-   760px-wide radial glow, a full-hero grid drift, a barcode scan, the
-   marquee, two ribbon segments, a bloom, and — above 768px only — three
-   floating chips and four lock lights. That is a dozen concurrent animations
-   on a page whose whole point is that it is quiet.
+   760px-wide radial glow, a full-hero grid drift, the marquee, two ribbon
+   segments, a bloom, and — above 768px only — three floating chips and four
+   lock lights. That is a dozen concurrent animations on a page whose whole
+   point is that it is quiet.
 
    Below 768px the four decorative hero loops stop. They are the ones nobody
    consciously sees (a 24s grid drift is invisible by design), they are the
    most expensive (two of them animate a layer the size of the viewport), and
    the hero on a phone is 320px tall where a 760px bloom covers everything.
 
-   What is KEPT below 768px: the status dots (they carry meaning), the barcode
-   (small, and it is the one thing that draws the eye to the accent card), and
-   the marquee (it is the trust strip, and a stationary one reads as a bug).
+   What is KEPT below 768px: the status dots (they carry meaning) and the
+   marquee (it is the trust strip, and a stationary one reads as a bug).
    What is dropped: the grid drift, the hero glow, and the two ribbon segments —
    the last of these because `hero3d.css` already stops them at the same
    breakpoint and setting `stroke-dashoffset` here would fight it. */
@@ -347,15 +338,6 @@ html.js #navbar > .shell { animation: tl-fade 600ms var(--ease-out-quint) both; 
 
 /* Page transition dot. */
 .pt-dot { animation: tl-pulse 900ms var(--ease-in-out) infinite; }
-
-/* TOOL PASS: a thin flip on the FROM -> TO fields when the card arrives. */
-.toolpass { animation: tl-fade var(--duration-slow) var(--ease-out-quint) both; }
-.toolpass__field-value { animation: tl-flip 700ms var(--ease-out-quint) both; }
-.toolpass__field:nth-child(2) .toolpass__field-value { animation-delay: 90ms; }
-@keyframes tl-flip {
-  from { opacity: 0; transform: rotateX(70deg); }
-  to   { opacity: 1; transform: rotateX(0deg); }
-}
 
 /* ============================================================================
    TAB VISIBILITY AND VIEWPORT EXIT (brief §5)
@@ -430,8 +412,7 @@ html.motion-reduced .word-reveal {
    hero3d.css: hero3d.css owns their resting values, this owns the kill. */
 html.motion-reduced :is(
   .status-dot, .activity__dot, .footer-status .status-dot,
-  .hero-glow, .hero-grid-lines, .flow-dash, .pt-dot, .hero-barcode::after,
-  .toolpass__field-value,
+  .hero-glow, .hero-grid-lines, .flow-dash, .pt-dot,
   .ribbon-flow, .ribbon-flow--inner, .hero-scene__bloom, .hero-chip,
   .lock__light, .terminal__caret, .marquee__track,
   .feed__row--in, .mock__shine

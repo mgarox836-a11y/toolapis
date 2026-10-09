@@ -32,8 +32,23 @@
 .hero-scene {
   position: absolute;
   /* Bleeds off the right edge on purpose: DESIGN.md's hero is a 50/50 split
-     where the visual runs to the viewport edge with no hard edge of its own. */
-  inset: 0 -12% 0 auto;
+     where the visual runs to the viewport edge with no hard edge of its own.
+
+     THE BLEED TRACKS THE SHELL'S MARGIN, which is what "off the right edge"
+     actually requires. This box's containing block is `.hero-inner` — the
+     `.shell`, capped at 1600px — not the viewport, so a fixed `-12%` moves it
+     right by a fraction of a box that stops growing. Below ~1500px the shell is
+     nearly full-bleed and the scene clears the screen; at 1920 the shell is
+     1344px and the box's right edge resolved to x=1793, inside a 1920 viewport;
+     at 2560 it resolved to x=2272, inside 2560. The visual then stopped at a
+     rectangle instead of running off the edge.
+
+     `(100vw - 100%) / 2` is the shell's own side margin, so cancelling it and
+     adding 8% carries the box past the viewport edge at every width. `100vw`
+     includes the scrollbar, which makes this bleed ~15px FURTHER than the true
+     margin — the safe direction: over-bleeding is hidden, under-bleeding shows
+     a seam. `#hero { overflow: clip }` (css/hero.css) confines the excess. */
+  inset: 0 calc(-1 * ((100vw - 100%) / 2 + 8%)) 0 auto;
   /* `62%` of the hero, not `62vw`: `vw` is the viewport including the scrollbar,
      so on desktop the scene was 15px wider than the space it was placed in. */
   width: min(760px, 62%);
@@ -46,15 +61,15 @@
   /* Contain the glow so a long dash-offset animation cannot widen the page. */
   contain: paint;
 }
-/* On one column the scene sits UNDER the copy, and the accent card sits over
-   the scene. So the scene's bright middle band must not land where the card is:
-   the composition the brief asks for is copy → visual → accent card, which means
-   the scene wants its light in the UPPER part of its own box here, not the
-   middle. */
+/* On one column the scene sits UNDER the copy, in flow between the copy and
+   the bottom of the hero. So the scene's bright middle band must not land where
+   the headline and CTAs are: the composition here is copy above, light below,
+   which means the scene wants its light in the LOWER part of its own box at this
+   width, not the middle. */
 @media (width < 900px) {
-  /* In flow, between the copy and the accent card. Full-bleed: it breaks out
-     of .shell's gutter so the light runs to both viewport edges, which is what
-     makes it read as a scene rather than as an inset panel.
+  /* In flow, below the copy. Full-bleed: it breaks out of .shell's gutter so
+     the light runs to both viewport edges, which is what makes it read as a
+     scene rather than as an inset panel.
 
      The bleed is `calc(var(--gutter) * -1)` rather than the literal
      `clamp(20px, 4vw, 32px) * -1` that was here before, which was a THIRD copy
@@ -115,20 +130,45 @@
 
    Two mask layers, composited with `intersect`, so each edge is dissolved
    independently:
-     * a horizontal ramp that fades the LEFT edge to nothing (the right edge is
-       already off-screen, so it never needs one);
+     * a horizontal ramp that fades the LEFT edge to nothing;
      * a vertical ramp that fades both the top and the bottom.
    `intersect` is required — with the default `add` composite the more opaque
-   layer wins and the other has no effect. */
+   layer wins and the other has no effect.
+
+   THE RIGHT EDGE NEEDS ITS OWN FADE. This mask used to hold `#000 100%` on the
+   right, on the reasoning that the scene box bleeds off-screen so the right edge
+   "never needs one". That is true at 1366 and 1440, where `.hero-scene`'s right
+   edge resolves to 1427 and 1464 — past the viewport. It stops being true on
+   wide monitors: `width: min(760px, 62%)` is capped at 760px, so from ~1800px up
+   the box's right edge lands ON screen at x=1793 (1920) and x=2272 (2560), and
+   `--gradient-ground`'s top stop rgb(22,48,82) terminated on a straight vertical
+   line. Measured: a hard luminance step of ~14/255 persisting 167px at x=1792.
+
+The fade is the fix, not the clip — forcing `overflow: visible` to test the
+     theory left the edge in place, because a rectangular gradient with no ramp on
+     one side has that side whatever box contains it. The scene also bleeds
+     further right now (see `.hero-scene`), so the fade is a backstop for any
+     viewport where the box edge still resolves inside the screen.
+
+     BOTH ends ramp, and the LEFT one has to be long as well as the right. It was
+     already `transparent 0%`, which is correct in principle and still showed an
+     edge: at 0% the mask is 0 but the gradient has barely begun, so the step at
+     the boundary is small rather than absent — measured at 42/255 over 111px at
+     1366, where the scene's left edge resolves to x=784. A ramp that starts at
+     zero exactly on the boundary only hides an edge if the gradient underneath
+     has already reached zero there. `28%` gives it that much room. */
 .hero-scene__ground {
   position: absolute;
   inset: 0;
   background: var(--gradient-ground);
   -webkit-mask-image:
-    linear-gradient(90deg, transparent 0%, #000 34%, #000 100%),
+    linear-gradient(90deg, transparent 0%, #000 28%, #000 88%, transparent 100%),
     linear-gradient(180deg, transparent 0%, #000 26%, #000 62%, transparent 100%);
   mask-image:
-    linear-gradient(90deg, transparent 0%, #000 34%, #000 100%),
+    linear-gradient(90deg, transparent 0%, #000 28%, #000 88%, transparent 100%),
+    linear-gradient(180deg, transparent 0%, #000 26%, #000 62%, transparent 100%);
+  mask-image:
+    linear-gradient(90deg, transparent 0%, #000 34%, #000 88%, transparent 100%),
     linear-gradient(180deg, transparent 0%, #000 26%, #000 62%, transparent 100%);
   -webkit-mask-composite: source-in;
   mask-composite: intersect;
@@ -275,28 +315,28 @@
 }
 .hero-chip .icon { flex: none; }
 .hero-chip .icon { width: 13px; height: 13px; color: var(--color-graphite); }
-/* Composition, given that the scene is 760px wide starting at ~46% of the
-   viewport, and the accent card occupies its right half from 30% down:
-     chip 1  top-left of the scene, above the card's top edge
-     chip 2  left of the scene, mid height, still clear of the card
-     chip 3  above the card, top-right of the scene
-   Measured against the card rather than eyeballed, because the failure mode is
-   a chip that is technically visible and practically unreadable. */
-.hero-chip--1 { top: 9%;  left: 3%;  animation: chip-float-a 6.2s var(--ease-in-out) infinite; }
-.hero-chip--2 { top: 40%; left: 2%;  animation: chip-float-b 5.4s var(--ease-in-out) infinite; }
-.hero-chip--3 { top: 14%; left: 34%; animation: chip-float-c 7s   var(--ease-in-out) infinite; }
-/* Below 1280 the scene's width is a fixed 62vw, so as the viewport narrows the
-   scene's LEFT edge moves right while the card's left edge moves LEFT (the
-   card is the fixed 380px column and the copy column shrinks). The two cross
-   around 1150px, and below that every chip in the scene's middle band lands
-   under the card.
+/* Composition. These offsets were a constraint, not a preference: all three
+   chips sat in the scene's LEFT third because the TOOL PASS card occupied the
+   right half from 30% down, and a chip behind the card is not a layering
+   detail, it is a chip nobody can read. With the card gone the scene has its
+   whole box, so the chips now surround the light instead of lining up beside
+   it — one above the bloom, one off its lower-left shoulder, one high on the
+   right — which is what makes the scene read as a place rather than as a
+   panel with labels stuck to its edge.
 
-   Rather than chase the crossover with more offsets, the middle chip moves to
-   the scene's bottom band — below the card's bottom edge — which stays clear at
-   every width from 1024 up. The card's bottom is the hero's vertical centre. */
+   Measured against the scene box, not eyeballed, because the failure mode is a
+   chip that is technically visible and practically unreadable. */
+.hero-chip--1 { top: 7%;  left: 6%;  animation: chip-float-a 6.2s var(--ease-in-out) infinite; }
+.hero-chip--2 { top: 62%; left: 3%;  animation: chip-float-b 5.4s var(--ease-in-out) infinite; }
+.hero-chip--3 { top: 20%; left: 52%; animation: chip-float-c 7s   var(--ease-in-out) infinite; }
+/* Below 1280 the scene's width is a fixed 62% and the copy column takes more of
+   the shell, so the scene's left edge moves right while the copy's text grows
+   toward it. The right-hand chip is the one that closes that gap, so below 1280
+   it tucks back toward the centre and the low chip rises off the copy's
+   baseline — keeping all three inside the scene at every width from 1024 up. */
 @media (width < 1280px) {
-  .hero-chip--3 { left: 24%; }
-  .hero-chip--2 { top: 78%; left: 6%; }
+  .hero-chip--3 { left: 40%; }
+  .hero-chip--2 { top: 68%; left: 5%; }
 }
 
 /* Brief §4/§5: below 768px the parallax and the travelling segments both stop.

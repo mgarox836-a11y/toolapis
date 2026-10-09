@@ -4,7 +4,8 @@
     "check:css": "node tools/css-syntax-check.mjs",
     "check:fluid": "node tools/check-overflow.mjs",
     "check:fluid:quick": "node tools/check-overflow.mjs --quick",
-    "check": "npm run build:css && npm run check:css && npm run check:fluid"
+    "check:hero-edge": "node tools/hero-edge-check.mjs",
+    "check": "npm run build:css && npm run check:css && npm run check:fluid && npm run check:hero-edge"
   },
   "dependencies": {
     "aceternity-ui": "^0.2.2",

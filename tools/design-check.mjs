@@ -141,10 +141,31 @@ for (const vp of VIEWPORTS) {
       .filter(filled)
       .map((el) => ({ text: (el.textContent || '').trim().slice(0, 28), bg: getComputedStyle(el).backgroundColor }));
 
-    const mintCards = [...document.querySelectorAll('.toolpass, .card--accent')]
+    const mintCards = [...document.querySelectorAll('.card--accent')]
       .filter(visible)
       .filter(onScreen)
       .map((el) => getComputedStyle(el).backgroundColor);
+
+    /* Any element at least 120px on a side whose own background is the accent
+       is a mint BLOCK. Text is exempt — the eyebrow and the headline's opening
+       phrase set `color`, not `background-color` — and so is a small dot or
+       chip, which is surface carrying meaning rather than a filled panel.
+       See the assertion in (3b) for why this is the rule rather than counting
+       accent cards. */
+    const MINT_BG = 'rgb(112, 220, 211)';
+    const mintBlocks = [...document.querySelectorAll('body *')]
+      .filter((el) => {
+        const r = el.getBoundingClientRect();
+        if (r.width < 120 || r.height < 120) return false;
+        if (r.bottom < 0 || r.top > innerHeight) return false;
+        const s = getComputedStyle(el);
+        return s.backgroundColor === MINT_BG && s.visibility !== 'hidden';
+      })
+      .map((el) => ({
+        tag: el.tagName.toLowerCase(),
+        cls: (el.className || '').toString().split(' ').filter(Boolean)[0] || '',
+        size: `${Math.round(el.getBoundingClientRect().width)}x${Math.round(el.getBoundingClientRect().height)}`,
+      }));
 
     const heads = [...document.querySelectorAll('h1, h2, .t-heading-sm')]
       .filter(visible)
@@ -273,6 +294,7 @@ for (const vp of VIEWPORTS) {
       cards,
       filledButtons,
       mintCards,
+      mintBlocks,
       heads,
       bodies: { min: Math.min(...bodies), max: Math.max(...bodies) },
       heavy,
@@ -441,6 +463,22 @@ for (const vp of VIEWPORTS) {
     r.filledButtons.map((b) => `${b.text}:${b.bg}`).join(' ') || 'none');
   check('at most one Phosphor accent card', r.mintCards.length <= 1,
     r.mintCards.join(' ') || 'none');
+
+  /* 3b — MINT IS A SIGNAL, NOT A FILL. The rule changed when the TOOL PASS card
+     was removed from the hero: DESIGN.md rations the accent, but the rationing
+     is about how loud the accent is allowed to be, not about counting filled
+     panels. Mint is now permitted only as text — the eyebrow, the headline's
+     opening phrase — and as the small status dots that carry meaning.
+
+     So the old "at most one accent CARD" assertion above is kept (a filled mint
+     panel is still allowed, still capped at one), and what is banned here is a
+     mint BLOCK: any element at least 120px on a side that is filled with the
+     accent and is not one of those dots. A chip or a badge passes — it is
+     surface, not signal. An accent panel, a filled hero visual, or a mint-filled
+     card does not. */
+  const mintBlocks = r.mintBlocks || [];
+  check('no mint block — accent stays text or a small dot', mintBlocks.length === 0,
+    mintBlocks.map((b) => `${b.tag}.${b.cls}:${b.size}`).join(' ; ') || 'none');
 
   /* 4 — Google Sans everywhere, POSITIVE tracking, nothing heavy.
      The typography brief replaced Space Grotesk + Geist with one family.

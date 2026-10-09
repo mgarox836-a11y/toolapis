@@ -169,29 +169,20 @@
 
 @media (min-width: 1024px) {
   .hero-inner {
-    /* The copy column takes whatever is left; the accent card is a fixed
-       column. Sizing the copy by the CONTENT it has to hold rather than by a
-       ratio is what keeps "All in One Place." on one line — and the content it
-       has to hold is a 3-word line that measures 516px at 67px type.
+    /* One column. The hero used to reserve a fixed 340/380px column for the
+       TOOL PASS accent card; with the card gone that track is empty space, so
+       the copy takes the whole shell width and the scene — which is out of flow
+       and absolutely positioned — supplies the right half.
 
-       340px here, not 380px, and that number is load-bearing rather than
-       taste: at a 1024 viewport the shell is 944px (it has not reached its
-       1200px maximum and will not until 1280), so a 380px card plus a 51px gap
-       left the copy column 511px for 516px of headline. Five pixels short, and
-       the headline wrapped inside a line mask into a 4-line desktop hero. The
-       card at 340px gives the column 553px and 37px of margin. */
-    grid-template-columns: minmax(0, 1fr) 340px;
+       The gap stays: it is what separates the copy's measure from the scene's
+       left edge, and the scene is a decorative full-bleed layer rather than a
+       grid sibling, so nothing auto-reserves its width. */
+    grid-template-columns: minmax(0, 1fr);
     gap: clamp(40px, 5vw, 56px);
   }
-  /* The scene spans both columns on desktop too, so its `right` edge is the
+  /* The scene spans the full grid on desktop too, so its `right` edge is the
      hero's rather than the copy column's. */
   .hero-inner > .hero-scene { grid-column: 1 / -1; }
-}
-
-/* From 1280 the shell IS 1200px wide, so there is finally room for the full
-   380px card beside the copy without squeezing the headline. */
-@media (min-width: 1280px) {
-  .hero-inner { grid-template-columns: minmax(0, 1fr) 380px; }
 }
 
 .hero-copy {
@@ -226,20 +217,19 @@
 /* THE HERO KEEPS ITS OWN SIZE BOUND, AND IT HAS TO.
 
    `--text-display` is the right token everywhere else, but the hero is the one
-   place where the headline is bounded by a GRID COLUMN rather than by the
-   viewport: from 1024px the copy column is `minmax(0, 1fr)` beside a fixed
-   380px card, so at a 1024 viewport it is 944 - 380 - 40 = 524px wide while the
-   shell is nowhere near its 1200px maximum. Reading the token's clamp here
-   gave 85px in 524px of room, and "All in One Place." — 660px at 88px — wrapped
-   to a second line inside a `.hero-title-line` mask. Measured across the
-   desktop range with the token: 3 lines at 768, 4 at 1024, 3 again at 1280.
-   The layout is fine; the type was simply too big for its column.
+   place where the headline is bounded by its COLUMN rather than by the
+   viewport: the copy sits in the shell while the scene is a full-bleed layer
+   over it, so the headline's real budget is the shell width LESS the strip the
+   scene's light occupies. Reading the token's clamp directly gave 85px in that
+   budget, and "All in One Place." — 660px at 88px — wrapped to a second line
+   inside a `.hero-title-line` mask. The layout is fine; the type was simply
+   too big for its column.
 
    `5vw + 16px` is the coefficient that keeps the third line on one line in
    every column this page actually builds: 40px at 320 (the brief's floor),
-   46px at 600, 67px at 1024 (504px of type in 524px of column), 80px at 1280
-   and the token's 88px ceiling from 1440. The `!important`-free way to say it
-   is simply not to use the viewport token for a column-bounded headline. */
+   46px at 600, 67px at 1024, 80px at 1280 and the token's 88px ceiling from
+   1440. The `!important`-free way to say it is simply not to use the viewport
+   token for a column-bounded headline. */
 .hero-title {
   margin: 0;
   font-family: var(--font-display);
@@ -408,10 +398,10 @@
    DESIGN.md does not have, and they are gone from the markup too — the previous
    build kept a `display:none` rule for them on the belief that
    js/hero-extras.js still toggled `.is-drawn` / `.is-loop` on them. It does
-   not; that file only drives the TOOL PASS parallax and the [data-coords]
-   readout. So the rule was dead CSS guarding a comment that described a
-   version of the JS that no longer exists. Removed rather than kept as a
-   documented no-op. */
+   not. So the rule was dead CSS guarding a comment that described a version of
+   the JS that no longer exists. Removed rather than kept as a documented
+   no-op. js/hero-extras.js itself has since gone too: its only remaining
+   effect was the TOOL PASS card's parallax, and that card is gone. */
 
 /* ---- Pause off-screen -----------------------------------------------------
    js/hero3d.js toggles `.is-paused` on the hero when it scrolls away, the tab
@@ -428,9 +418,7 @@
 /* ---- Reduced motion ------------------------------------------------------- */
 @media (prefers-reduced-motion: reduce) {
   .hero-glow,
-  .hero-grid-lines,
-  .hero-barcode::after,
-  .toolpass__field-value { animation: none !important; }
+  .hero-grid-lines { animation: none !important; }
 }
 html.motion-reduced .hero-glow,
 html.motion-reduced .hero-grid-lines { animation: none !important; }
@@ -466,10 +454,11 @@ html.motion-reduced .hero-grid-lines { animation: none !important; }
 /* =============================================================================
    SHORT AND LANDSCAPE VIEWPORTS
    -----------------------------------------------------------------------------
-   A phone on its side reports roughly 844x390 or 667x375. The hero's 2-column
+   A phone on its side reports roughly 844x390 or 667x375. The hero's desktop
    layout starts at 1024px WIDTH, so on those it stays one column and stacks the
-   copy, the scene and the TOOL PASS card — which measured 1389px of hero in a
-   390px viewport, 3.6 screens of scrolling before the fold.
+   copy above the scene — which used to measure 1389px of hero in a 390px
+   viewport, 3.6 screens of scrolling before the fold, with a third of that the
+   TOOL PASS card. Removing the card took that back out of the stack.
 
    This block cannot fix that, and it is worth being plain about why: the height
    is content, not floor. Stripping `min-height` and shrinking the scene takes

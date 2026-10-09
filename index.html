@@ -139,10 +139,9 @@
        components  : every component skin
        hero.css    : the hero's own layout and ground
        hero3d.css  : the light-ribbon scene
-       sections.css: marquee, bento, features, flow, clarity, footer layouts
-       toolpass.css: the Phosphor accent card's two moving parts
+sections.css: marquee, bento, features, flow, clarity, footer layouts
 
-       Those are linked individually again only because they used to be. Eight
+        Those are linked individually again only because they used to be. Seven
        stylesheet tags are eight chances to block first paint, and under mobile
        throttling they measured ~3.2s of it for same-origin CSS that fits in one
        round trip. tools/build-css.mjs concatenates them into css/bundle.css in
@@ -309,8 +308,8 @@
 
     <!-- ======================================================================
          HERO — DESIGN.md "Hero Headline (Calsans Display)"
-         Copy left, the light-ribbon scene right, accent card overlapping
-         below it. The scene is entirely CSS + SVG: a phosphor bloom, a
+         Copy left, the light-ribbon scene running full-bleed off the right
+         edge. The scene is entirely CSS + SVG: a phosphor bloom, a
          perspective floor on --gradient-ground, three curved light tracks and a
          travelling segment, plus three floating readout chips. No video, no
          WebGL, no violet, and no hard edge where it meets the next section.
@@ -399,40 +398,6 @@
         </span>
       </div>
     </div>
-
-        <!-- TOOL PASS — the one Phosphor Accent Card in the hero viewport. It
-             overlaps the scene's lower left, which is what ties the copy column
-             and the visual into one composition. -->
-        <div class="hero-boarding toolpass" data-load-reveal="2">
-          <div class="toolpass__head">
-            <span class="toolpass__label">TOOL PASS</span>
-            <div class="hero-barcode" aria-hidden="true"></div>
-          </div>
-          <div class="toolpass__fields">
-            <div class="toolpass__field">
-              <span class="toolpass__field-label">FROM</span>
-              <span class="toolpass__field-value">BROWSER</span>
-            </div>
-            <div class="toolpass__field">
-              <span class="toolpass__field-label">TO</span>
-              <span class="toolpass__field-value">HD</span>
-            </div>
-          </div>
-          <!-- h2, not h3: this card sits inside the hero, so it is the first
-               level beneath the page h1. As an h3 it skipped a level. -->
-          <h2 class="toolpass__title">Ready in one click.</h2>
-          <div class="toolpass__actions">
-            <a href="https://tiktok-hd-enhancer-by-apis-fgtkuxmpzmi7h8gifh4a8o.streamlit.app/"
-               target="_blank" rel="noopener noreferrer" class="hero-pill-outline">
-              <span>Open HD Enhancer</span>
-            </a>
-            <a href="https://github.com/Genymobile/gnirehtet" target="_blank" rel="noopener noreferrer"
-               class="hero-pill-outline">
-              <span>Open Gnirehtet</span>
-            </a>
-          </div>
-        </div>
-      </div>
     </section>
 
     <!-- ======================================================================
@@ -1093,8 +1058,9 @@
 
     <!-- ======================================================================
          4.8 · CLARITY — the questions, then the closing band.
-         No mint here: the accent is already spent on the TOOL PASS card in the
-         hero, and DESIGN.md rations it at one accent card per viewport.
+         No mint here. DESIGN.md rations the accent to one signal per viewport,
+         and the hero now spends it on the eyebrow, the headline's opening
+         phrase and the small status dots — so this band stays monochrome.
          ====================================================================== -->
     <section id="clarity" class="section">
       <div class="shell">
@@ -1267,6 +1233,5 @@
   <script type="module" src="js/widgets.js"></script>
   <script type="module" src="js/section-bg.js"></script>
   <script type="module" src="js/section-mocks.js"></script>
-  <script defer src="js/hero-extras.js"></script>
 </body>
 </html>

@@ -242,8 +242,7 @@
 @media (width < 480px) {
   .btn { white-space: normal; }
   .hero-cta-row,
-  .cta-band__actions,
-  .toolpass__actions { width: 100%; }
+  .cta-band__actions { width: 100%; }
   .hero-cta-row .btn,
   .hero-cta-row .hero-play-btn { width: 100%; }
 }
@@ -403,8 +402,10 @@
 }
 .glass-panel:hover { background: var(--color-obsidian); }
 
-/* Phosphor Accent Card — the ONE accent surface per viewport. Used here for
-   the TOOL PASS card in the hero. */
+/* Phosphor Accent Card — the ONE accent surface per viewport. Kept as a
+   component: mint is rationed, but the token and the treatment outlive any one
+   card. The hero currently spends its accent on the eyebrow, the headline's
+   opening phrase and the small status dots rather than on a filled card. */
 .card--accent {
   background: var(--color-phosphor-mint);
   border: 1px solid var(--color-phosphor-mint);
@@ -603,135 +604,6 @@ textarea.field { min-height: calc(var(--tap-target) * 2); resize: vertical; }
 }
 @media (hover: hover) {
   .dropzone:hover { border-style: solid; border-color: var(--color-fog); }
-}
-
-/* =============================================================================
-   TOOL PASS CARD — the hero's single Phosphor Accent Card.
-   FROM -> TO, a barcode, and the two launch pills. Text is Void on mint.
-   ========================================================================== */
-.toolpass {
-  position: relative;
-  width: min(360px, 100%);
-  padding: var(--spacing-24);
-  border-radius: var(--radius-cards);
-  background: var(--color-phosphor-mint);
-  border: 1px solid var(--color-phosphor-mint);
-  color: var(--color-void-canvas);
-  overflow: hidden;
-  will-change: transform;
-}
-.toolpass__head {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: var(--element-gap);
-}
-.toolpass__label {
-  font-family: var(--font-mono);
-  /* 12px floor (brief §7). At 0.18em tracking the longer string would eat the
-     barcode's room, so the tracking comes down a little to pay for it. */
-  font-size: var(--text-caption);
-  line-height: 1.2;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  color: rgba(7, 7, 7, 0.72);
-}
-.toolpass__fields {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: var(--spacing-16);
-  margin-block: var(--spacing-24);
-  padding: 12px;
-  border-radius: var(--radius-nested-cards);
-  border: 1px dashed rgba(7, 7, 7, 0.32);
-  background: rgba(7, 7, 7, 0.06);
-}
-.toolpass__field { display: flex; flex-direction: column; gap: 4px; }
-.toolpass__field-label {
-  font-family: var(--font-mono);
-  /* Was 9px — the smallest text anywhere on the site, and on the MINT card
-     rather than on dark, so it had to work against the brightest surface on
-     the page. 12px is the brief's floor and it is what this takes. */
-  font-size: var(--text-caption);
-  line-height: 1.2;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  /* 0.66, not the 0.6 this started at: on the mint accent card 60% Void Canvas
-     composites to #2f5754 over #6acfc7, which is 4.35:1 — under the 4.5:1
-     floor for text this size. 0.66 clears it at 5.18:1 and still reads as a
-     recessive stamp against the accent, not as body copy. */
-  color: rgba(7, 7, 7, 0.66);
-}
-.toolpass__field-value {
-  font-family: var(--font-display);
-  font-size: 16px;
-  font-weight: var(--weight-semibold);
-  letter-spacing: var(--tracking-display-face);
-  color: var(--color-void-canvas);
-}
-/* Card-title scale, not display scale. At 24px the hero's 0.03em tracking is
-   visibly looser than the 0.01em the same role gets elsewhere, because the
-   display tracking tokens are sized for 32px and up. */
-.toolpass__title {
-  font-family: var(--font-display);
-  font-size: 24px;
-  font-weight: var(--weight-medium);
-  letter-spacing: 0.01em;
-  line-height: 1.2;
-  color: var(--color-void-canvas);
-  margin-bottom: var(--spacing-16);
-}
-.toolpass__actions { display: flex; flex-direction: column; gap: 10px; }
-
-/* On mint, a ghost pill is void-text on a void hairline — the inverse of the
-   white-outline ghost used on dark, and still not a filled button. */
-.toolpass .hero-pill-outline {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  width: 100%;
-  min-height: 44px;
-  padding: 11px 18px;
-  border-radius: var(--radius-buttons);
-  border: 1px solid var(--color-void-canvas);
-  background: transparent;
-  color: var(--color-void-canvas);
-  font-family: var(--font-body);
-  font-size: var(--text-caption);
-  font-weight: var(--weight-medium);
-  letter-spacing: 0.042em;
-  text-transform: uppercase;
-  transition: background-color var(--duration-fast) var(--ease-out-quint),
-              color var(--duration-fast) var(--ease-out-quint);
-}
-@media (hover: hover) {
-  .toolpass .hero-pill-outline:hover {
-    background: var(--color-void-canvas);
-    color: var(--color-phosphor-mint);
-  }
-}
-
-/* Barcode: repeating vertical rules, with a scan line (see animations.css). */
-.hero-barcode {
-  position: relative;
-  width: 24px;
-  height: 64px;
-  border-radius: 4px;
-  overflow: hidden;
-  background-image: repeating-linear-gradient(
-    to bottom,
-    rgba(7, 7, 7, 0.7) 0 2px,
-    transparent 2px 4px
-  );
-}
-.hero-barcode::after {
-  content: "";
-  position: absolute;
-  left: 0; right: 0;
-  height: 2px;
-  background: var(--color-void-canvas);
-  opacity: 0.7;
 }
 
 /* =============================================================================

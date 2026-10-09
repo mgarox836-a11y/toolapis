@@ -3,6 +3,32 @@
 Status: **complete**. See `RESPONSIVE-REPORT.md` for the full report and
 `responsive-audit.md` for the before-state measurements.
 
+## Latest pass — TOOL PASS card removed, hero edge fixed
+
+See "2026-10-09 · TOOL PASS removal + hero edge" at the bottom.
+
+### The liquid glass pass was CANCELLED and never landed
+
+There is **no glass pass to revert**. Verified, not assumed:
+
+| check | result |
+|---|---|
+| `HEAD` | `675b65d "WIP: before liquid glass"` — *is* the pre-glass checkpoint |
+| working tree | clean, incl. `--untracked-files=all` |
+| `git stash list` | empty |
+| 7 dangling commits (`git fsck`) | old stashes from prior passes; none contain `glass.css` |
+| `css/glass.css`, `GLASS-REPORT.md`, `tools/glass-check.mjs` | never existed |
+| `--glass-*` tokens, `.glass--*`, `?glass=` JS, `hardwareConcurrency`/`deviceMemory` | none |
+| `check:glass` script, glass in `tools/build-css.mjs` | none |
+
+The visual work was already DESIGN.md-correct. A `backup-before-glass-revert`
+branch points at `675b65d` regardless.
+
+**`.glass-panel` is not glass.** The name survives deliberately: `script.js`
+measures it as a card obstacle. It is a flat `#0d0e12` plate with a `1px #d9dae5`
+border — a DESIGN.md Dark Surface Card — and it sets `backdrop-filter: none` as an
+explicit assertion. `tools/design-check.mjs` asserts no `backdrop-filter` anywhere.
+
 ## How to run it
 
 ```bash
@@ -15,6 +41,13 @@ node tools/build-css.mjs --check                             # must pass
 `css/bundle.css` is GENERATED (see `tools/build-css.mjs`). Never edit it. If the
 build script refuses with *"older than its sources AND differs from them"*, run
 `touch css/bundle.css` first to clear stale mtimes, then rebuild.
+
+## Checks
+
+```bash
+npm run check            # build:css + check:css + check:fluid + check:hero-edge
+npm run check:hero-edge  # hero has no hard rectangular edge (needs the server up)
+```
 
 ## Files changed
 
@@ -81,5 +114,94 @@ node tools/css-syntax-check.mjs
   has not existed in the markup since the bento redesign. Stale tool.
 - `tools/design-check.mjs` "button arrow slides 4px on hover" is flaky — it reads
   the transform 450ms into a 200ms transition and demands exactly `, 4, 0)`. Fails
-  ~1 run in 3 on an idle machine with an unchanged stylesheet.
+  ~1 run in 3 on an idle machine with an unchanged stylesheet. Re-confirmed on an
+  unchanged stylesheet after the TOOL PASS pass (3 runs: pass, `3.70606`, pass).
+
+---
+
+## 2026-10-09 · TOOL PASS removal + hero edge
+
+### (A) The TOOL PASS card is gone
+
+The hero's mint Phosphor Accent Card (FROM → TO, barcode, two launch pills). It
+was **the hero's only filled accent surface**, and at 1366 it was also the thing
+that read as "a blue block with a hard right edge" — a solid panel with a ~174/255
+luminance step across 345px. A card has edges; the report mistook it for a glow.
+
+Removed, with no dead code left behind:
+
+| file | change |
+|---|---|
+| `index.html` | `.hero-boarding.toolpass` markup; `<script defer src="js/hero-extras.js">` |
+| `js/hero-extras.js` | **deleted** — 70 lines whose only effect was this card's parallax |
+| `css/toolpass.css` | **deleted**; unregistered from `tools/build-css.mjs` SOURCES |
+| `css/components.css` | `.toolpass*`, `.hero-barcode*`, the `.toolpass .hero-pill-outline` pills |
+| `css/animations.css` | barcode scan + the `tl-scan` / `tl-flip` keyframes, now orphaned |
+| `css/hero.css` | the 340/380px grid track, reduced-motion selectors |
+| `css/base.css` | comment only |
+
+**Preserved:** "Get started", "See how in 30s", the navbar HD Enhancer CTA (6 HD
+Enhancer links, 3 gnirehtet links, 0 broken in-page anchors).
+
+**Hero rebalanced** — the card was the only thing in the second grid track, so
+`grid-template-columns: minmax(0, 1fr) 340px` → one column. The copy column grows
+to the full shell and the scene supplies the right half. Headline height is
+unchanged at 290px (no re-wrap). The three chips were all sitting in the scene's
+**left third dodging the card**; they now surround the light instead.
+
+### (B) The hero had a second, real hard edge
+
+Not the card. At **1920 and 2560** the glow genuinely terminated on a straight
+vertical line:
+
+- `css/hero3d.css` `.hero-scene__ground` masked its left, top and bottom edges
+  but held `#000` to `100%` on the right, on the reasoning that the scene box
+  bleeds off-screen so "the right edge never needs one". True at 1366 (box right
+  1427) and 1440 (1464); **false** at 1920 (1793) and 2560 (2272), where the box
+  edge lands inside the viewport.
+- `.hero-scene`'s bleed was a fixed `-12%` of a box capped at 760px, so it stopped
+  clearing the screen once the shell passed its maximum.
+
+**The clip was not the cause.** Forcing `overflow: visible` at runtime left the
+edge exactly where it was: a gradient with no ramp on one side has that side
+whatever box contains it.
+
+Two fixes:
+1. the right ramp, and the **left** ramp lengthened to `28%` (measured: the old
+   `transparent 0%` still stepped 42/255 over 111px where the box edge resolved);
+2. the bleed now tracks the shell's own margin —
+   `inset: 0 calc(-1 * ((100vw - 100%) / 2 + 8%)) 0 auto` — so the box clears the
+   viewport at every width. `100vw` over-bleeds by the scrollbar, which is the
+   safe direction.
+
+### New tool — `tools/hero-edge-check.mjs` (`npm run check:hero-edge`)
+
+Screenshots the hero at 1366/1440/1920/2560 × zoom 80/100/125%, hides everything
+that is not painted light, and fails on a luminance step >6/255 holding for >80px.
+
+**It is validated against the defect, not just against the fix** — run against
+the pre-fix CSS (`git checkout 675b65d -- css/hero3d.css`) it fails exactly where
+it should:
+
+```
+FAIL  1920 · 100%   vertical@1792 run=526px peak=20
+FAIL  2560 · 100%   vertical@2271 run=842px peak=28
+FAIL  1920 · 80%    vertical@1792 run=526px peak=20
+FAIL  1920 · 125%   vertical@1792 run=526px peak=21
+```
+
+and passes on all ten once fixed. Getting there took four wrong designs, each of
+which passed the broken stylesheet and so had to be discarded — bounding-box
+pixel masks (a 1px hairline dropped by a size floor; `.hub-ground` below the fold
+vetoing every column; the toast silencing a 717px run 300px away; a
+no-background `<section>` masking the whole hero). Two rules that earned their
+place: a **sustained** step is required, not a single-pixel one (the ribbon's
+track rendered luma 16 between two columns of 8.1 — a 1px line, not a boundary);
+and **lines are not fills** (`.hero-horizon`, the floor grid and the ribbon are
+drawn as straight lines on purpose, so grading them grades the design).
+
+### Checks after this pass
+
+`npm run check` — build:css up to date · 565 rules parse · **177/177** fluid ·
+**10/10** hero-edge. Console errors **0** at 1440/1024/768/390.
 - `tools/hero-check.mjs` hangs (>120s). Not run.
