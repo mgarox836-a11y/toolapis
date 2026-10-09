@@ -1,34 +1,37 @@
 /* =============================================================================
  * MOTION POLICY — one decision, one place.
  * -----------------------------------------------------------------------------
- * Every animated system on this site (CSS, the intro controller, the scroll
- * reveal, the 3D scene) asks the same question through this module instead of
- * asking the OS. Nothing else in the project is allowed to query
- * `prefers-reduced-motion` directly.
+ * Every animated system on this site (CSS, the load choreography, the scroll
+ * reveal, the section backgrounds, the hero scene) asks the same question
+ * through this module. Nothing else in the project is allowed to answer it for
+ * itself, and nothing is allowed to ask the OS.
  *
- * Why: an OS-level "reduce motion" is a global accessibility preference, not a
- * statement about this page. Honouring it here meant a visitor whose laptop was
- * configured once, years ago, saw a dead-looking site with no way to get the
- * animation back — the toggle did not exist and no query parameter helped. So
- * motion is ON for everyone, and turning it off is an explicit, visible,
- * reversible choice the visitor makes here.
+ * THE OS IS NOT ASKED. There is no `prefers-reduced-motion` query anywhere in
+ * this file, and there is no `@media (prefers-reduced-motion: reduce)` block in
+ * any stylesheet. That is the whole point of this module now.
+ *
+ * Why: an OS-level "reduce motion" is a global preference for the desktop, not
+ * a statement about this page. Honouring it here meant a visitor whose laptop
+ * was configured once, years ago, saw a dead-looking site — every loop
+ * collapsed to one 1ms iteration by a single `html:not(.motion-on) *` rule —
+ * and there was no way to get the animation back, because the control that
+ * could restore it did not exist yet. So motion is ON for everyone, and turning
+ * it off is an explicit, visible, reversible choice the visitor makes HERE.
  *
  * Precedence, highest first:
- *   1. localStorage[storageKey] === 'off'  -> motion OFF   (the footer's switch)
- *   2. localStorage[storageKey] === 'on'   -> motion ON    (explicit override)
- *   3. ?motion=off                          -> motion OFF   (shareable link)
- *   4. ?motion=on                           -> motion ON
- *   5. TUNING.motion.respectReducedMotion === true AND OS says reduce -> OFF
- *   6. otherwise                            -> motion ON
+ *   1. stored preference (localStorage, then sessionStorage) === 'off' -> OFF
+ *   2. stored preference === 'on'                                  -> ON
+ *   3. ?motion=off                                                 -> OFF
+ *   4. ?motion=on                                                  -> ON
+ *   5. otherwise                                                   -> ON
  *
- * Step 5 is the only branch that touches the OS, and it is skipped entirely when
- * respectReducedMotion is false — `matchMedia` is not even constructed. Set
- * TUNING.motion.respectReducedMotion = true to restore OS-following.
+ * There is no sixth branch. `matchMedia` is not constructed, so the media query
+ * is not observable and cannot be changed under us mid-session.
  *
  * No dependencies, no top-level side effects, every DOM/storage touch is
- * try/caught: this module is imported by the intro controller, the reveal
- * observer and the hero ambient motion, and a throw in here would take all
- * three down.
+ * try/caught: this module is imported by the reveal observer, the hero ambient
+ * motion, the widgets, the section backgrounds and the mocks, and a throw in
+ * here would take all five down.
  * ========================================================================== */
 
 import { TUNING } from './config.js';
@@ -39,8 +42,6 @@ const POLICY = TUNING.motion || {};
  *  by setMotionAllowed() so the vanilla page transitions, its cursor follower
  *  and its Motion-One entrance all agree with the modules. */
 const LEGACY_KEY = 'toolapis-motion';
-
-const OS_QUERY = '(prefers-reduced-motion: reduce)';
 
 /** Cache of the last answer, so a repeated motionAllowed() call is cheap and,
  *  more importantly, so every subsystem in one tick sees the same value. */
@@ -53,13 +54,36 @@ const listeners = new Set();
  * The three inputs. Each one is allowed to fail.
  * ------------------------------------------------------------------------ */
 
-/** @returns {'on'|'off'|null} the stored preference, or null when unset. */
-function storedPreference() {
-  try {
-    const raw = window.localStorage.getItem(POLICY.storageKey || 'toolapis-reduce-motion');
-    if (raw === 'off' || raw === 'on') return raw;
-  } catch (e) { /* private mode, disabled storage, quota — not an error here */ }
+/** Reads one key out of storage, trying localStorage then sessionStorage.
+ *
+ *  localStorage throws outright in some privacy modes and when a page is opened
+ *  from a file:// origin; sessionStorage throws in a narrower set. A third
+ *  storage read is not attempted: if both are refused the toggle still works,
+ *  it just does not remember, which is the correct failure — a visitor is never
+ *  left with a control that does nothing.
+ *
+ *  @param {string} key
+ *  @returns {'on'|'off'|null} the stored preference, or null when unset/unreadable.
+ */
+function readStored(key) {
+  for (const store of ['localStorage', 'sessionStorage']) {
+    try {
+      const raw = window[store].getItem(key);
+      if (raw === 'off' || raw === 'on') return raw;
+    } catch (e) { /* try the next one */ }
+  }
   return null;
+}
+
+/** Writes one key to whichever storage the browser will accept, plus the legacy
+ *  key script.js reads. Both are best-effort and neither throws.
+ *  @param {string} key
+ *  @param {'on'|'off'} value
+ */
+function writeStored(key, value) {
+  for (const store of ['localStorage', 'sessionStorage']) {
+    try { window[store].setItem(key, value); } catch (e) { /* try the next one */ }
+  }
 }
 
 /** @returns {'on'|'off'|null} the ?motion= parameter, or null when absent. */
@@ -71,33 +95,19 @@ function queryPreference() {
   return null;
 }
 
-/** The only OS read in the entire project. Guarded twice: by the caller's
- *  respectReducedMotion check, and by `matchMedia` existing at all. */
-function osPrefersReduced() {
-  try {
-    if (typeof window.matchMedia !== 'function') return false;
-    return window.matchMedia(OS_QUERY).matches === true;
-  } catch (e) {
-    return false;
-  }
-}
-
 /* ---------------------------------------------------------------------------
  * The decision
  * ------------------------------------------------------------------------ */
 
 function decide() {
-  const explicit = storedPreference();
+  const explicit = readStored(POLICY.storageKey || 'toolapis-reduce-motion');
   if (explicit) return explicit === 'on';
 
   const param = queryPreference();
   if (param) return param === 'on';
 
-  /* respectReducedMotion === false must not read the OS at all: some privacy
-   * configurations make matchMedia queries observable, and the whole point of
-   * the flag is that the OS is not a participant in this decision. */
-  if (POLICY.respectReducedMotion === true && osPrefersReduced()) return false;
-
+  /* Motion on by default. Not a fallback — the answer, for every visitor whose
+     OS asked for less motion and who did not press the button. */
   return true;
 }
 
@@ -113,10 +123,10 @@ export function motionAllowed() {
 /**
  * Persist a choice and notify subscribers.
  *
- * Writes BOTH the new key and the legacy `toolapis-motion` key. script.js is
- * read-only for this task and reads the legacy one at parse time to decide its
- * own `html.reduced-motion` class, so writing both keys is what keeps the
- * vanilla half of the page in agreement with the modules — without editing it.
+ * Writes BOTH the new key and the legacy `toolapis-motion` key, to both
+ * storages. script.js reads the legacy one at parse time to decide its own
+ * `html.reduced-motion` class, so writing both keys is what keeps the vanilla
+ * half of the page in agreement with the modules — without editing it.
  *
  * @param {boolean} allowed
  * @returns {boolean} the value that is now in effect.
@@ -125,8 +135,8 @@ export function setMotionAllowed(allowed) {
   const next = allowed ? 'on' : 'off';
   cached = allowed;
 
-  try { window.localStorage.setItem(POLICY.storageKey || 'toolapis-reduce-motion', next); } catch (e) {}
-  try { window.localStorage.setItem(LEGACY_KEY, next); } catch (e) {}
+  writeStored(POLICY.storageKey || 'toolapis-reduce-motion', next);
+  writeStored(LEGACY_KEY, next);
 
   /* Keeps the pre-module half of the page (script.js's reveal fallback and
    * page transition) consistent within this tick, before any module runs. */
@@ -153,10 +163,17 @@ export function onMotionChange(cb) {
 /* ---------------------------------------------------------------------------
  * The html class, which is what CSS actually keys off.
  *
- * `.motion-on` is the positive form and is what lets a stylesheet scope a
- * motion kill to `html.motion-reduced` alone — including the overrides for
- * Tailwind's `motion-reduce:` utilities, which are keyed off the OS media
- * query and would otherwise switch the site off behind our back.
+ * `.motion-on` is the positive form and is what every stylesheet scopes against.
+ * `.motion-reduced` can now ONLY be set by the visitor pressing the button (or
+ * `?motion=off`, or a stored preference) — there is no OS path to it any more,
+ * so a stylesheet keyed on that class is keyed on a human decision.
+ *
+ * `data-motion` is the machine-readable twin, and its values are the plain words
+ * `on` and `off` rather than `on`/`reduced`. Two reasons: `off` is what the
+ * control's `aria-pressed` says, so the attribute and the accessibility tree
+ * cannot disagree; and no stylesheet keys on it (they key on the class), so
+ * nothing can be broken by the rename. tools/check-motion.mjs asserts both
+ * values literally.
  * ------------------------------------------------------------------------ */
 
 export const CLASS_ON = 'motion-on';
@@ -179,17 +196,17 @@ export function applyHtmlClass(allowed) {
     el.classList.toggle(CLASS_ON, !!allowed);
     el.classList.toggle(CLASS_REDUCED, !allowed);
     el.classList.toggle(LEGACY_CLASS, !allowed);
-    el.setAttribute('data-motion', allowed ? 'on' : 'reduced');
+    el.setAttribute('data-motion', allowed ? 'on' : 'off');
   } catch (e) { /* a document without an element root cannot happen in practice */ }
 }
 
 /**
  * Re-read the inputs and, if the answer changed, notify subscribers.
  *
- * Called on `pageshow` and on the OS media query's change event when
- * respectReducedMotion is true — otherwise an OS-level change would have to be
- * picked up on the next navigation, which is not good enough for a preference
- * this visible.
+ * Called on `pageshow` and whenever the stored preference could have changed
+ * underneath us (another tab, or a bfcache restore). There is no media-query
+ * listener any more: with the OS out of the decision there is nothing that can
+ * change it mid-session except this visitor.
  *
  * @returns {boolean} the value now in effect.
  */
@@ -210,39 +227,20 @@ export function refreshMotion() {
 }
 
 /**
- * Watch for an OS-level change. A no-op unless respectReducedMotion is true,
- * so the media query object is never even created under the default policy.
- * @returns {() => void} teardown
- */
-export function watchOsPreference() {
-  if (POLICY.respectReducedMotion !== true) return () => {};
-  if (typeof window.matchMedia !== 'function') return () => {};
-  let mq;
-  try { mq = window.matchMedia(OS_QUERY); } catch (e) { return () => {}; }
-
-  const onChange = () => { refreshMotion(); };
-  try {
-    if (typeof mq.addEventListener === 'function') mq.addEventListener('change', onChange);
-    else if (typeof mq.addListener === 'function') mq.addListener(onChange);
-  } catch (e) {}
-
-  return () => {
-    try {
-      if (typeof mq.removeEventListener === 'function') mq.removeEventListener('change', onChange);
-      else if (typeof mq.removeListener === 'function') mq.removeListener(onChange);
-    } catch (e) {}
-  };
-}
-
-/**
- * The footer button's label + pressed state, kept next to the policy so the
- * toggle can never show the wrong thing for the current value.
+ * The control's label + pressed state, kept next to the policy so the toggle
+ * can never show the wrong thing for the current value.
+ *
+ * The label is always the ACTION ("Reduce motion" / "Enable motion") because it
+ * is also the button's accessible name, and a name that describes the current
+ * state rather than the effect is announced as a control whose purpose changes
+ * under the user.
+ *
  * @param {boolean} allowed
  */
 export function motionToggleCopy(allowed) {
   return allowed
-    ? { label: 'Reduce motion', pressed: false, hint: 'Animation is on' }
-    : { label: 'Enable motion', pressed: true, hint: 'Animation is off' };
+    ? { label: 'Reduce motion', pressed: false, hint: 'Animation is on. Turn off if motion bothers you.' }
+    : { label: 'Enable motion', pressed: true, hint: 'Animation is off. Turn it back on any time.' };
 }
 
 /**
@@ -251,13 +249,19 @@ export function motionToggleCopy(allowed) {
  * `motion-reduce:animate-none` and friends compile to a prefers-reduced-motion
  * media query. A stylesheet cannot cancel those generically — the query sets a
  * declaration whose value we cannot know — so the class is removed instead,
- * which stops the query from ever matching. `motion-safe:` goes too: its rules
- * only apply when the OS has NOT asked for reduced motion, which under this
- * policy is irrelevant to whether *we* animate.
+ * which stops the query from ever matching. `motion-safe:` goes too, because its
+ * rules only apply when the OS has NOT asked for reduced motion, and under this
+ * policy the OS's answer is not one of the inputs.
  *
- * Runs on every switch to motion-on and once on DOMContentLoaded. Class names
- * are kept (not merely blanked) on `el.dataset.motionRemoved` so nothing is
- * silently destroyed, and re-running is a no-op.
+ * The Tailwind CDN itself was removed from this page in the DESIGN.md rebuild
+ * (`tools/design-check.mjs` asserts its absence), so on today's markup this
+ * sweep finds nothing. It is kept as a cheap safety net rather than deleted,
+ * because its cost is bounded — it only fires on a switch to motion-on and on
+ * DOMContentLoaded — and because a future page that reintroduces Tailwind would
+ * otherwise silently hand the OS a vote it no longer has.
+ *
+ * Class names are kept (not merely blanked) on `el.dataset.motionRemoved` so
+ * nothing is silently destroyed, and re-running is a no-op.
  *
  * @param {boolean} allowed
  */
@@ -298,7 +302,6 @@ export function stripOsMotionClasses(allowed) {
 export function initMotionPolicy() {
   applyHtmlClass(motionAllowed());
   stripOsMotionClasses(motionAllowed());
-  watchOsPreference();
 
   try {
     if (document.readyState === 'loading') {

@@ -1,10 +1,10 @@
 /* =============================================================================
    script.js — TOOLAPIS · page behaviour
    -----------------------------------------------------------------------------
-   Everything that is not motion policy, not the intro, not the scroll reveal and
-   not the 3D layer lives here: the page-transition plate, cursor spotlight,
-   scroll progress, scrollspy, the mobile menu, the copy-to-clipboard helper and
-   the toast.
+   Everything that is not motion policy, not the scroll reveal and not the 3D
+   layer lives here: the page-transition plate, animated anchor scrolling,
+   scroll progress, scrollspy, the mobile menu, the copy-to-clipboard helper
+   and the toast.
 
    WHAT CHANGED IN THE REDESIGN
    -----------------------------------------------------------------------------
@@ -32,13 +32,100 @@
   document.documentElement.classList.add('js');
 
   /* Motion preference. localStorage "toolapis-motion":
-     "off" -> static, unset/"on" -> animate. The modules in js/ own the real
-     policy (they also consult prefers-reduced-motion); this read only keeps the
-     vanilla half of the page in agreement. */
+     "off" -> static, unset/"on" -> animate. This is the visitor's OWN choice,
+     recorded by the "Reduce motion" button; nothing here reads the OS
+     "reduce motion" setting, because this site does not honour it (see the
+     note at the top of index.html and the reasoning in css/animations.css).
+     The modules in js/ own the real policy; this read only keeps the vanilla
+     half of the page in agreement, since script.js is a classic script that
+     runs before any module can land. */
   const motionPref = (() => { try { return localStorage.getItem('toolapis-motion') || ''; } catch (err) { return ''; } })();
   const reduceMotion = motionPref === 'off';
   document.documentElement.classList.toggle('reduced-motion', reduceMotion);
   const finePointer = window.matchMedia && window.matchMedia('(pointer: fine)').matches;
+
+  /* ---------------------------------------------------------------------
+     Animated scrolling, in JavaScript.
+
+     `scroll-behavior: smooth` in the stylesheet is the primary mechanism and
+     stays. It is not the ONLY one, because it is a single declaration that can
+     be overridden by anything: a browser that does not implement it, an
+     extension or an embedder that sets `auto` globally, or the page being
+     embedded where the UA ignores it. In each of those cases every anchor on
+     the site became a teleport while motion stayed on everywhere else — the
+     animation the visitor asked for, silently gone.
+
+     So anchor scrolls and the back-to-top button drive the scroll position
+     themselves, on a requestAnimationFrame loop with the same easeOutQuint the
+     rest of the site uses. rAF is not gated by any user setting, so this path
+     animates wherever `scroll-behavior` would have been dropped.
+
+     `window.scrollTo(0, y)` — the two-argument form — is used deliberately:
+     the options form's `behavior: 'smooth'` would hand control back to the
+     same UA code path this exists to avoid, and `scroll-behavior: smooth` in
+     the stylesheet does not apply to a programmatic `scrollTo` with an explicit
+     position, so there is nothing to fight. */
+  const easeOutQuint = (t) => 1 - Math.pow(1 - t, 5);
+  const SCROLL_MS = 620;
+  let scrollRaf = null;
+
+  /* Read LIVE, not from the `reduceMotion` const captured at parse time. That
+     const is correct for the boot-time decisions it drives, but a visitor who
+     presses "Reduce motion" a second into the page must get a plain jump on
+     their very next click, and this file has no way to be told — the class on
+     <html> is the contract js/motion.js and the inline bootstrap both write. */
+  const motionOff = () => document.documentElement.classList.contains('motion-reduced');
+
+  function cancelScroll() {
+    if (scrollRaf !== null) { cancelAnimationFrame(scrollRaf); scrollRaf = null; }
+  }
+
+  /* @param {number} to absolute document offset to land on */
+  function scrollToY(to) {
+    cancelScroll();
+
+    const start = window.scrollY || window.pageYOffset || 0;
+    const end = Math.max(0, Math.min(to, document.documentElement.scrollHeight - window.innerHeight));
+    const delta = end - start;
+
+    /* Motion off is a plain jump, and so is a zero-distance case. `instant`
+       rather than `auto` because `auto` defers to the stylesheet's
+       `scroll-behavior` — saying it explicitly means this branch cannot be
+       slowed down by a later cascade change. */
+    if (motionOff() || Math.abs(delta) < 2) {
+      window.scrollTo({ top: end, behavior: 'instant' });
+      return;
+    }
+
+    /* Duration scales with distance but is capped, so a jump from the footer
+       to the top reads as the same gesture as a jump to the next section
+       rather than as a slow drift across the whole document. */
+    const duration = Math.min(SCROLL_MS, 220 + Math.abs(delta) * 0.28);
+    const t0 = performance.now();
+
+    const frame = (now) => {
+      const t = Math.min(1, (now - t0) / duration);
+      window.scrollTo(0, Math.round(start + delta * easeOutQuint(t)));
+      scrollRaf = t < 1 ? requestAnimationFrame(frame) : null;
+    };
+    scrollRaf = requestAnimationFrame(frame);
+  }
+
+  /* Target offset for an in-page anchor, with the sticky navbar accounted for.
+     Without the offset the section heading lands underneath the bar, which is
+     the single most common way a smooth-scroll implementation goes wrong. */
+  function anchorTop(el) {
+    const bar = document.getElementById('navbar');
+    const offset = bar ? bar.getBoundingClientRect().height + 8 : 0;
+    return el.getBoundingClientRect().top + (window.scrollY || window.pageYOffset || 0) - offset;
+  }
+
+  /* Any pointer or key event hands control back to the visitor immediately.
+     An animation that keeps running after the wheel starts is the thing that
+     makes scroll-linked effects feel like a fight. */
+  ['wheel', 'touchstart', 'keydown', 'pointerdown'].forEach((evt) => {
+    window.addEventListener(evt, cancelScroll, { passive: true });
+  });
 
   /* ---------------------------------------------------------------------
      Pause every CSS loop while the tab is in the background.
@@ -202,7 +289,7 @@
   const backToTop = document.getElementById('back-to-top');
   if (backToTop) {
     backToTop.addEventListener('click', () => {
-      window.scrollTo({ top: 0, behavior: reduceMotion ? 'auto' : 'smooth' });
+      scrollToY(0);
     });
   }
   if (sentinel && navbar && 'IntersectionObserver' in window) {
@@ -254,6 +341,62 @@
     }, { rootMargin: '-40% 0px -55% 0px' });
     sections.forEach(sec => spy.observe(sec));
   }
+
+  /* ---------------------------------------------------------------------
+     In-page anchors, animated by hand.
+
+     Delegated on the document rather than bound per link, because the same
+     `#overview` appears in the navbar, the mobile menu and the footer and the
+     three must behave identically. One listener covers all of them, and any
+     anchor added later is covered for free.
+
+     The default is only cancelled once a real target has been found: a dead
+     `#anchor` must keep falling through to the browser so the URL still
+     updates and the visitor still gets the "nothing here" signal, rather than
+     being silently swallowed by a handler that had nothing to do.
+
+     `#` with no id is left alone for the same reason — it is a legal no-op,
+     and preventDefault on it would eat a click for no reason.
+     --------------------------------------------------------------------- */
+  document.addEventListener('click', (e) => {
+    if (e.defaultPrevented) return;
+    if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+
+    const link = e.target.closest && e.target.closest('a[href]');
+    if (!link) return;
+
+    const href = link.getAttribute('href');
+    if (!href || href.charAt(0) !== '#' || href === '#') return;
+
+    /* Modifier-clicking an anchor to open it in a new tab is a normal thing to
+       do and must keep working, so this runs after the modifier check above. */
+    let target;
+    try { target = document.getElementById(decodeURIComponent(href.slice(1))); }
+    catch (err) { target = null; }
+    if (!target) return;
+
+    e.preventDefault();
+
+    /* Move focus with the scroll. Scrolling alone leaves keyboard and screen
+       reader users at the top of the document while the viewport has jumped to
+       #overview, which is the documented failure of "animated" anchors. Only
+       when the target is not already focusable, so the tab order is not
+       rewritten. */
+    if (!target.hasAttribute('tabindex') && typeof target.focus === 'function') {
+      target.setAttribute('tabindex', '-1');
+      target.focus({ preventScroll: true });
+    }
+
+    /* History is updated by hand because the default was cancelled. `replace`
+       rather than `push` would keep the back button honest, but the native
+       behaviour is push and changing it is a routing decision nobody asked
+       for — so this is push, matching what the browser would have done. */
+    if (window.history && typeof window.history.pushState === 'function') {
+      try { window.history.pushState(null, '', href); } catch (err) { /* file:// */ }
+    }
+
+    scrollToY(anchorTop(target));
+  });
 
   /* ---------------------------------------------------------------------
      Mobile navigation.

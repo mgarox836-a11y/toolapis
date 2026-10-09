@@ -26,9 +26,14 @@
    1. PAUSE OFF-SCREEN AND ON A HIDDEN TAB. Same IntersectionObserver the
       backgrounds use, and the same `.is-active` class on the section — so
       nothing here needs its own observer at all. The timers below simply stop.
-   2. REDUCED MOTION IS A FINISHED STATE. The terminal shows both commands and
+   2. MOTION OFF IS A FINISHED STATE. The terminal shows both commands and
       "connected"; the tiles are all visible with no cursor. Never a half-typed
       line, never an empty mock.
+
+      "Motion off" means the visitor pressed "Reduce motion". The OS
+      "reduce motion" setting is not consulted anywhere on this site — that
+      decision is written out in css/animations.css — so nothing here can
+      branch on it, and no mock can switch itself off without being asked.
 
    FAILURE: every block is guarded and boot is in one try/catch. A failure here
    costs a mock's choreography and nothing else — the mock still renders, because
@@ -52,6 +57,9 @@ let motion = motionAllowed();
    without stacking duplicates and without a reload. */
 const timers = new Set();
 const cleanups = [];
+/* One place to register a teardown, so a caller never has to remember whether
+   this module exports a helper or wants a push. Mirrors js/widgets.js. */
+function onCleanup(fn) { cleanups.push(fn); }
 
 function after(ms, fn) {
   const id = setTimeout(() => { timers.delete(id); fn(); }, ms);
@@ -75,6 +83,19 @@ function clearTimers() {
 function inView(el) {
   const section = el.closest('.section');
   return !!section && section.classList.contains('is-active') && motion;
+}
+
+/* Every mock that should be running, registered at construction. Separate from
+   `cleanups` because the two run in opposite directions: cleanups tear down,
+   this puts back. */
+const resumables = [];
+function resume() {
+  /* One frame's grace: js/section-bg.js's resync writes `.is-active` in the
+     same tick the policy changed, and the module load order is not something
+     to rely on. A microtask is enough for a class write and costs nothing. */
+  Promise.resolve().then(() => {
+    for (const fn of resumables) { try { fn(); } catch (e) { /* one mock is not the page */ } }
+  });
 }
 
 /* ==========================================================================
@@ -133,16 +154,27 @@ document.querySelectorAll('[data-mock-tiles]').forEach((grid) => {
 
   if (motion) start(); else settle();
   cleanups.push(settle);
+  resumables.push(start);
 
   /* Start when the section arrives, stop when it leaves. The CSS already pauses
-     the tile animation; this stops the timers. */
+     the tile animation; this stops the timers.
+
+     This observer is also how the mock restarts after the visitor turns motion
+     back off and on again while PARKED on this section: `unwind()` cleared the
+     timers, and an IntersectionObserver does not fire when nothing about the
+     element has changed. Re-starting here on a change event alone would leave
+     the tiles frozen until the next scroll, so the observer is re-armed from
+     the teardown handler as well. */
   if ('IntersectionObserver' in window) {
-    new IntersectionObserver((entries) => {
+    const io = new IntersectionObserver((entries) => {
       for (const en of entries) {
         if (en.isIntersecting) start();
         else clearTimers();
       }
-    }, { threshold: 0, rootMargin: '80px 0px' }).observe(grid);
+    }, { threshold: 0, rootMargin: '80px 0px' });
+    io.observe(grid);
+    /* Not `pagehide` only: this has to fire when motion comes BACK on. */
+    onCleanup(() => { try { io.disconnect(); } catch (e) { /* noop */ } });
   }
 });
 
@@ -221,6 +253,7 @@ document.querySelectorAll('[data-mtype-term]').forEach((term) => {
 
   if (motion) start(); else finish();
   cleanups.push(finish);
+  resumables.push(start);
 
   if ('IntersectionObserver' in window) {
     new IntersectionObserver((entries) => {
@@ -238,8 +271,16 @@ document.querySelectorAll('[data-mtype-term]').forEach((term) => {
 onMotionChange((allowed) => {
   motion = allowed;
   if (allowed) {
-    /* Nothing to restart here: each block re-arms itself from its own observer
-       on the next intersection change, and the observers are still attached. */
+    /* Each mock's `settle()` is its finished state, so re-arming means putting
+       that state back to "running" for whatever is actually on screen. The
+       blocks registered a `start` through their IntersectionObserver, and
+       `inView()` gates it on `.is-active` plus the policy — which is why
+       js/section-bg.js's `resync()` has to run first, or nothing is visible to
+       this module either.
+
+       Without this, a visitor who toggled motion off and back on while parked
+       mid-page saw static mocks until they scrolled. */
+    resume();
     return;
   }
   clearTimers();

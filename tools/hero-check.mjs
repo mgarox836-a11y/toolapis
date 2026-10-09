@@ -141,12 +141,16 @@ for (const width of ONLY) {
   /* domcontentloaded, not load: the page pulls a Tailwind CDN stylesheet, Google
      Fonts and Phosphor from the network, and `load` can outstay the measurement
      window on a cold cache. Everything this script asserts is a computed style
-     or a box, both of which the CSSOM has long since settled by the time the
-     intro is done. */
+     or a box, both of which the CSSOM has long since settled by the time
+     `readyState === 'complete`. */
   await page.goto(BASE, { waitUntil: 'domcontentloaded', timeout: 60000 });
-  /* The intro owns the first ~4s and pins the scroll at 0 while it runs, so
-     anything measured before it finishes is a measurement of the curtain. */
-  await page.waitForFunction(() => document.documentElement.classList.contains('intro-done'), null, { timeout: 20000 }).catch(() => {});
+  /* This used to wait for `html.intro-done`, the marker the 5s intro overlay
+     left behind. That overlay and its controller were removed in the DESIGN.md
+     rebuild, so the class could never appear and the wait always burned its
+     full 20s timeout before being swallowed by the `.catch()`. The load
+     choreography is now pure CSS with no marker and no scroll lock, so there
+     is nothing to wait for: `readyState === 'complete` below is the first real
+     gate. */
   /* ...and then there is the failsafe's own late sweep: index.html re-asserts
      scroll 0 at 0/100/300/800/1500ms after the LOAD event, to cancel a browser
      restore. This page's load lands tens of seconds late on a cold CDN cache,

@@ -205,3 +205,158 @@ drawn as straight lines on purpose, so grading them grades the design).
 `npm run check` — build:css up to date · 565 rules parse · **177/177** fluid ·
 **10/10** hero-edge. Console errors **0** at 1440/1024/768/390.
 - `tools/hero-check.mjs` hangs (>120s). Not run.
+---
+
+## Motion policy — animations are now FORCED ON for every visitor (owner decision)
+
+**The decision, in one line:** this site does not honour the operating system's
+"reduce motion" setting. Every visitor gets every animation. The only way to turn
+motion off is the **"Reduce motion" button** — in the footer and in the mobile
+menu.
+
+This replaces the previous rule, which was the opposite and which the owner has
+now overridden.
+
+### Why it changed
+
+The old behaviour was one line of CSS:
+
+```css
+@media (prefers-reduced-motion: reduce) {
+  html:not(.motion-on) * { animation-duration: 1ms !important;
+                          animation-iteration-count: 1 !important; ... }
+}
+```
+
+A visitor whose laptop was configured once, years ago, landed on a dead page —
+every loop collapsed to a single 1ms iteration, the marquee stood still, the
+ribbon stopped, the typewriter finished instantly — and there was **no control
+anywhere to undo it**. An OS-level preference is a statement about the whole
+desktop, not about this page, and it is not a licence to remove the design.
+
+### What was removed, and where
+
+| File | Removed |
+|---|---|
+| `css/animations.css` | the `@media (prefers-reduced-motion: reduce)` block |
+| `css/hero.css` | the same block, for `.hero-glow` / `.hero-grid-lines` |
+| `css/section-bg.css` | the same block, for the whole `.section-bg` subtree |
+| `index.html` | `matchMedia('(prefers-reduced-motion: reduce)')` in the inline `<head>` bootstrap |
+| `js/config.js` | `respectReducedMotion` is now `false` and must stay false |
+| `js/motion.js` | `OS_QUERY`, `osPrefersReduced()`, `watchOsPreference()`, and the step-5 branch in `decide()`. Precedence is now storage → `?motion=` → `true`. |
+| `js/motion-fx.js` | `REDUCED_QUERY` and the `matchMedia` branch in `still()` — it was consulting the OS outside the policy module, a second source of truth |
+
+The ~42 `html.motion-reduced { … }` rules were **kept**. They can now only be
+reached by the visitor pressing the button, and they are the finished state the
+toggle lands on.
+
+### The escape hatch
+
+`html[data-motion]` is `on` or `off` (the two words the button's `aria-pressed`
+uses, so the attribute and the accessibility tree cannot disagree). Off means:
+loops stopped, parallax stopped, transitions reduced to a 150ms fade, and
+everything that would otherwise be mid-animation snapped to its finished value.
+
+Two copies of the control, both found by `.motion-toggle`, both kept in sync by
+`js/motion-toggle.js`:
+
+- `index.html` — footer's "Preferences" column, plus the visible explainer
+  *"Animations on. Turn off if motion bothers you."*
+- `index.html` — the mobile menu, as the first control under the two CTAs
+
+Both are real `<button>`s, `aria-pressed`, 44px min-height, keyboard- and
+touch-operable, no reload. The choice is stored in `localStorage`, falling back
+to `sessionStorage`, falling back to not remembering — a control that throws on
+read is worse than one that forgets.
+
+### Safety, now that motion runs for everyone
+
+| Rule | How it is met |
+|---|---|
+| WCAG 2.3.1, no flash >3Hz | measured, not asserted: `tools/check-motion.mjs` reads every infinite animation's own duration from the timeline **and** samples opacity for 3s. Worst observed: `.pt-dot` at 0.83Hz, `.terminal__caret` 0.91Hz. |
+| No large-area fast motion | parallax capped at 12px (`js/hero3d.js` `MAX_SHIFT`), reveal travel 24px/16px, nothing full-screen scales or rotates. |
+| Decorative loop duration | `sig-link`, `mock-pulse-dot`, `node-pulse`, `tl-pulse` (status dots) and `hub-breathe` lengthened to 6s. `caret-blink` / `sig-caret` left at ~1s — they are terminal cursors, and 0.9Hz is the convention. |
+| WCAG 2.2.2, pause mechanism | the "Reduce motion" button. `?motion=off` and a stored preference are the other two paths in. |
+
+`.pt-dot` went from 900ms to 1200ms: it was the fastest purely decorative cycle
+on the page (1.11Hz) and bought nothing a slower breath does not.
+
+### Perf note — the ribbon
+
+`css/hero3d.css` carried this comment:
+
+> `stroke-dashoffset` … is compositor-friendly and never triggers layout
+
+**That was wrong.** `stroke-dashoffset` is a paint property; it re-rasterises the
+stroked path every frame. What made it expensive was `filter: drop-shadow()` on
+the same two paths — a filter over an element that repaints every frame, over the
+whole 760×520 scene. Measured at 4x CPU throttle, scroll went **15fps → 30fps**
+when those two filter declarations were deleted and nothing else changed. The
+glow is now geometry (a half-pixel wider stroke over the existing static
+tracks). `tools/check-motion.mjs` holds a cost gate at 50% of the machine's own
+4x ceiling so it cannot be re-added unnoticed.
+
+### What is deliberately still switched off, and why
+
+- **`@media (width < 768px)`** — the hero glow, grid drift, ribbon and chips stop
+  on phones. A viewport/perf decision, not a motion preference.
+- **Off-screen and hidden-tab pauses** (`html.is-tab-hidden`,
+  `#hero.is-paused`, `.section.is-active`) — battery, not preference.
+
+### Checks
+
+`npm run check:motion` (new) — 69 assertions. Desktop and mobile, each with
+`reducedMotion: 'reduce'` **and** `'no-preference'`: `motion-on` present,
+`data-motion="on"`, `getAnimations()` non-empty, marquee translating, ribbon dash
+travelling, reveal reaching opacity, section backdrop `running`, load-reveal
+animated, no overflow, no console errors, blink ceiling. Then the toggle: two
+controls, both 44px, both `aria-pressed`, `?motion=off` at `DOMContentLoaded`,
+tap, reload persistence with no first-frame flip, Enter, Space, flip back, loops
+running again.
+
+`tools/design-check.mjs` §8 is now the **inverse** of what it used to be — it
+asserts the animations are ALIVE under `prefers-reduced-motion: reduce`.
+
+### Two bugs found while proving it, both fixed
+
+**1 · The 3s reveal failsafe could destroy the reveal it was protecting.**
+`index.html` ran a single `setTimeout` at 3000ms: if `html.js` and
+`data-reveal-live` were both not yet set, it added `html.reveal-all`, which snaps
+every `.reveal` to opacity 1 with `!important`. Both halves are deferred/module
+scripts on a page that also fetches Google Fonts and a CDN script, so a slow load
+looked identical to a broken one — and the whole scroll-reveal choreography was
+silently destroyed for the life of that page. Measured: 1 in 6 fresh loads lost
+it. It now polls every 250ms and only concludes "broken" after
+`readyState === 'complete'`.
+
+**2 · The motion toggle could not restart a section you were already looking at.**
+`js/section-bg.js` `unwind()` drops `.is-active` when motion is turned off, and
+the IntersectionObserver never put it back — it only fires when something
+*changes*, and from its point of view the section had not moved. Measured: 43
+loops running, toggle off, toggle on, still 21 until the visitor happened to
+scroll. Added `resync()`, which re-derives visibility from current geometry;
+`js/section-mocks.js` got a matching `resume()`. `wire()` was also building a
+fresh observer per toggle with no teardown — three cycles meant three observers
+writing the same class.
+
+### Final check results
+
+| Check | Result |
+|---|---|
+| `npm run check:motion` | **77/77** pass |
+| `npm run check:fluid` | **177/177** pass |
+| `npm run check:css` | 564 rules parse cleanly |
+| `npm run build:css -- --check` | bundle up to date |
+| `tools/design-check.mjs` | all pass (375px and 1366px) |
+| `tools/no-undef.mjs` | clean |
+| console errors | 0 |
+
+FPS on this box, software rasterisation, no GPU: desktop ~41fps live vs ~44
+ceiling unthrottled, mobile a steady 60. Under 4x throttle the cost gate holds
+at 58% (desktop) and 102% (mobile) of the machine's own motion-off ceiling.
+
+**The absolute FPS floors are skipped when the machine is loaded past 1.5x its
+core count**, and this box is routinely at 2-3x: the same motion-off page
+measured 48fps and 19fps thirty seconds apart with no code change. Skipping is
+reported, never hidden, and the relative cost gate still runs — a skipped
+absolute floor is not a passed one.

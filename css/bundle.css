@@ -899,9 +899,13 @@ html.reveal-ready .rv-anim { will-change: opacity, transform; }
   :root { --reveal-distance: 16px; --reveal-max-delay: 300ms; }
 }
 
-/* The 5.5s inline failsafe adds `reveal-all` when it cannot see both halves of
-   the reveal system alive. In the normal case it never matches; if it ever
-   does, everything is snapped visible. */
+/* The inline failsafe in index.html adds `reveal-all` when it cannot see both
+   halves of the reveal system alive AFTER the document has finished loading.
+   In the normal case it never matches; if it ever does, everything is snapped
+   visible, which is the right answer for a genuinely broken reveal system.
+
+   The `!important`s are load-bearing and must stay: this rule has to win over
+   the hide-initial state above no matter how specific that is. */
 html.reveal-all :is(.reveal, [data-reveal], .rv) {
   opacity: 1 !important;
   transform: none !important;
@@ -992,11 +996,14 @@ html.reveal-all :is(.reveal, [data-reveal], .rv) {
 }
 
 /* --------------------------------------------------------------- accents --- */
-/* Status dot: a slow 2s pulse for anything live. */
+/* Status dot: a 6s pulse for anything live. It was 2s, which is legal (the
+   flash rate is 0.5Hz, far under the 3Hz cap) but it is the fastest purely
+   decorative loop on the page and buys nothing a slow breath does not. Six
+   seconds keeps it reading as "this is live" without twitching. */
 .status-dot,
 .activity__dot,
 .footer-status .status-dot {
-  animation: tl-pulse 2s var(--ease-in-out) infinite;
+  animation: tl-pulse 6s var(--ease-in-out) infinite;
 }
 
 /* Hero glow: a phosphor bloom breathing on a 7s cycle. */
@@ -1041,7 +1048,11 @@ html.js #navbar > .shell { animation: tl-fade 600ms var(--ease-out-quint) both; 
 .mobile-menu.open .mobile-menu__actions { animation: tl-rise 500ms var(--ease-out-quint) 340ms both; }
 
 /* Page transition dot. */
-.pt-dot { animation: tl-pulse 900ms var(--ease-in-out) infinite; }
+/* 1200ms, not the 900ms it was. At 900ms this dot completed a full opacity
+   cycle 1.11 times a second, which is legal (WCAG 2.3.1 caps flashes at 3Hz)
+   but is the fastest loop on the page for no visual gain. 1.2s reads the same
+   as a soft status blink and leaves headroom against the safety budget. */
+.pt-dot { animation: tl-pulse 1200ms var(--ease-in-out) infinite; }
 
 /* ============================================================================
    TAB VISIBILITY AND VIEWPORT EXIT (brief §5)
@@ -1070,42 +1081,61 @@ html.is-tab-hidden *::after {
 }
 
 /* ============================================================================
-   REDUCED MOTION
+   MOTION OFF — THE VISITOR'S CHOICE, AND THE ONLY WAY IN
    ----------------------------------------------------------------------------
-   Two switches drive this and they are honoured together:
-     * `html.motion-reduced` — the visitor's own choice (footer toggle,
-       ?motion=off). js/motion.js owns the class.
-     * `@media (prefers-reduced-motion: reduce)` — the OS setting. DESIGN.md
-       says nothing about motion, so the OS preference is honoured as well;
-       every non-essential animation below is removed.
-   ========================================================================== */
-@media (prefers-reduced-motion: reduce) {
-  html:not(.motion-on) *,
-  html:not(.motion-on) *::before,
-  html:not(.motion-on) *::after {
-    animation-duration: 1ms !important;
-    animation-iteration-count: 1 !important;
-    transition-duration: 1ms !important;
-    scroll-behavior: auto !important;
-  }
-  /* Anything still hidden by a hide-initial rule is snapped visible. */
-  html:not(.motion-on) :is(.reveal, [data-reveal], .rv, .word-reveal) {
-    opacity: 1 !important;
-    transform: none !important;
-    filter: none !important;
-  }
-}
+   ONE switch drives this: `html.motion-reduced`, written by js/motion.js when
+   the visitor turns motion off themselves — the "Reduce motion" button in the
+   footer and in the mobile menu, or `?motion=off`, or a stored preference from
+   an earlier visit. Nothing else can set it.
 
-/* Smooth scrolling follows the same switch: it is motion, and a visitor who
-   asked for none should get plain jumps. */
+   THE OS IS NOT A PARTICIPANT. There is deliberately no
+   `@media (prefers-reduced-motion: reduce)` block anywhere in this project.
+   It used to sit right here and it was the single most destructive line of
+   CSS on the site:
+
+     @media (prefers-reduced-motion: reduce) {
+       html:not(.motion-on) * { animation-duration: 1ms !important;
+                               animation-iteration-count: 1 !important; ... }
+     }
+
+   With that one rule, a visitor whose laptop was configured once, years ago,
+   got a dead page: every loop collapsed to a single 1ms iteration, the marquee
+   stood still, the ribbon stopped, the typewriter finished instantly. And there
+   was no way back — the control that could restore it did not exist yet. A
+   global OS preference is a statement about the whole desktop, not about this
+   page, and it is not a licence to remove the design.
+
+   So the OS is out, deliberately, and the safety net is a VISIBLE CONTROL the
+   visitor operates: the toggle, one tap, no reload, persisted, and announced
+   with `aria-pressed`. A person who wants less motion gets it in one click.
+   A person who did not ask for it gets the design.
+
+   Everything below therefore stays exactly as it was — those rules are the
+   finished state the toggle lands on, which is still the right answer for
+   someone who pressed the button.
+
+   THIS IS A DELIBERATE ACCESSIBILITY TRADE-OFF, and the reason it is defensible
+   is that the escape hatch is present, discoverable and reversible. WCAG 2.2.2
+   (Pause, Stop, Hide) and WCAG 2.3.1 (Three Flashes) are satisfied by the
+   toggle, the intro skip, and the loop durations — not by the OS setting. See
+   HANDOFF.md for the full decision record.
+   ========================================================================== */
+
+/* Smooth scrolling follows the same switch. NOTE this is only the CSS half:
+   script.js animates anchor scrolls with rAF + easing as well, so a browser
+   that ignores `scroll-behavior` (or an extension that forces it off) still
+   gets a smooth, animated scroll rather than a teleport. */
 html.motion-on { scroll-behavior: smooth; }
 html.motion-reduced { scroll-behavior: auto; }
 
+/* 150ms, not the 200ms this used to be. With motion off the reveal must still
+   happen — it is how the content becomes readable — but it should read as a
+   fade rather than as movement the visitor just asked us to stop. */
 html.motion-reduced :is(.reveal, [data-reveal], .rv) {
   opacity: 1 !important;
   transform: none !important;
   filter: none !important;
-  transition: opacity 200ms linear !important;
+  transition: opacity 150ms linear !important;
 }
 html.motion-reduced .word-reveal {
   transform: none !important;
@@ -2067,6 +2097,44 @@ html.menu-open #navbar { pointer-events: none; }
 .motion-toggle-icon { width: 14px; height: 14px; flex: none; }
 
 /* -----------------------------------------------------------------------------
+   THE MOTION TOGGLE'S EXPLAINER
+
+   This project deliberately does NOT honour the OS "reduce motion" setting — a
+   visitor gets the full animation regardless of what their machine says (the
+   decision and its reasoning are written out at length in css/animations.css).
+   That trade is only defensible because the way OUT is visible and explained,
+   rather than buried in a system settings panel nobody opens for one website.
+
+   So the control ships with one sentence of plain English: animations are ON,
+   and here is the switch. Anyone arriving from a device that has motion turned
+   off sees the escape hatch immediately instead of having to go looking.
+
+   Graphite, not Ash: this is supporting text, and DESIGN.md's reading range for
+   it is the 12px caption role. It is never the only way to find the button.
+   ----------------------------------------------------------------------------- */
+.motion-toggle-hint {
+  margin: 10px 0 0;
+  max-width: 34ch;
+  font-family: var(--font-body);
+  font-size: var(--text-caption);
+  line-height: 1.45;
+  letter-spacing: 0.01em;
+  text-transform: none;
+  color: var(--color-graphite);
+}
+.mobile-menu .motion-toggle-hint { margin-inline: auto; text-align: center; }
+
+/* The mobile-menu copy of the control. Same pill, full row, so it matches the
+   two CTA buttons directly above it rather than floating small and left in a
+   panel whose every other control spans the width. `justify-content: center`
+   because a full-width switch with the label hard against the leading edge
+   reads as a text link, not as a button. */
+.mobile-menu .motion-toggle {
+  width: 100%;
+  justify-content: center;
+}
+
+/* -----------------------------------------------------------------------------
    FOOTER LAYOUT LIVES IN css/sections.css
 
    This block used to define the whole footer — the grid, the columns, the
@@ -2535,11 +2603,11 @@ html.menu-open #navbar { pointer-events: none; }
   animation-play-state: paused !important;
 }
 
-/* ---- Reduced motion ------------------------------------------------------- */
-@media (prefers-reduced-motion: reduce) {
-  .hero-glow,
-  .hero-grid-lines { animation: none !important; }
-}
+/* ---- Motion off ------------------------------------------------------------
+   The visitor's own choice only (footer / mobile-menu toggle, ?motion=off). The
+   `@media (prefers-reduced-motion: reduce)` twin of this rule used to sit above
+   it and is gone on purpose — see the long version in css/animations.css. The
+   OS setting no longer stops the hero for anyone. */
 html.motion-reduced .hero-glow,
 html.motion-reduced .hero-grid-lines { animation: none !important; }
 
@@ -2838,28 +2906,49 @@ The fade is the fix, not the clip — forcing `overflow: visible` to test the
   opacity: 0.3;
 }
 
-/* The travelling segment. This is the only animated property on the scene:
-   stroke-dashoffset, which is compositor-friendly and never triggers layout.
-   The dash pattern is short relative to the path so a whole segment is visible
-   at once rather than a bright dot lost in a long gap. */
+/* The travelling segment, and the most expensive thing on this page.
+
+   `stroke-dashoffset` is a PAINT property. It is not compositable and it does
+   not "never trigger layout" — it re-rasterises the stroked path every frame.
+   This comment used to claim the opposite ("compositor-friendly"), which is
+   exactly the kind of wrong-but-plausible note that let the cost stay hidden.
+
+   It stayed cheap for a long time because nothing else was wrong. What made it
+   expensive was the pair:
+
+     filter: drop-shadow(...)   +   animating stroke-dashoffset
+
+   A filter on an element that repaints every frame re-runs the filter every
+   frame, over the whole 760x520 scene, in software. Measured on this page at a
+   4x CPU throttle, scroll went from 15fps to 30fps when these two lines of CSS
+   were deleted and nothing else changed. So: NO FILTER HERE.
+
+   The glow is geometry instead. The two static tracks below already sit under
+   this path at low opacity, and widening this stroke by half a pixel restores
+   the phosphor weight the blur was providing. It looks slightly tighter than a
+   7px blur does, and it costs a fraction as much.
+
+   Everything the brief's motion budget asks for is still here: the segment
+   travels, the animation runs for every visitor including those whose OS asked
+   for reduced motion, and the amplitude is a dash offset rather than a
+   displacement of anything that carries text. */
 .ribbon-flow {
-  stroke-width: 3;
+  stroke-width: 3.5;
   stroke: url(#ribbonFlowGrad);
   stroke-dasharray: 240 1560;
-  filter: drop-shadow(0 0 7px rgba(112, 220, 211, 0.6));
   animation: ribbon-run 7s linear infinite;
 }
 @keyframes ribbon-run {
   from { stroke-dashoffset: 1800; }
   to   { stroke-dashoffset: 0; }
 }
-/* A second, slower segment on the inner track so the two never sync up. */
+/* A second, slower segment on the inner track so the two never sync up. Same
+   rule as above: no filter, on any path whose dash offset is animated. */
 .ribbon-flow--inner {
-  stroke-width: 2;
+  stroke-width: 2.5;
   stroke: url(#ribbonGrad);
   stroke-dasharray: 170 1280;
   opacity: 0.9;
-  filter: drop-shadow(0 0 6px rgba(166, 229, 242, 0.45));
   animation: ribbon-run-inner 11s linear infinite;
 }
 @keyframes ribbon-run-inner {
@@ -3986,7 +4075,7 @@ html.motion-reduced .hero-chip { transform: none; }
   width: 12px; height: 12px;
   border-radius: 50%;
   background: var(--color-phosphor-mint);
-  animation: node-pulse 2s var(--ease-in-out) infinite;
+  animation: node-pulse 6s var(--ease-in-out) infinite;
 }
 @keyframes node-pulse {
   0%, 100% { box-shadow: 0 0 0 0 rgba(112, 220, 211, 0.5); }
@@ -4414,7 +4503,7 @@ html.motion-reduced .hero-chip { transform: none; }
   height: 8px;
   background: var(--color-pure-white);
   opacity: 0.5;
-  animation: hub-breathe 4.5s var(--ease-in-out) var(--dly, 0s) infinite alternate;
+  animation: hub-breathe 6s var(--ease-in-out) var(--dly, 0s) infinite alternate;
 }
 .hub-sat--tether { --dly: 1.5s; }
 .hub-sat--social { --dly: 3s; }
@@ -4648,7 +4737,9 @@ html.motion-reduced .hero-chip { transform: none; }
 
 /* (b) two points and the link between them, both breathing together. */
 .sig-ico-link { display: flex; align-items: center; justify-content: center; gap: 3px; }
-.sig-ico-link::before, .sig-ico-link::after { animation: sig-link 2.2s ease-in-out infinite; }
+/* 6s, not 2.2s. Pure opacity fade on two 4px dots, so a slow cycle costs the
+   design nothing and keeps this inside the decorative-loop floor. */
+.sig-ico-link::before, .sig-ico-link::after { animation: sig-link 6s ease-in-out infinite; }
 .sig-ico-link::before {
   content: "";
   position: absolute;
@@ -4701,12 +4792,13 @@ html.motion-reduced .section-bg *,
 html.motion-reduced .section-bg *::before,
 html.motion-reduced .section-bg *::after { animation-play-state: paused !important; }
 
-@media (prefers-reduced-motion: reduce) {
-  html:not(.motion-on) .section-bg,
-  html:not(.motion-on) .section-bg *,
-  html:not(.motion-on) .section-bg *::before,
-  html:not(.motion-on) .section-bg *::after { animation: none !important; }
-}
+/* Motion off is now reachable ONLY through the visitor's own toggle (footer /
+   mobile menu / ?motion=off / a stored preference). The OS media query that used
+   to follow this and blank every backdrop layer is gone on purpose — see the
+   long version of the decision in css/animations.css. js/section-bg.js reads the
+   same policy, so the rAF that follows the cursor is torn down in the same tick
+   the class lands, and `unwind()` also drops `.is-active` so a section that was
+   on screen at that moment does not keep looping behind a paused stylesheet. */
 
 /* -- the cursor spotlight --------------------------------------------------
    A 5% white wash, 360px, following the pointer inside the section. 5% on
@@ -4965,7 +5057,7 @@ html.motion-reduced .section-bg *::after { animation-play-state: paused !importa
   height: 8px;
   border-radius: 50%;
   background: var(--color-phosphor-mint);
-  animation: mock-pulse-dot 2s ease-in-out infinite;
+  animation: mock-pulse-dot 6s ease-in-out infinite;
 }
 @keyframes mock-pulse-dot {
   0%, 100% { opacity: 0.35; }

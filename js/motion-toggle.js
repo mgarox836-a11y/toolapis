@@ -1,29 +1,40 @@
 /* =============================================================================
- * motion-toggle.js — the footer's "Motion" button.
+ * motion-toggle.js — the "Reduce motion" switch.
  * -----------------------------------------------------------------------------
  * Writes the visitor's choice, then makes the page obey it WITHOUT a reload.
  * A reload would be the easy implementation and the wrong one: it re-runs the
- * 5s intro, loses scroll position, and is a jarring answer to "please stop
- * moving things".
+ * load choreography, loses scroll position, and is a jarring answer to "please
+ * stop moving things".
+ *
+ * This site animates for EVERY visitor — including anyone whose operating
+ * system has asked for less motion, which is deliberately not consulted here
+ * (the reasoning is in css/animations.css and the record is in HANDOFF.md).
+ * That makes this control the only way out, so it ships twice: once in the
+ * footer and once in the mobile menu, where a phone user can reach it without
+ * scrolling past four sections. Both are the SAME control — every one is found
+ * by class, every one is rendered from the same policy, every one is wired to
+ * the same function. Two renderings, one decision.
  *
  * What "without a reload" has to cover, and who owns each piece:
  *   html classes           js/motion.js applyHtmlClass()      (CSS follows free)
  *   Tailwind utilities     js/motion.js stripOsMotionClasses()
- *   hero ambient motion    js/motion-fx.js onMotionPolicyChange()
- *   reveals / scroll       CSS transitions, which re-resolve on the class flip
+ *   hero ambient motion    js/motion-fx.js
+ *   hero scene + parallax  js/hero3d.js
+ *   widgets, mocks, bgs    js/widgets.js, js/section-mocks.js, js/section-bg.js
+ *   reveal / scroll        CSS transitions, which re-resolve on the class flip
  *
  * So this file only has to render the control and call one function; the
  * subsystems already subscribe. That split is deliberate — it means a toggle
- * click cannot half-apply.
+ * click cannot half-apply, and it means the second copy in the mobile menu
+ * cannot drift out of sync with the first.
  *
  * Two safety properties are worth stating, because a motion switch is exactly
  * the kind of control that has to behave when things are going wrong:
- *   - every failure path leaves the button showing the CURRENT policy, not the
- *     one the visitor asked for, because a control that lies is worse than one
- *     that fails quietly;
+ *   - every failure path leaves every button showing the CURRENT policy, not
+ *     the one the visitor asked for, because a control that lies is worse than
+ *     one that fails quietly;
  *   - nothing here introduces a loop, so no flashing or strobing is possible
- *     (the whole flip is one class write and one re-render of a 4-property
- *     style).
+ *     (the whole flip is one class write and a re-render of four properties).
  * ========================================================================== */
 
 import {
@@ -41,7 +52,7 @@ const ICON_PLAY = 'waveform';
 const ICON_PAUSE = 'pause';
 
 /**
- * Paint the control from the current policy.
+ * Paint one control from the current policy.
  * @param {HTMLElement} btn
  * @param {boolean} allowed
  */
@@ -54,7 +65,7 @@ function render(btn, allowed) {
   /* `title` is the pointer-user's version of the same information; screen
      readers get aria-pressed, so this is not duplicated for them. */
   btn.setAttribute('title', `${copy.label} — ${copy.hint}`);
-  btn.setAttribute('data-motion-state', allowed ? 'on' : 'reduced');
+  btn.setAttribute('data-motion-state', allowed ? 'on' : 'off');
 
   const icon = btn.querySelector('.motion-toggle-icon');
   if (icon) {
@@ -72,36 +83,44 @@ function render(btn, allowed) {
 }
 
 function init() {
-  const btn = document.getElementById('motion-toggle');
-  if (!btn) return;
+  /* By CLASS, not by id. There are two of these — footer and mobile menu — and
+     an id lookup would silently wire only whichever came first in the DOM,
+     which is the kind of bug that survives review because the button you
+     tested is the one that happens to be there. */
+  const btns = Array.from(document.querySelectorAll('.motion-toggle'));
+  if (!btns.length) return;
 
   /* First paint reflects the real policy, including a ?motion=off or a stored
      "off" from a previous visit. */
   const initial = motionAllowed();
   applyHtmlClass(initial);
   stripOsMotionClasses(initial);
-  render(btn, initial);
+  btns.forEach((btn) => render(btn, initial));
 
-  btn.addEventListener('click', () => {
-    /* Re-read rather than invert a remembered value: localStorage can be
-       changed in another tab, and the class can be changed by ?motion=off. */
-    setMotionAllowed(!motionAllowed());
-  }, false);
+  btns.forEach((btn) => {
+    btn.addEventListener('click', () => {
+      /* Re-read rather than invert a remembered value: storage can be changed
+         in another tab, and the value can be set by ?motion=off. */
+      setMotionAllowed(!motionAllowed());
+    }, false);
+  });
 
   /* Keyboard parity is free on a <button> (Enter and Space both fire click),
-     but the reduced-motion intro is skipped on the NEXT load only — the intro
-     cannot be re-run mid-page without the 5s sequence restarting. The label
-     says "Reduce motion", so an immediate, visible effect is expected; the
-     intro skip is documented in the button's title via the hint below. */
-  onMotionChange((allowed) => { render(btn, allowed); });
+     and so is touch parity — the mobile-menu copy is a real button with the
+     same 44px min-height as the footer one, not an icon-only <div> that needs
+     a custom tap handler. There is no page reload on either path, so the
+     effect is immediate and visible rather than deferred to the next visit. */
+  onMotionChange((allowed) => {
+    btns.forEach((btn) => render(btn, allowed));
+  });
 
   /* Expose the one thing a test (or the console) needs, without making the
      control itself part of any public API. */
   try {
     window.__motionToggle = {
-      get state() { return motionAllowed() ? 'on' : 'reduced'; },
+      get state() { return motionAllowed() ? 'on' : 'off'; },
       set: (v) => setMotionAllowed(!!v),
-      el: btn,
+      get buttons() { return btns.slice(); },
     };
   } catch (e) {}
 }

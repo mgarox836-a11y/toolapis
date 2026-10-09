@@ -9,8 +9,9 @@
  *
  * What it does NOT reach. Script.js's reveal observes the `.reveal` /
  * `[data-reveal]` containers and cascades `.reveal-group` children, and its
- * Motion system owns `main h2` and the footer; the INTRO controller owns the
- * hero. What none of them cascade is the copy INSIDE a revealed block:
+ * Motion system owns `main h2` and the footer; the load choreography
+ * (`[data-load-reveal]`, pure CSS) owns the hero. What none of them cascade is
+ * the copy INSIDE a revealed block:
  *
  *   - the h3 + paragraph of each tool card and each flow step, so the width of
  *     the card does not arrive as one flat slab;
@@ -122,12 +123,12 @@ function isChrome(el) {
 }
 
 function isOwned(el) {
-  /* script.js / the intro controller already animate this element. */
+  /* script.js / the load choreography already animate this element. */
   if (el.matches('.reveal, [data-reveal], [data-load-reveal]')) return true;
   /* A `.reveal-group` child is a target in its own right: script.js staggers
      them and reveals each one. Only what is INSIDE one is ours. */
   if (el.closest('.reveal-group')) return !el.closest('.reveal-group > *');
-  /* The hero is the intro controller's, top to bottom. */
+  /* The hero is the load choreography's, top to bottom. */
   if (el.closest('[data-load-reveal]')) return true;
   /* Motion owns `main h2` and the footer, and tags the well-sized icon boxes
      inside `.reveal`. It sets `data-motion-kind` synchronously at its own boot,
@@ -245,8 +246,8 @@ function passVisible() {
   }
 }
 
-/** Bounded re-sweep: fonts land, Tailwind's CDN lands, the intro hands over,
- *  and a deep link jumps. None of those is an observer event. */
+/** Bounded re-sweep: fonts land, Tailwind's CDN lands, and a deep link
+ *  jumps. None of those is an observer event. */
 function scheduleSweeps(count) {
   let left = count;
   const tick = () => {
@@ -340,10 +341,15 @@ function boot() {
 
   /* Arm the CSS. From here on the blocks are hidden until `.is-visible`. */
   html.classList.add('reveal-ready');
-  /* The failsafe's "both halves are alive" marker. The inline 5.5s timer
-     leaves the page alone while this is present, because at that moment the
-     scroll reveal owns every block below the fold and force-revealing them
-     would turn the whole thing into a no-op. */
+  /* The failsafe's "both halves are alive" marker. The inline timer in
+   * index.html polls for this attribute, so it must be set synchronously and
+   * unconditionally here — a delay of one tick is a delay that timer has to
+   * keep waiting through. See that script for why it polls rather than firing
+   * once at a fixed deadline.
+
+   Its presence also tells the failsafe to leave the page alone, because at this
+   moment the scroll reveal owns every block below the fold and force-revealing
+   them would turn the whole system into a no-op. */
   try { html.setAttribute('data-reveal-live', '1'); } catch (err) { /* noop */ }
 
   if ('IntersectionObserver' in window) {
@@ -368,8 +374,10 @@ function boot() {
   passVisible();
   scheduleSweeps(6);
 
-  /* The intro hands over at 3.6-5.0s and a deep link jumps at the same beat;
-     both land after every bounded sweep above has run. */
+  /* A deep link jumps the instant it resolves, which can land before every
+     bounded sweep above has run. `toolapis:intro-complete` is retained as an
+     extension point: nothing dispatches it now that the 5s intro is gone, and
+     an event that never fires costs one listener. */
   const onHandover = () => { passVisible(); scheduleSweeps(4); };
   window.addEventListener('toolapis:intro-complete', onHandover);
   window.addEventListener('load', onHandover, { once: true });

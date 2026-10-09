@@ -167,7 +167,7 @@
   height: 8px;
   background: var(--color-pure-white);
   opacity: 0.5;
-  animation: hub-breathe 4.5s var(--ease-in-out) var(--dly, 0s) infinite alternate;
+  animation: hub-breathe 6s var(--ease-in-out) var(--dly, 0s) infinite alternate;
 }
 .hub-sat--tether { --dly: 1.5s; }
 .hub-sat--social { --dly: 3s; }
@@ -401,7 +401,9 @@
 
 /* (b) two points and the link between them, both breathing together. */
 .sig-ico-link { display: flex; align-items: center; justify-content: center; gap: 3px; }
-.sig-ico-link::before, .sig-ico-link::after { animation: sig-link 2.2s ease-in-out infinite; }
+/* 6s, not 2.2s. Pure opacity fade on two 4px dots, so a slow cycle costs the
+   design nothing and keeps this inside the decorative-loop floor. */
+.sig-ico-link::before, .sig-ico-link::after { animation: sig-link 6s ease-in-out infinite; }
 .sig-ico-link::before {
   content: "";
   position: absolute;
@@ -454,12 +456,13 @@ html.motion-reduced .section-bg *,
 html.motion-reduced .section-bg *::before,
 html.motion-reduced .section-bg *::after { animation-play-state: paused !important; }
 
-@media (prefers-reduced-motion: reduce) {
-  html:not(.motion-on) .section-bg,
-  html:not(.motion-on) .section-bg *,
-  html:not(.motion-on) .section-bg *::before,
-  html:not(.motion-on) .section-bg *::after { animation: none !important; }
-}
+/* Motion off is now reachable ONLY through the visitor's own toggle (footer /
+   mobile menu / ?motion=off / a stored preference). The OS media query that used
+   to follow this and blank every backdrop layer is gone on purpose — see the
+   long version of the decision in css/animations.css. js/section-bg.js reads the
+   same policy, so the rAF that follows the cursor is torn down in the same tick
+   the class lands, and `unwind()` also drops `.is-active` so a section that was
+   on screen at that moment does not keep looping behind a paused stylesheet. */
 
 /* -- the cursor spotlight --------------------------------------------------
    A 5% white wash, 360px, following the pointer inside the section. 5% on
@@ -718,7 +721,7 @@ html.motion-reduced .section-bg *::after { animation-play-state: paused !importa
   height: 8px;
   border-radius: 50%;
   background: var(--color-phosphor-mint);
-  animation: mock-pulse-dot 2s ease-in-out infinite;
+  animation: mock-pulse-dot 6s ease-in-out infinite;
 }
 @keyframes mock-pulse-dot {
   0%, 100% { opacity: 0.35; }

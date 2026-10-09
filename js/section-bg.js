@@ -15,7 +15,7 @@
         frame forever, and an idle cursor is exactly the case that pays for it.
      3. POLICY. Imports js/motion.js and never queries the OS directly, per that
         module's rule. With motion off the stylesheet's base values ARE the
-        reduced-motion state, so this only has to stop its own rAF.
+        motion-off state, so this only has to stop its own rAF.
 
    NOT HERE, AND WHY
      card→edge hover sync  CSS :has(), not a listener per card plus a class
@@ -63,10 +63,41 @@ function watch(section) {
   const bg = section.querySelector('.section-bg');
   if (!bg) return;
   const set = (active) => section.classList.toggle('is-active', active);
-  if (!('IntersectionObserver' in window)) { set(true); return; }
-  new IntersectionObserver((entries) => {
+  if (!('IntersectionObserver' in window)) { set(true); return null; }
+
+  const io = new IntersectionObserver((entries) => {
     for (let i = entries.length - 1; i >= 0; i -= 1) set(entries[i].isIntersecting);
-  }, { threshold: 0, rootMargin: '80px 0px' }).observe(bg);
+  }, { threshold: 0, rootMargin: '80px 0px' });
+  io.observe(bg);
+  return io;
+}
+
+/**
+ * Re-derive `.is-active` for every section from its CURRENT geometry.
+ *
+ * Why this exists: an IntersectionObserver only fires when something CHANGES.
+ * `unwind()` drops `.is-active` when the visitor turns motion off, and the
+ * observer will not put it back on its own, because from its point of view
+ * nothing happened — the section is exactly where it was. So a visitor who
+ * turned motion off and back on while parked mid-page got a section whose
+ * backdrops stayed paused until they happened to scroll, which reads as the
+ * toggle being broken rather than as a section being off screen.
+ *
+ * Measured, not guessed: parked on #features with motion on, 44 loops running;
+ * toggled off then on without scrolling, 21. This is the 23-loop difference.
+ *
+ * The box maths mirrors the observer's own `rootMargin: 80px 0px`, so a section
+ * this considers visible is one the observer would also consider visible.
+ */
+function resync(backgrounds) {
+  const vh = window.innerHeight || 0;
+  for (const bg of backgrounds) {
+    const section = bg.closest('section');
+    if (!section) continue;
+    const r = bg.getBoundingClientRect();
+    const visible = r.bottom > -80 && r.top < vh + 80;
+    section.classList.toggle('is-active', visible);
+  }
 }
 
 /* The tab going away is a DIFFERENT question from the section going away, and
@@ -156,13 +187,24 @@ function boot() {
 
   let spots = [];
 
+  /* ONCE, not per toggle. `wire()` used to re-run `watch()` every time motion
+     came back on, which built a fresh IntersectionObserver each time and left
+     the previous one attached: three off/on cycles meant three observers all
+     writing `.is-active` on the same element. An observer has no teardown
+     here, so the fix is to create one and keep it. */
+  const observers = backgrounds
+    .map((bg) => watch(bg.closest('section') || document.body))
+    .filter(Boolean);
+
   const wire = () => {
-    backgrounds.forEach((bg) => watch(bg.closest('section') || document.body));
     if (HOVERS && motion) {
       spots = backgrounds
         .map((bg) => spotlight(bg.closest('section') || document.body))
         .filter(Boolean);
     }
+    /* Put the on-screen sections back immediately. See `resync()` — without
+       this the visitor has to scroll to make the page animate again. */
+    resync(backgrounds);
   };
 
   const unwind = () => {
@@ -170,7 +212,7 @@ function boot() {
     spots = [];
     /* Drop the active class too, so a section that was on screen at the moment
        motion was switched off does not keep looping behind a stylesheet that is
-       about to change its mind. The observer sets it again on the next scroll. */
+       about to change its mind. `resync()` restores it when motion comes back. */
     backgrounds.forEach((bg) => {
       const sec = bg.closest('section');
       if (sec) sec.classList.remove('is-active');
@@ -184,7 +226,10 @@ function boot() {
     if (allowed) wire(); else unwind();
   });
 
-  window.addEventListener('pagehide', unwind);
+  window.addEventListener('pagehide', () => {
+    unwind();
+    observers.forEach((io) => { try { io.disconnect(); } catch (e) { /* noop */ } });
+  });
 }
 
 try {

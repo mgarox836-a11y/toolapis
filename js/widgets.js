@@ -16,10 +16,15 @@
    * PAUSE OFF-SCREEN AND ON A HIDDEN TAB. Every loop is an IntersectionObserver
      plus a visibilitychange listener. An animation nobody is looking at is
      still burning a frame.
-   * REDUCED MOTION IS A FINISHED STATE, NOT A STOPPED ONE. When motion is off
-     the slider shows its default position, the terminal shows its full text,
-     the feed shows its seed rows and the connector is drawn to the end. Never
-     a half-typed line or an empty list.
+   * MOTION OFF IS A FINISHED STATE, NOT A STOPPED ONE. When the visitor turns
+     motion off the slider shows its default position, the terminal shows its
+     full text, the feed shows its seed rows and the connector is drawn to the
+     end. Never a half-typed line or an empty list.
+   *
+     Motion off is reachable ONLY through that button (or ?motion=off, or a
+     stored preference). The OS "reduce motion" setting has no authority here —
+     this site animates for every visitor — so nothing below branches on it and
+     none of it can switch itself off without being asked.
    * FAIL SOFT. Every block is individually guarded and every timer is tracked,
      so a failure here costs one effect and never the page.
 
@@ -137,7 +142,7 @@ document.querySelectorAll('[data-ba]').forEach((input) => {
    2 · TYPEWRITER TERMINAL
    --------------------------------------------------------------------------
    Types each [data-type] element's text one character at a time, in order,
-   then holds. Under reduced motion the markup's full text is simply left
+   then holds. With motion off the markup's full text is simply left
    alone — so the terminal always reads as a finished terminal.
 
    The caret is appended to the line currently being typed and moved along, so
@@ -344,7 +349,7 @@ document.querySelectorAll('[data-acc]').forEach((acc) => {
       btn.setAttribute('aria-expanded', open ? 'false' : 'true');
     });
 
-    /* Under reduced motion CSS already kills the height transition, so opening
+    /* With motion off CSS already kills the height transition, so opening
        is instant. Nothing extra to do — which is the point of doing the
        animation in CSS. */
   });
@@ -402,7 +407,7 @@ if (spotCards.length && !('ontouchstart' in window)) {
    is read from the element at runtime (getTotalLength) rather than guessed,
    because the viewBox scales with the container.
 
-   The active step gets the pulsing dot. Under reduced motion the trace is set
+   The active step gets the pulsing dot. With motion off the trace is set
    to fully drawn and every step is marked active — the end state, not a
    half-drawn line.
    ========================================================================== */

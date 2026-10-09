@@ -15,26 +15,31 @@
    disagree on.
 
    DESIGN.md does not define motion, so the character is "instrument panel":
-   precise, calm, transform/opacity only, and completely inert when motion is
-   off (either the visitor's choice or the OS setting).
+   precise, calm, transform/opacity only.
+
+   NOT ONE `matchMedia` CALL. This file used to open with
+   `REDUCED_QUERY = '(prefers-reduced-motion: reduce)'` and `still()` would
+   consult the OS directly, outside the policy module — a second source of truth
+   for the same question, which is exactly the shape of bug that made the old
+   behaviour impossible to reason about. The OS is not an input here. Motion is
+   on unless the visitor turned it off themselves.
 
    No dependencies. Every step is wrapped: this file failing costs ambience and
    nothing else.
    ========================================================================== */
 
-import { motionAllowed, onMotionChange } from './motion.js';
-
-const REDUCED_QUERY = '(prefers-reduced-motion: reduce)';
+import { motionAllowed } from './motion.js';
 
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 
-/** True when nothing should move: either policy says so, or the OS does. */
+/** True when nothing should move. One source of truth, and it is js/motion.js. */
 function still() {
   try {
-    if (!motionAllowed()) return true;
-    return typeof window.matchMedia === 'function'
-      && window.matchMedia(REDUCED_QUERY).matches === true;
+    return !motionAllowed();
   } catch (e) {
+    /* If the policy module itself is broken, animating is the recoverable
+       failure: a still hero is a dead hero. Erring toward motion here is
+       deliberate and is the only place in this file that guesses. */
     return false;
   }
 }
@@ -74,12 +79,26 @@ function heroReveal() {
    2. HERO GLOW PARALLAX
    Capped at 12px. Damped toward the target so the glow trails the pointer
    instead of tracking it, which is what makes it feel like depth.
+
+   THE LISTENERS ARE WIRED ONCE AND KEPT. This function used to be called again
+   from `onMotionChange` every time motion was switched on, and it registered
+   two new window listeners each time with no teardown — so a visitor who
+   toggled off then on three times ended up with four pointermove listeners and
+   four independent rAF loops all writing the same transform. The flip is
+   cheap and people do it twice; the leak was not worth the convenience.
    ------------------------------------------------------------------------- */
+let parallaxWired = false;
+
 function heroParallax() {
   const glow = document.querySelector('.hero-glow');
   const grid = document.querySelector('.hero-grid-lines');
   if (!glow || !grid) return;
+
+  /* `(pointer: fine)` is a CAPABILITY check, not a motion preference: a
+     touchscreen has no hover pointer, so there is nothing to follow. It stays. */
   if (!window.matchMedia || !window.matchMedia('(pointer: fine)').matches) return;
+  if (parallaxWired) return;
+  parallaxWired = true;
 
   let tx = 0, ty = 0, cx = 0, cy = 0, raf = null;
 
@@ -97,11 +116,13 @@ function heroParallax() {
     if (!raf) raf = requestAnimationFrame(tick);
   };
 
-  window.addEventListener('pointermove', onMove, { passive: true });
-  window.addEventListener('mouseout', () => {
+  const onLeave = () => {
     tx = 0; ty = 0;
     if (!raf) raf = requestAnimationFrame(tick);
-  });
+  };
+
+  window.addEventListener('pointermove', onMove, { passive: true });
+  window.addEventListener('mouseout', onLeave);
 }
 
 /* ---------------------------------------------------------------------------
@@ -119,17 +140,11 @@ function heroParallax() {
    ------------------------------------------------------------------------- */
 function boot() {
   try { heroReveal(); } catch (e) {}
-  /* The parallax is the only part that depends on the policy, so it is attached
-     and detached with it rather than being decided once at load. */
-  try {
-    if (!still()) {
-      heroParallax();
-    } else {
-      onMotionChange((allowed) => {
-        if (allowed) heroParallax();
-      });
-    }
-  } catch (e) {}
+  /* The parallax is attached once and stays attached; with motion off the
+     stylesheet neutralises the transform it writes, so there is nothing to
+     unwind and nothing to re-arm. The old code re-ran this on every switch to
+     motion-on, which stacked listeners — see the note above the function. */
+  try { heroParallax(); } catch (e) {}
 }
 
 try {

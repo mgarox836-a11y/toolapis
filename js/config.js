@@ -21,14 +21,25 @@
  *
  * `respectReducedMotion` must stay equal to RESPECT_REDUCED_MOTION in the
  * inline <head> bootstrap in index.html, which applies the same classes before
- * first paint. TRUE means the OS "prefers-reduced-motion: reduce" setting may
- * switch motion off: a visitor who has asked their system for less motion gets
- * none, and the footer Motion button (or ?motion=on) can still override it in
- * the other direction.
+ * first paint.
+ *
+ * IT IS FALSE, AND IT MUST STAY FALSE. FALSE means the OS
+ * "prefers-reduced-motion: reduce" setting has no authority here: a visitor
+ * whose machine asks for less motion gets the full animation anyway, and the
+ * only way to turn it off is the "Reduce motion" button in the footer and the
+ * mobile menu (or `?motion=off`, or a stored preference).
+ *
+ * Why that is the call: the flag used to be TRUE, and a single
+ * `@media (prefers-reduced-motion: reduce)` block in css/animations.css
+ * collapsed every animation on the site to a single 1ms iteration. That gave
+ * visitors who configured their laptop once, years ago, a dead page with no way
+ * to get the design back. The escape hatch exists now, it is one tap, it does
+ * not reload the page, and it is announced with `aria-pressed`. See HANDOFF.md
+ * for the full decision record; do not flip this back without reading it.
  */
 export const TUNING = {
   motion: {
-    respectReducedMotion: true,
+    respectReducedMotion: false,
     allowUserToggle: true,
     storageKey: 'toolapis-reduce-motion',
   },

@@ -21,8 +21,10 @@
    performance problem — Lighthouse 42/25 with it, 77/74 without — and the
    profile was 96% native GPU. This scene gets the same read for no GPU cost.
 
-   The module is deliberately inert under reduced motion: no pointer tracking,
-   and the paused class is applied immediately so nothing loops.
+   The module goes inert when the VISITOR turns motion off — not when their
+   operating system does, which this site deliberately does not consult. With
+   motion off there is no pointer tracking, and the paused class is applied
+   immediately so nothing loops.
    ========================================================================== */
 
 import { motionAllowed, onMotionChange } from './motion.js';

@@ -13,7 +13,12 @@
  *   6. no legacy palette survives anywhere (violet, lime, the old greys) and no
  *      superseded type family is left in the stylesheet;
  *   7. no horizontal scroll at 375px, and no console errors;
- *   8. with prefers-reduced-motion: reduce, nothing animates;
+ *   8. WITH prefers-reduced-motion: reduce, THE PAGE STILL ANIMATES. This used
+ *      to assert the opposite. The OS setting is deliberately not consulted
+ *      anywhere on this site — a visitor whose laptop was configured years ago
+ *      used to land on a dead page with no way to recover. The way out is the
+ *      "Reduce motion" button, so check 8 is now "the animations are alive
+ *      under reduce" and the toggle itself is covered by tools/check-motion.mjs;
  *   9. the redesigned sections are actually present and wired: bento grid,
  *      activity feed, terminal, before/after slider, lock panel, accordion,
  *      flow connector, and the slider is keyboard-operable.
@@ -319,6 +324,21 @@ for (const vp of VIEWPORTS) {
     };
   });
 
+  /* Check 8, and it is the INVERSE of what it used to be.
+
+     The same `reducedMotion: 'reduce'` context that previously proved the page
+     went dead now proves it stays alive. `html.motion-on` must be present, every
+     loop must still have an `animation-name`, and the hero headline must have
+     finished arriving — a visitor whose OS asks for less motion is a visitor
+     who still gets the design.
+
+     The hero loops are split out from the rest on purpose. `.hero-glow` and
+     `.hero-grid-lines` are deliberately stopped below 768px by a WIDTH media
+     query in css/animations.css — a performance decision about phones, not a
+     motion-preference one — so at 375px they are legitimately `none` even with
+     motion fully on. Asserting them unconditionally would be asserting the
+     thing we decided not to do. The three chrome loops below have no such gate
+     and are checked at every width. */
   const reduced = await (async () => {
     const ctx2 = await browser.newContext({
       viewport: { width: vp.width, height: vp.height },
@@ -330,8 +350,13 @@ for (const vp of VIEWPORTS) {
     await p2.waitForTimeout(6500);
     const out = await p2.evaluate(() => ({
       htmlClass: document.documentElement.className,
-      running: [...document.querySelectorAll('.hero-glow, .hero-grid-lines, .status-dot, .activity__dot, .pt-dot')]
+      dataMotion: document.documentElement.getAttribute('data-motion'),
+      liveAnims: document.getAnimations().length,
+      always: [...document.querySelectorAll('.status-dot, .activity__dot, .pt-dot')]
         .map((el) => getComputedStyle(el).animationName),
+      hero: [...document.querySelectorAll('.hero-glow, .hero-grid-lines')]
+        .map((el) => getComputedStyle(el).animationName),
+      heroLoopCount: document.querySelectorAll('.hero-glow, .hero-grid-lines').length,
       hiddenWords: [...document.querySelectorAll('.word-reveal')]
         .filter((el) => parseFloat(getComputedStyle(el).opacity) < 0.9).length,
     }));
@@ -570,11 +595,29 @@ for (const vp of VIEWPORTS) {
       && r.sections.slider.type === 'range' && r.sections.slider.aria,
     JSON.stringify(r.sections.slider));
 
-  /* 8 — reduced motion */
-  check('prefers-reduced-motion is honoured on <html>', /motion-reduced/.test(reduced.htmlClass),
+  /* 8 — prefers-reduced-motion: reduce MUST NOT stop the page.
+
+     These three are the exact inverse of the assertions that used to sit here,
+     which asserted the opposite (`/motion-reduced/` on <html>, every
+     animation-name === 'none'). That pair is the bug this project now carries a
+     written decision about: the OS setting had no business deleting the design
+     for someone who never opened this site's settings. The escape hatch is the
+     "Reduce motion" button, and tools/check-motion.mjs is what proves it works. */
+  check('prefers-reduced-motion:reduce still gets motion-on on <html>',
+    /\bmotion-on\b/.test(reduced.htmlClass) && !/motion-reduced/.test(reduced.htmlClass),
     reduced.htmlClass);
-  check('no non-essential animation runs under reduced motion',
-    reduced.running.every((n) => n === 'none'), reduced.running.join(',') || 'none');
+  check('prefers-reduced-motion:reduce leaves data-motion="on"',
+    reduced.dataMotion === 'on', String(reduced.dataMotion));
+  check('chrome loops keep animating under reduced motion',
+    reduced.always.length > 0 && reduced.always.every((n) => n && n !== 'none'),
+    reduced.always.join(',') || 'none found');
+  /* Width-gated by design: below 768px the hero loops are stopped for phone
+     performance, which is a different decision from a motion preference. */
+  check('hero loops keep animating under reduced motion (>=768px)',
+    vp.width < 768 || (reduced.hero.length > 0 && reduced.hero.every((n) => n && n !== 'none')),
+    vp.width + 'px: ' + (reduced.hero.join(',') || 'none found'));
+  check('page has live animations under reduced motion',
+    reduced.liveAnims > 0, `${reduced.liveAnims} animations`);
   check('hero headline is fully visible under reduced motion', reduced.hiddenWords === 0,
     `${reduced.hiddenWords} hidden`);
 

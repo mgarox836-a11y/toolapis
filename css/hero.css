@@ -415,11 +415,11 @@
   animation-play-state: paused !important;
 }
 
-/* ---- Reduced motion ------------------------------------------------------- */
-@media (prefers-reduced-motion: reduce) {
-  .hero-glow,
-  .hero-grid-lines { animation: none !important; }
-}
+/* ---- Motion off ------------------------------------------------------------
+   The visitor's own choice only (footer / mobile-menu toggle, ?motion=off). The
+   `@media (prefers-reduced-motion: reduce)` twin of this rule used to sit above
+   it and is gone on purpose — see the long version in css/animations.css. The
+   OS setting no longer stops the hero for anyone. */
 html.motion-reduced .hero-glow,
 html.motion-reduced .hero-grid-lines { animation: none !important; }
 

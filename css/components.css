@@ -917,6 +917,44 @@ html.menu-open #navbar { pointer-events: none; }
 .motion-toggle-icon { width: 14px; height: 14px; flex: none; }
 
 /* -----------------------------------------------------------------------------
+   THE MOTION TOGGLE'S EXPLAINER
+
+   This project deliberately does NOT honour the OS "reduce motion" setting — a
+   visitor gets the full animation regardless of what their machine says (the
+   decision and its reasoning are written out at length in css/animations.css).
+   That trade is only defensible because the way OUT is visible and explained,
+   rather than buried in a system settings panel nobody opens for one website.
+
+   So the control ships with one sentence of plain English: animations are ON,
+   and here is the switch. Anyone arriving from a device that has motion turned
+   off sees the escape hatch immediately instead of having to go looking.
+
+   Graphite, not Ash: this is supporting text, and DESIGN.md's reading range for
+   it is the 12px caption role. It is never the only way to find the button.
+   ----------------------------------------------------------------------------- */
+.motion-toggle-hint {
+  margin: 10px 0 0;
+  max-width: 34ch;
+  font-family: var(--font-body);
+  font-size: var(--text-caption);
+  line-height: 1.45;
+  letter-spacing: 0.01em;
+  text-transform: none;
+  color: var(--color-graphite);
+}
+.mobile-menu .motion-toggle-hint { margin-inline: auto; text-align: center; }
+
+/* The mobile-menu copy of the control. Same pill, full row, so it matches the
+   two CTA buttons directly above it rather than floating small and left in a
+   panel whose every other control spans the width. `justify-content: center`
+   because a full-width switch with the label hard against the leading edge
+   reads as a text link, not as a button. */
+.mobile-menu .motion-toggle {
+  width: 100%;
+  justify-content: center;
+}
+
+/* -----------------------------------------------------------------------------
    FOOTER LAYOUT LIVES IN css/sections.css
 
    This block used to define the whole footer — the grid, the columns, the

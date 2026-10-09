@@ -195,9 +195,13 @@ html.reveal-ready .rv-anim { will-change: opacity, transform; }
   :root { --reveal-distance: 16px; --reveal-max-delay: 300ms; }
 }
 
-/* The 5.5s inline failsafe adds `reveal-all` when it cannot see both halves of
-   the reveal system alive. In the normal case it never matches; if it ever
-   does, everything is snapped visible. */
+/* The inline failsafe in index.html adds `reveal-all` when it cannot see both
+   halves of the reveal system alive AFTER the document has finished loading.
+   In the normal case it never matches; if it ever does, everything is snapped
+   visible, which is the right answer for a genuinely broken reveal system.
+
+   The `!important`s are load-bearing and must stay: this rule has to win over
+   the hide-initial state above no matter how specific that is. */
 html.reveal-all :is(.reveal, [data-reveal], .rv) {
   opacity: 1 !important;
   transform: none !important;
@@ -288,11 +292,14 @@ html.reveal-all :is(.reveal, [data-reveal], .rv) {
 }
 
 /* --------------------------------------------------------------- accents --- */
-/* Status dot: a slow 2s pulse for anything live. */
+/* Status dot: a 6s pulse for anything live. It was 2s, which is legal (the
+   flash rate is 0.5Hz, far under the 3Hz cap) but it is the fastest purely
+   decorative loop on the page and buys nothing a slow breath does not. Six
+   seconds keeps it reading as "this is live" without twitching. */
 .status-dot,
 .activity__dot,
 .footer-status .status-dot {
-  animation: tl-pulse 2s var(--ease-in-out) infinite;
+  animation: tl-pulse 6s var(--ease-in-out) infinite;
 }
 
 /* Hero glow: a phosphor bloom breathing on a 7s cycle. */
@@ -337,7 +344,11 @@ html.js #navbar > .shell { animation: tl-fade 600ms var(--ease-out-quint) both; 
 .mobile-menu.open .mobile-menu__actions { animation: tl-rise 500ms var(--ease-out-quint) 340ms both; }
 
 /* Page transition dot. */
-.pt-dot { animation: tl-pulse 900ms var(--ease-in-out) infinite; }
+/* 1200ms, not the 900ms it was. At 900ms this dot completed a full opacity
+   cycle 1.11 times a second, which is legal (WCAG 2.3.1 caps flashes at 3Hz)
+   but is the fastest loop on the page for no visual gain. 1.2s reads the same
+   as a soft status blink and leaves headroom against the safety budget. */
+.pt-dot { animation: tl-pulse 1200ms var(--ease-in-out) infinite; }
 
 /* ============================================================================
    TAB VISIBILITY AND VIEWPORT EXIT (brief §5)
@@ -366,42 +377,61 @@ html.is-tab-hidden *::after {
 }
 
 /* ============================================================================
-   REDUCED MOTION
+   MOTION OFF — THE VISITOR'S CHOICE, AND THE ONLY WAY IN
    ----------------------------------------------------------------------------
-   Two switches drive this and they are honoured together:
-     * `html.motion-reduced` — the visitor's own choice (footer toggle,
-       ?motion=off). js/motion.js owns the class.
-     * `@media (prefers-reduced-motion: reduce)` — the OS setting. DESIGN.md
-       says nothing about motion, so the OS preference is honoured as well;
-       every non-essential animation below is removed.
-   ========================================================================== */
-@media (prefers-reduced-motion: reduce) {
-  html:not(.motion-on) *,
-  html:not(.motion-on) *::before,
-  html:not(.motion-on) *::after {
-    animation-duration: 1ms !important;
-    animation-iteration-count: 1 !important;
-    transition-duration: 1ms !important;
-    scroll-behavior: auto !important;
-  }
-  /* Anything still hidden by a hide-initial rule is snapped visible. */
-  html:not(.motion-on) :is(.reveal, [data-reveal], .rv, .word-reveal) {
-    opacity: 1 !important;
-    transform: none !important;
-    filter: none !important;
-  }
-}
+   ONE switch drives this: `html.motion-reduced`, written by js/motion.js when
+   the visitor turns motion off themselves — the "Reduce motion" button in the
+   footer and in the mobile menu, or `?motion=off`, or a stored preference from
+   an earlier visit. Nothing else can set it.
 
-/* Smooth scrolling follows the same switch: it is motion, and a visitor who
-   asked for none should get plain jumps. */
+   THE OS IS NOT A PARTICIPANT. There is deliberately no
+   `@media (prefers-reduced-motion: reduce)` block anywhere in this project.
+   It used to sit right here and it was the single most destructive line of
+   CSS on the site:
+
+     @media (prefers-reduced-motion: reduce) {
+       html:not(.motion-on) * { animation-duration: 1ms !important;
+                               animation-iteration-count: 1 !important; ... }
+     }
+
+   With that one rule, a visitor whose laptop was configured once, years ago,
+   got a dead page: every loop collapsed to a single 1ms iteration, the marquee
+   stood still, the ribbon stopped, the typewriter finished instantly. And there
+   was no way back — the control that could restore it did not exist yet. A
+   global OS preference is a statement about the whole desktop, not about this
+   page, and it is not a licence to remove the design.
+
+   So the OS is out, deliberately, and the safety net is a VISIBLE CONTROL the
+   visitor operates: the toggle, one tap, no reload, persisted, and announced
+   with `aria-pressed`. A person who wants less motion gets it in one click.
+   A person who did not ask for it gets the design.
+
+   Everything below therefore stays exactly as it was — those rules are the
+   finished state the toggle lands on, which is still the right answer for
+   someone who pressed the button.
+
+   THIS IS A DELIBERATE ACCESSIBILITY TRADE-OFF, and the reason it is defensible
+   is that the escape hatch is present, discoverable and reversible. WCAG 2.2.2
+   (Pause, Stop, Hide) and WCAG 2.3.1 (Three Flashes) are satisfied by the
+   toggle, the intro skip, and the loop durations — not by the OS setting. See
+   HANDOFF.md for the full decision record.
+   ========================================================================== */
+
+/* Smooth scrolling follows the same switch. NOTE this is only the CSS half:
+   script.js animates anchor scrolls with rAF + easing as well, so a browser
+   that ignores `scroll-behavior` (or an extension that forces it off) still
+   gets a smooth, animated scroll rather than a teleport. */
 html.motion-on { scroll-behavior: smooth; }
 html.motion-reduced { scroll-behavior: auto; }
 
+/* 150ms, not the 200ms this used to be. With motion off the reveal must still
+   happen — it is how the content becomes readable — but it should read as a
+   fade rather than as movement the visitor just asked us to stop. */
 html.motion-reduced :is(.reveal, [data-reveal], .rv) {
   opacity: 1 !important;
   transform: none !important;
   filter: none !important;
-  transition: opacity 200ms linear !important;
+  transition: opacity 150ms linear !important;
 }
 html.motion-reduced .word-reveal {
   transform: none !important;
