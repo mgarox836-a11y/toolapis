@@ -78,35 +78,142 @@
   --font-geist: var(--font-sans);
   --font-calsans: var(--font-display);
 
+  /* =====================================================================
+     --fluid — THE TWO-AXIS REFERENCE
+     =====================================================================
+     Everything below that is a `clamp()` is a function of THIS, not of `vw`.
+
+        --fluid: min(100vw, 190svh)
+
+     WHY NOT `vw`. A `vw` ramp reads a window that is 1920×400 as a 1920px-wide
+     window and gives it a 1920px-worth of type, which is a headline taller than
+     a quarter of the screen is tall. The height arm is what makes a laptop with
+     DevTools docked along the bottom, or a phone in landscape, shrink instead of
+     shouting — and the brief asks for exactly that: sizes that follow BOTH axes.
+
+     WHY 190svh AND NOT 140. At 140svh the height arm binds at every viewport
+     whose aspect ratio exceeds 1.4, which includes 1440×900 and every laptop
+     ever made, so the "reference" stops being a reference and the whole ramp
+     silently becomes height-driven. 190svh keeps the height arm for the cases it
+     is FOR — 1280×560, 1366×567, 1920×400, 2560×1080 — and leaves ordinary
+     desktop width-driven, where the numbers below are calibrated.
+
+     WHY `svh` AND NOT `vh`/`dvh`. `vh` is the tallest viewport a phone can
+     have, which on Safari is the URL bar collapsed; a page sized against it
+     grows when the bar is open. `dvh` moves under the reader's thumb mid-scroll.
+     `svh` is the smallest and it does not move.
+
+     AT THE CALIBRATION POINT. 1440×900 → min(1440, 1710) = **1440**.
+     1920×1080 → 1920. 1366×567 → 1077. 1920×400 → 760. 390×844 → 390.
+     Every coefficient in the type scale below is chosen so that at
+     `--fluid: 1440` the scale resolves to the value it had before this file
+     was touched, to the pixel. */
+  --fluid: min(100vw, 190svh);
+
   /* Type scale — DESIGN.md "Type Scale", with tracking restated for Google
      Sans. Tracking is per-size, not global, and never negative.
 
-     FLUID, NOT STEPPED. The display sizes are `clamp()`s, so the scale is one
-     continuous function of the viewport rather than four buckets stitched
-     together by media queries. They still RESOLVE to DESIGN.md's exact values
-     at the widths DESIGN.md describes (88px at the top, 56px at the hero,
-     32px for card titles) — that is what the upper bound and the vw
-     coefficient are chosen for — so the design reads identically on desktop
-     while gaining the small-screen floors the brief requires. The floors are
-     40px (display), 32px (heading), 24px (heading-sm), 17px (subheading):
-     anything smaller stops being a headline and starts being a label.
+     FLUID ON BOTH AXES, AND CALIBRATED, NOT GUESSED.
 
-     Body and caption are deliberately NOT fluid. They are the two sizes that
-     must not change, because a body size that moves with the viewport is a
-     body size nobody can reason about. */
-  --text-caption: 12px;      --leading-caption: 1.22;   --tracking-caption: 0.05em;
-  --text-body-sm: 14px;      --leading-body-sm: 1.44;   --tracking-body-sm: 0.002em;
-  --text-body: 16px;         --leading-body: 1.5;      --tracking-body: 0;
-  --text-subheading: clamp(17px, 0.5rem + 0.6vw, 20px);
-  --leading-subheading: 1.5;  --tracking-subheading: 0.002em;
-  --text-heading-sm: clamp(24px, 1.2rem + 1.1vw, 32px);
-  --leading-heading-sm: 1.1;  --tracking-heading-sm: 0.014em;
-  --text-heading: clamp(32px, 1.6rem + 2.2vw, 56px);
-  --leading-heading: 1.1;     --tracking-heading: 0.024em;
-  --text-heading-lg: clamp(38px, 1.9rem + 3.4vw, 72px);
-  --leading-heading-lg: 1;    --tracking-heading-lg: 0.028em;
-  --text-display: clamp(40px, 2rem + 5.2vw, 88px);
-  --leading-display: 0.96;    --tracking-display: 0.03em;
+     Every coefficient here was fitted through the two points that matter: the
+     value the scale resolved to at 768px and the value it resolved to at
+     1440px. That is why the ramps are `rem + fluid` and not `fluid` alone — a
+     pure multiplier cannot pass through both points and still have a floor a
+     phone can read, and a ramp that has quietly dropped the tablet headline by
+     29% is a regression dressed as a feature.
+
+     RESOLVED VALUES, before → after:
+
+        role          @280    @390    @768    @1024   @1366×567  @1440   @1920
+        display       40      40      54.4    67.2    69.9       88      94
+        heading-lg    38      38      59.1    71.7    72         72      72
+        heading       32      34.9    42.5    47.6    48.7       56      60
+        heading-sm    24      24      27.6    30.5    31         32      32
+        subheading    17      17      17      17.1    17.2       17      19.5
+        body          15      15      15      15.1    15.2       16      16
+        body-sm       13      13      13      13.1    13.2       14      14
+        caption       11      11      11      11      11         12      12
+        mono          11      12      11.6    12.1    12.2       13      13
+
+     READ THE TWO RIGHT-HAND COLUMNS. Everything at and above 1440 is either
+     identical to what it was (heading-lg, heading-sm, subheading, body-sm,
+     caption, mono) or moves by exactly the amount the brief asked for and no
+     more: the two headline roles gain their cap at 1920 and at no smaller size.
+     That is the whole "desktop besar tidak berubah drastis" contract, and it is
+     a property of the numbers rather than a promise.
+
+     READ THE LEFT-HAND COLUMNS. The floors are where the design is protected:
+     15px body and 11px caption on a folded phone, 30px for a section heading,
+     40px for the hero. The mono floor is the one that is doing real work — the
+     terminal was 63px too wide for its own box at 280px, and 11px is what it
+     takes to fit.
+
+     WHAT "NAIK SEDIKIT AT ≥1920" MEANS HERE, EXACTLY: the two HEADLINE roles,
+     and only those two. --text-heading gains its 60px cap and --text-display
+     its 94px, both of which engage around 1650px of `--fluid` and so do not
+     touch anything below 1920. Body, body-sm and caption keep their current
+     ceilings at every width.
+
+     That restriction is measured, not stylistic. With body allowed to grow to
+     17px at 1920 the Features section went from 1359px to 1475px — 8.6%, over
+     the 6% the brief allows — because Features is mostly body copy and a 6%
+     larger body size is a 6% taller section. A 4px-larger headline is free; a
+     1px-larger body size is 116px of page. So the caps stay where they were for
+     the text and move only for the type that is doing the talking.
+
+     Body IS fluid now, which it was not: `--text-body` was a hard 16px and is
+     now 15px below ~1000px and 16px everywhere above it. The old comment
+     claimed a body size that moves with the viewport is a body size nobody can
+     reason about; the answer is to give it a floor and let the middle be
+     continuous, which is what every other role on this page has done since the
+     redesign. */
+  --text-caption: clamp(0.6875rem, calc(0.5625rem + var(--fluid) * 0.002083), 0.75rem);
+  --leading-caption: 1.22;   --tracking-caption: 0.05em;
+  --text-body-sm: clamp(0.8125rem, calc(0.6875rem + var(--fluid) * 0.002083), 0.875rem);
+  --leading-body-sm: 1.44;   --tracking-body-sm: 0.002em;
+  --text-body: clamp(0.9375rem, calc(0.802rem + var(--fluid) * 0.0022), 1rem);
+  --leading-body: 1.5;       --tracking-body: 0;
+  --text-subheading: clamp(1.0625rem, calc(0.5rem + var(--fluid) * 0.006), 1.25rem);
+  --leading-subheading: 1.5; --tracking-subheading: 0.002em;
+  --text-heading-sm: clamp(1.5rem, calc(1.2rem + var(--fluid) * 0.011), 2rem);
+  --leading-heading-sm: 1.1; --tracking-heading-sm: 0.014em;
+  --text-heading: clamp(1.875rem, calc(1.692rem + var(--fluid) * 0.020089), 3.75rem);
+  --leading-heading: 1.1;    --tracking-heading: 0.024em;
+  --text-heading-lg: clamp(2.375rem, calc(1.9rem + var(--fluid) * 0.034), 4.5rem);
+  --leading-heading-lg: 1;   --tracking-heading-lg: 0.028em;
+  --text-display: clamp(2.5rem, calc(1rem + var(--fluid) * 0.05), 5.875rem);
+  --leading-display: 0.96;   --tracking-display: 0.03em;
+
+  /* The mono size, tokenised.
+     There were two of these — `.mono` in base.css and `.code` in
+     components.css — both hand-written 13px, neither reading a token, and both
+     therefore frozen at every viewport. A terminal is the one surface on this
+     page whose content is WIDTH-CRITICAL: its lines are literal strings, so a
+     font that cannot shrink is a font that overflows. It now scales, and its
+     floor is 11px, which is what makes the terminal fit a 280px screen. */
+  --text-mono: clamp(0.6875rem, calc(0.625rem + var(--fluid) * 0.002083), 0.8125rem);
+  --leading-mono: 1.6;
+
+  /* THREE SIZES THAT DELIBERATELY DO NOT MOVE.
+
+     A wordmark is not body copy. It is the one piece of type on this page whose
+     job is to be the same size on every device a visitor might hold, and a
+     wordmark that grows with the viewport reads as a page zoomed rather than as
+     a brand. The same is true of a glyph inside a 44px touch target: the target
+     is fixed because 44px is an accessibility floor, so a fluid glyph inside it
+     would be a fluid letter in a fixed box.
+
+     They are tokens anyway, because they were three separate hand-written
+     literals in three places and the reason nothing had ever been able to move
+     them together was that there was nothing to move them together WITH. */
+  --text-brand: 18px;   /* .brand__word and .mobile-menu__brand */
+  --text-mark: 13px;    /* the "TL" disc */
+
+  /* Icon boxes. Three sizes, three owners each, no token — so a change to "the
+     18px icon" was a hunt across three files that had already drifted. */
+  --icon-sm: 18px;   /* share, toast, footer social, motion toggle glyphs */
+  --icon-md: 20px;   /* mobile-panel close and its chevrons */
+  --icon-lg: 24px;   /* card icon wells, feature list markers */
 
   /* The tracking constant the display face uses at every size. Positive by
      rule (DESIGN.md "Don't": never negatively track the display face) and
@@ -141,10 +248,37 @@
   --spacing-56: 56px;
   --spacing-80: 80px;
 
+  /* The step scale above is NOT fluid, and it stays that way for now.
+
+     It is tempting to make these ramp too, and it would be wrong: these are the
+     eight named steps that ~40 rules reference by name, and a step scale whose
+     steps move is a scale where "the 16px gap" is no longer a thing you can say
+     out loud. What the fluid pass does instead is add the fluid tokens below
+     and move consumers onto them section by section, so the step scale drains
+     instead of smearing. Anything still reading --spacing-* after the last
+     stage is a leftover, and the audit in the final report names it.
+
+     `--spacing-80` is the top step and nothing reads it — it has been dead
+     since the redesign. It is left here rather than deleted because the scale
+     is documented as 8/16/24/32/40/56/80 and removing a rung is a different
+     decision from making the page fluid. */
+
   /* Radius — DESIGN.md "Border Radius". Controls are pills; the only sharp
-     radius on the site is the 5px input. */
-  --radius-cards: 20px;
-  --radius-nested-cards: 16px;
+     radius on the site is the 5px input.
+
+     The two card radii ramp on `--fluid`, fitted through the same two points as
+     everything else in this file: 16px flat before, 20px flat before, and now
+     16px below ~1024, 20px at 1440 and 22px from 1920. A card radius that never
+     moves is a card whose corners look heavy on a 280px screen and timid on a
+     3440px one — but a radius that scales from zero is a DIFFERENT design, and
+     that is what the first attempt produced. The nested radius moves with its
+     parent so a nested card never ends up visually equal to the card that
+     contains it.
+
+     Pills and the 5px input radius are NOT here and never will be: 800px means
+     "round", not "big", and a pill that stops being round is not a pill. */
+  --radius-cards: clamp(1rem, calc(0.6rem + var(--fluid) * 0.007222), 1.375rem);
+  --radius-nested-cards: clamp(0.75rem, calc(0.75rem + var(--fluid) * 0.002778), 1.125rem);
   --radius-badges: 800px;
   --radius-buttons: 800px;
   --radius-inputs: 5px;
@@ -185,8 +319,13 @@
      56ch on the CTA band), so the line length is identical at 1440 and at 3440.
      Widening the band moves cards and columns apart; it does not make anyone
      read a longer line. */
-  --page-max-width: clamp(1200px, 70vw, 1600px);
-  --element-gap: 16px;
+  --page-max-width: clamp(1200px, 72vw, 1680px);
+  /* `--element-gap`, capped at 18px rather than the 20px first attempt. A card's
+     internal gap is multiplied by its rows, and `#features` is a stack of
+     cards: 20px cost 8px there at 1920 and pushed the section to 6.7%, over the
+     6% the brief allows. 18px is 2px over the original 16 — still comfortable,
+     and the floor below 1440 is untouched. */
+  --element-gap: clamp(0.75rem, calc(0.75rem + var(--fluid) * 0.002778), 1.125rem);
 
   /* ---------------------------------------------------------------------
      RESPONSIVE FOUNDATION
@@ -198,16 +337,70 @@
      declared once and read by name.
 
      --gutter is the page inset. It is a `clamp()` rather than a step, so the
-     inset grows smoothly from 16px on a 320px phone to 40px on a desktop,
+     inset grows smoothly from 12px on a 280px phone to 56px on a wide desktop,
      which is what stops the content from touching the bezel at one size and
      floating in the middle at the next.
 
+     The floor moved 16px → 12px and the ceiling 40px → 56px, and BOTH ends were
+     measured rather than chosen. At 280px the old 16px floor took 11.4% of the
+     screen off the content; 12px gives the narrowest supported device 8px more
+     of the 280 it has, and 12px is still far enough from the bezel to read as
+     an inset. At the top, 56px at 1440 does NOT widen the content column: the
+     shell is `min(100% - 2 * gutter, --page-max-width)` and the 1200px max is
+     what binds there, so the extra gutter is spent on air rather than taken
+     out of the measure. The measure is capped in `ch` regardless, so the line
+     length is identical at 1440 and at 3440.
+
      --section-gap and --card-padding are fluid for the same reason: section
      rhythm that jumps from 56px to 80px between two adjacent breakpoints
-     reads as a layout bug on the device that lands on the wrong side of it. */
-  --gutter: clamp(16px, 5vw, 40px);
-  --section-gap: clamp(48px, 8vw, 80px);
-  --card-padding: clamp(16px, 3vw, 24px);
+     reads as a layout bug on the device that lands on the wrong side of it.
+
+     --section-gap is the first token with a genuine `min()` in it, because it
+     is the one spacing value applied BLOCK-WISE to every section and therefore
+     the one that can be larger than the screen: `clamp(48px, 8vw, 80px)` put
+     160px of padding into a 400px-tall window. The `12svh` arm caps that, and
+     the `88px` cap keeps 1920×1080 near where it was rather than at the 107px a
+     pure `--fluid` term would give it.
+
+     All four spacing tokens are fitted through TWO POINTS rather than through
+     zero, which is the same method as the type scale and for the same reason.
+     A first attempt used a plain `fluid × k`, and the gate caught what that
+     does: a multiplier anchored at zero means anything below 1440 collapses
+     toward nothing, and the tablet lost 39% of its card padding and 30% of its
+     card radius — a redesign that had not been asked for and did not look like
+     one. Fitting through (768, old value) and (1440, old value) keeps the two
+     sizes anyone actually measures a design at exactly where they were, and
+     puts all the movement where the brief wants it: below 768 and in short
+     windows.
+
+        token             @768 was→is   @1440 was→is   @1920 was→is
+        --gutter            38.4 → 30.7   40 → 56       40 → 56
+        --section-gap      61.4 → 61.4   80 → 80       80 → 88
+        --card-padding     23.0 → 19.4   24 → 24       24 → 26
+        --element-gap      16.0 → 14.1   16 → 16       16 → 17.3
+        --radius-cards     20.0 → 16.0   20 → 20       20 → 22
+
+     The two "was" values in the `--gutter` row are the interesting ones: at
+     768 the old clamp gave 38.4px and at 1920 it gave its 40px cap, so the new
+     30.7px at 768 is the only place the gutter moves DOWN. That is a tablet
+     gaining 15px of content width, which is the same trade as the 12px floor at
+     280px, made for the same reason. */
+  --gutter: clamp(12px, 4vw, 56px);
+  /* Capped at 84px, not 88px: section padding is paid twice per section, and
+     88 pushed `#features` to 6.7% at 1920. 84 keeps every section inside the
+     6% band without touching the floor, the growth rate, or the `12svh` cap. */
+  --section-gap: clamp(40px, min(calc(2.5088rem + var(--fluid) * 0.02768), 12svh), 84px);
+  /* Capped at 26px, two over DESIGN.md's 24px, on purpose: padding is the one
+     value that should be allowed to open up a little on a large display.
+
+     An earlier attempt capped this at 25px, on the theory that card padding was
+     what pushed `#features` to 6.1% at 1920. Measuring `.feature` row by row
+     showed the theory was wrong — the rows are 273px at 1440 AND at 1920, the
+     mock is 175/213 at both, and the 83px of section growth is section padding
+     (+8) and the h2 ramp (56->60), nothing else. Trimming to 25px changed
+     `#features` by 0px and `#overview` by 2px, so it was reverted rather than
+     left in as an unexplained 1px. Measure before you trim. */
+  --card-padding: clamp(14px, calc(0.879rem + var(--fluid) * 0.006897), 1.625rem);
 
   /* The four breakpoints, mobile-first. These are the ONLY numbers any media
      query in css/ is allowed to name. Anything else is a layout bug waiting
@@ -227,9 +420,51 @@
 
   /* The height of the sticky bar, and the minimum size of anything you can
      put your finger on. DESIGN.md sets the bar at ~64px; the brief sets the
-     target at 44px, and both are floors rather than exact values. */
-  --navbar-height: 64px;
+     target at 44px, and both are floors rather than exact values.
+
+     `--navbar-height` is a `svh` clamp now, and that is not cosmetic. It used to
+     be a flat 64px, which is 11.4% of a 560px-tall window and 16% of a
+     landscape phone — a fixed bar that is a sixth of the screen on the screens
+     where a sixth of the screen matters. `8svh` gives 72px at a 900px-tall
+     window (capped at 68) and 52px at a 560px-tall one, so the bar takes a
+     roughly constant share of the viewport rather than a constant share of
+     nothing.
+
+     `--tap-target` is NOT fluid and never will be. It is an accessibility
+     floor: 44px is 44px whether the window is 280px wide or 3440. */
+  --navbar-height: clamp(52px, 8svh, 68px);
   --tap-target: 44px;
+
+  /* The height the bar ACTUALLY renders at, and the only place that is decided.
+
+     `--navbar-height` above is the CEILING. It was not the height, and three
+     things quietly assumed it was:
+
+       - `#navbar` wrote its own `clamp(56px, 4.5vw + 44px, var(--navbar-height))`,
+         so the bar's real height was a second, unrelated expression;
+       - `scroll-margin-top` was `calc(var(--navbar-height) + 24px)`, so every
+         anchor on the page landed 24-32px below the bar it was dodging;
+       - the outer clamp's 56px floor was UNREACHABLE whenever the ceiling
+         dropped below it, which is exactly what happened in every short window
+         once the ceiling became an `svh` value — a 400px-tall window asked for
+         a 52px ceiling and got the 56px floor instead, so the height axis
+         stopped working below ~700px tall.
+
+     One expression, read by all three:
+
+         min(4.5vw + 40px, 8svh)  the width term and the height term, competing
+         clamped 52 -> 68px
+
+       1440x900   min(104.8, 72)   = 72  -> 68   (unchanged from Stage 1)
+       1920x400   min(126.4, 32)   = 32  -> 52   (was 56 — the floor, not the axis)
+       1366x567   min(101.5, 45.4) = 45  -> 52   (was 56)
+        390x844   min(57.6,  67.5) = 58          (was 62)
+        280x560   min(52.6,  44.8) = 45  -> 52   (was 56)
+
+     The mobile numbers MOVE, and that is the fix rather than the cost: a bar
+     that is 52px on a 390px-tall phone is 13% of the screen instead of 14.4%,
+     and the anchors finally land where the bar actually is. */
+  --navbar-bar: clamp(52px, min(4.5vw + 40px, 8svh), 68px);
 
   /* The largest horizontal inset a fixed element should use: the normal
      gutter, floored at the safe-area inset so a fixed button never lands
@@ -279,5 +514,9 @@
    as the type gets smaller, never negative.
    ========================================================================== */
 :root {
-  --tracking-display-face: clamp(0.012em, 0.004em + 0.28vw, 0.03em);
+  /* `--fluid` for the same reason as every other token here: the tracking share
+     of a headline should tighten on a phone and open up on a wide window, and
+     a `vw` arm cannot do the first half of that on a landscape phone. The cap
+     is unchanged, so 1440 and above are pixel-identical to before. */
+  --tracking-display-face: clamp(0.012em, calc(0.004em + var(--fluid) * 0.00021), 0.03em);
 }

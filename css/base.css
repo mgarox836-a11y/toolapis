@@ -36,7 +36,16 @@ html {
 
 body {
   margin: 0;
-  min-height: 100%;
+  /* `100%` was INERT and has been for the life of this rule: a percentage
+     height resolves against the parent's height, `<html>` declares none, so it
+     computed to auto and the floor never applied. `100svh` is what the rule
+     always meant — a body at least one screen tall, so a short page still fills
+     the viewport and the footer's bottom padding has something to sit on.
+
+     `svh` and not `dvh`: `dvh` moves under the reader's thumb as the mobile URL
+     bar retracts, and a body whose height changes mid-scroll reflows the whole
+     document on the way down. `svh` is the smallest stable viewport. */
+  min-height: 100svh;
   /* min-width: 0, NOT the 320px floor this used to carry.
 
      The floor was deliberate when it was written (the old comment said a 280px
@@ -267,7 +276,9 @@ button:focus-visible { border-radius: var(--radius-buttons); }
 
 .mono {
   font-family: var(--font-mono);
-  font-size: 13px;
+  /* Was a hand-written 13px, duplicated by `.code` in components.css. Two
+     owners for one number is how a font size stops being a decision. */
+  font-size: var(--text-mono);
   letter-spacing: 0.02em;
   font-feature-settings: "liga" off, "calt" off;
 }
@@ -321,12 +332,18 @@ button:focus-visible { border-radius: var(--radius-buttons); }
 .section-head {
   display: flex;
   flex-direction: column;
-  gap: var(--spacing-16);
+  /* The gap INSIDE the head — title to its intro paragraph. Fitted through
+     (1440, 16px) with a 10px floor, so it is 13px on a tablet and 18px on a
+     1920 screen rather than 16px everywhere. */
+  gap: clamp(0.625rem, calc(0.625rem + var(--fluid) * 0.004167), 1.25rem);
   max-width: 720px;
   /* Fluid rather than a fixed 56px: the gap below a heading should scale with
      the section rhythm, not sit at one value on a phone and another on a
-     desktop. */
-  margin-bottom: clamp(28px, 4vw, var(--spacing-56));
+     desktop. Fitted through (768, 30.7px) and (1440, 56px) — the two values
+     the old `clamp(28px, 4vw, 56px)` actually resolved to — so both survive
+     and the height axis can shrink it: 42px on a 567px-tall laptop, where the
+     old value gave 54.6px. */
+  margin-bottom: clamp(1.75rem, calc(0.1125rem + var(--fluid) * 0.037649), 4rem);
 }
 
 .grid {
@@ -334,8 +351,20 @@ button:focus-visible { border-radius: var(--radius-buttons); }
   gap: var(--spacing-24);
 }
 
-/* Anchor offset for the sticky navbar. */
-section[id] { scroll-margin-top: calc(var(--navbar-height) + 24px); }
+/* Anchor offset for the sticky navbar.
+
+   `--navbar-bar`, not `--navbar-height` and not a second `+ 24px`. The old
+   expression was `calc(var(--navbar-height) + 24px)` = 88px against a bar that
+   renders at 56-64px, so every anchor on this page landed 24-32px below the bar
+   it was written to clear — and would have landed 20px low even if the token
+   had been the real height, because the 24px was a guess at the breathing room
+   rather than a measurement of it.
+
+   The 12px now is not a guess either: it is half of the 24px line-height the
+   section heading starts with, so a section that scrolls to its top puts its
+   heading exactly one line-height clear of the bar. The bar and the offset now
+   come from one token and cannot drift apart again. */
+section[id] { scroll-margin-top: calc(var(--navbar-bar) + 12px); }
 
 /* ------------------------------------------------------------ utilities --- */
 /* Two state utilities the markup still uses by name (the mobile menu toggles

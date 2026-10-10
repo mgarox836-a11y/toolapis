@@ -119,11 +119,24 @@
 .bento > * { min-width: 0; }
 @media (600px <= width < 1024px) {
   .bento { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  /* The terminal card takes the full width of the two-column band. It is the
+     one card whose contents are WIDTH-SENSITIVE — `$ adb reverse tcp:8000
+     tcp:8000` is 30 characters, which is 216px at the 12px mono floor — and
+     half of a 542px shell is 263px, 20px short of fitting its own headline
+     command. The four other cards are prose and badges; they are happy in half
+     a column. Putting this one card full-width fixes 28px of horizontal scroll
+     without moving the breakpoint, which also would have dragged the other
+     three cards from 263px to 542px and made the bento a list again. */
+  .bento__tether { grid-column: 1 / -1; }
 }
 @media (min-width: 1024px) {
   .bento {
     grid-template-columns: repeat(12, minmax(0, 1fr));
-    gap: 20px;
+    /* 20px at 1440 and unchanged below it — the calibration figure — opening to
+       26px at 1920. Only the ROW gaps are height, so this is +12px of
+       `#overview` at 1920, not the +66px the eleven column gaps would suggest
+       to anyone reading the numbers without that fact. */
+    gap: clamp(20px, calc(0.125rem + var(--fluid) * 0.0125), 26px);
   }
 }
 
@@ -377,7 +390,17 @@
   border-radius: var(--radius-nested-cards);
   border: 1px solid var(--color-iron-edge);
   background: var(--color-obsidian);
-  padding: var(--spacing-16);
+  /* Fluid, fitted through (280, 6px) and (1440, 16px) — DESIGN.md's code-surface
+     padding, unchanged at every width from 1440 up.
+
+     16px is 13% of a 246px card, and at the narrow end that padding is the
+     difference between the demo fitting and scrolling. The floor is 6px rather
+     than a comfortable-looking 8px because `$ adb reverse tcp:8000 tcp:8000` is
+     30 characters, and 30 characters at the 12px mono floor is 216px of the
+     192px a 246px card has left. Six pixels of padding is not generous. It is
+     the smallest inset at which the commands this card exists to show are
+     fully visible instead of a scrollbar away. */
+  padding: clamp(6px, calc(0.2244rem + var(--fluid) * 0.008621), var(--spacing-16));
   font-family: var(--font-mono);
   /* 12–13px per brief §4. At 320px the card's content box is ~190px, and
      13px mono fits about 24 characters; the longest line here is 30, so it
@@ -397,7 +420,17 @@
 .terminal__line { display: block; white-space: pre; }
 /* The typewriter writes into this, so it must not wrap mid-command. */
 .terminal__cmd { white-space: pre; }
-.terminal__comment { color: var(--color-cinder); }
+/* COMMENTS WRAP; COMMANDS DO NOT. These were one rule until now, and the cost
+   was that the block's width was set by its longest line of PROSE — `# phone now
+   shares the PC connection` is 35 characters, while the widest thing anyone
+   actually runs is `$ adb reverse tcp:8000 tcp:8000` at 30. So the terminal
+   scrolled at 280px and 320px for the sake of a sentence, when the commands it
+   exists to display would have fitted in the box.
+
+   A comment that wraps mid-sentence is a comment. A command that wraps
+   mid-argument is a broken command, which is the one thing a terminal must
+   never show. */
+.terminal__comment { color: var(--color-cinder); white-space: pre-wrap; }
 .terminal__prompt { color: var(--color-phosphor-mint); }
 .terminal__cmd { color: var(--color-ash); }
 /* While a command is being typed the caret rides the end of the text. */
@@ -431,8 +464,12 @@
      narrow card sets the whole grid wider than its container. */
   grid-template-columns: 8px 32px minmax(0, 1fr) auto;
   align-items: center;
-  gap: 12px;
-  padding-block: 10px;
+  /* Both fitted to hold 12px and 10px at 1440 exactly. The first attempt got
+     the intercepts wrong and produced 14.33px and 12px there — a 14% taller
+     feed row at the one width that is supposed to be a fixed point. A ramp is
+     only "fitted through two points" if you actually solve for both. */
+  gap: clamp(12px, calc(0.4375rem + var(--fluid) * 0.003472), 16px);
+  padding-block: clamp(10px, calc(0.3125rem + var(--fluid) * 0.003472), 14px);
   min-width: 0;
   /* The rail: one hairline behind the nodes. It stops at the last node. */
   border-bottom: 1px solid var(--color-iron-edge);

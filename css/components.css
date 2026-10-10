@@ -23,10 +23,13 @@
   position: fixed;
   top: 0; left: 0; right: 0;
   z-index: 40;
-  /* Fluid between the brief's 56px floor and DESIGN.md's 64px. A fixed 64px
-     bar is 18% of a landscape phone's height, which is a lot of a 390px-tall
-     viewport spent on nothing. */
-  height: clamp(56px, 4.5vw + 44px, var(--navbar-height));
+  /* The bar's height, from `--navbar-bar` and nowhere else.
+
+     It used to be its own `clamp(56px, 4.5vw + 44px, var(--navbar-height))`,
+     which meant the bar's height and the height `scroll-margin-top` was
+     dodging were two different numbers computed two different ways. See the
+     `--navbar-bar` comment in css/tokens.css for the arithmetic. */
+  height: var(--navbar-bar);
   display: flex;
   align-items: center;
   background-color: var(--color-void-canvas);
@@ -47,11 +50,45 @@
   justify-content: space-between;
   /* min-width: 0 on the row, and on both of its children, is what lets the
      wordmark ellipsis instead of pushing the actions off the right edge. The
-     brand is `flex: 0 0 auto` with a nowrap wordmark, so without this the
+     brand is `flex: 0 1 auto` with a nowrap wordmark, so without this the
      shortest thing that can happen at a narrow width is a clipped navbar —
      which is what happened at 200% zoom before this rule existed. */
-  gap: var(--spacing-16);
+  gap: var(--element-gap);
   min-width: 0;
+
+  /* THE BAR DECIDES BY ITS OWN WIDTH, NOT THE WINDOW'S.
+
+     The bar is `position: fixed` and spans the viewport, so its own width is
+     the window's width minus the gutters — and `container-type: inline-size`
+     makes that number directly queryable. Every layout decision below is a
+     `@container nav` rule, and that is what removes the contradiction this file
+     used to carry: `min-width: 900px` and `width < 1024px` were deciding
+     DIFFERENT things about the SAME element, at two different numbers, from two
+     different scales. 900 was a behaviour boundary (does the panel exist) and
+     1024 was a layout one (how big is the gap), and nothing recorded that.
+
+     `contain: layout style` comes with `container-type`, so this element also
+     becomes a containing block and a stacking context. That is safe here
+     because everything inside the bar is static flow: no fixed descendants,
+     nothing that escapes its box. It is the same trade every other container on
+     this page makes from Stage 4 onward.
+
+     THE THRESHOLDS, and where each one comes from. They are literal numbers
+     because a container query cannot take a `var()`, and each is chosen so the
+     behaviour is UNCHANGED from the viewport query it replaces — measured as
+     this shell's own content width at that viewport:
+
+       828px   at a 900px viewport   (was `@media (min-width: 900px)`)
+       942px   at a 1024px viewport  (was `@media (width < 1024px)`)
+       430px   at a 480px viewport   (was `@media (width < 480px)`)
+       320px   at a ~360px viewport  (was `@media (width < 360px)`)
+
+     They drift from those viewport numbers as the gutter moves, and that is the
+     point: a 1440px window has a 1328px container now, and the bar makes its
+     decision on the space it actually has rather than on a number that happens
+     to describe the same width today. */
+  container-type: inline-size;
+  container-name: nav;
 }
 
 /* Brand: TL mark + wordmark. The mark is a plain white disc on the void — the
@@ -80,7 +117,7 @@
   background: var(--color-pure-white);
   color: var(--color-void-canvas);
   font-family: var(--font-body);
-  font-size: 13px;
+  font-size: var(--text-mark);
   font-weight: var(--weight-semibold);
   letter-spacing: 0.02em;
   transition: transform var(--duration-fast) var(--ease-out-quint);
@@ -90,7 +127,7 @@
 }
 .brand__word {
   font-family: var(--font-sans);
-  font-size: 18px;
+  font-size: var(--text-brand);
   font-weight: var(--weight-medium);
   /* +0.02em, not the display face's 0.03em: this is a wordmark in a 56–64px
      bar, and the display tracking is tuned for 32px and up. */
@@ -108,8 +145,15 @@
    WCAG 2.5.3 label-in-name failure (the accessible name would no longer
    contain the visible text) and would leave a 32px target in a 56px bar.
    Measured: at 320px the brand needs ~139px of the ~172px available beside two
-   44px controls, so the wordmark fits at 16px with room to spare. */
-@media (width < 360px) {
+   44px controls, so the wordmark fits at 16px with room to spare.
+
+   This was `@media (width < 360px)`, which asked the WINDOW how wide the bar
+   is. It is the bar's own width now, which is the same question asked of the
+   thing that has to answer it — and it fires in one case the viewport query
+   structurally could not: 200% zoom on a 640px window, where the bar has ~512px
+   of container and the old rule saw a 640px viewport and did nothing while the
+   bar was visibly cramped. */
+@container nav (max-width: 320px) {
   .brand { gap: 8px; }
   .brand__word { font-size: 16px; letter-spacing: 0.01em; }
   .brand__mark { width: 28px; height: 28px; font-size: 12px; }
@@ -166,24 +210,32 @@
 #navbar nav[aria-label="Primary"] {
   display: none;
   align-items: center;
-  gap: var(--spacing-32);
+  /* Fluid: 32px is the design's resting gap and the 1440 calibration point, so
+     this is fitted through (1024, 19px) and (1440, 32px) rather than through
+     zero — the gap narrows where the bar is tight and opens where there is
+     room, instead of jumping between two named steps. */
+  gap: clamp(1rem, calc(0.3075rem + var(--fluid) * 0.01825), 2rem);
 }
-/* Only the CTA is `desktop-only` now. The share button is available at every
-   width (brief §4), and the two used to share one class and therefore one
-   breakpoint — which is why they could never be split. */
 .navbar-actions .desktop-only { display: none; }
 #nav-toggle { display: inline-flex; }
 
-@media (min-width: 900px) {
+/* THE ONE LINE, at last. The old `@media (min-width: 900px)` and
+   `@media (width < 1024px)` were two numbers for two halves of one decision on
+   one element, from two different scales, and nothing recorded that — which is
+   how 640–767px once had no links and no hamburger, and how 900–1023px ended up
+   "full nav, compressed gap" as an accident rather than as a state anyone had
+   chosen. It is one query now, on the bar's own width. */
+@container nav (min-width: 828px) {
   #navbar nav[aria-label="Primary"] { display: flex; }
   .navbar-actions .desktop-only { display: inline-flex; }
   #nav-toggle { display: none; }
 }
 
 /* The centre links get their own hairline padding rather than relying on the
-   32px flex gap alone, so a tap target is 44px tall AND has 8px of clearance
-   from its neighbour (brief §4) even where the gap is compressed. */
-@media (width < 1024px) {
+   flex gap alone, so a tap target is 44px tall AND has 8px of clearance from its
+   neighbour (brief §4) even where the gap is compressed. Below the bar's
+   942px mark the row is in its tightest arrangement and the gap closes further. */
+@container nav (max-width: 941px) {
   #navbar nav[aria-label="Primary"] { gap: var(--spacing-16); }
 }
 
@@ -210,7 +262,19 @@
   justify-content: center;
   gap: 10px;
   min-height: var(--tap-target);  /* touch target, brief §4 */
-  padding: 12px 24px;
+  /* Block padding stays 12px — the 44px min-height governs the box and this
+     only centres the label. The INLINE padding is fluid BELOW the design's
+     24px and fixed at it: a pill's horizontal padding is what decides how long
+     its label can be before the pill outgrows the row, and on a 280px screen a
+     24px-each-side pill cannot hold "Open HD Enhancer" at any font size.
+
+     The cap is 24px, not more, and that is DESIGN.md's figure. A first attempt
+     capped it at 26 and it cost 12px of Features at 1920 — 6.7% of the section,
+     over the 6% the brief allows — for a pill 4px wider than the one the design
+     specifies. Shrinking below the design's number is a fix; growing above it
+     is a redesign, and not one anybody asked for. */
+  padding-block: 12px;
+  padding-inline: clamp(1rem, calc(0.8075rem + var(--fluid) * 0.007692), 1.5rem);
   border-radius: var(--radius-buttons);
   font-family: var(--font-body);
   /* Brief §4: buttons sit at 500, 15–16px, +0.01em. They were 14px, which is
@@ -246,6 +310,12 @@
   .hero-cta-row .btn,
   .hero-cta-row .hero-play-btn { width: 100%; }
 }
+
+/* The navbar's own full-width step, on the navbar's own width. The rule above
+   stays on the viewport for `.hero-cta-row` and `.cta-band__actions`, which are
+   not inside this container and get their own in Stage 5 and Stage 7 — a
+   `@container nav` query cannot reach them, and pretending otherwise is how a
+   rule silently stops applying to half its selectors. */
 
 /* Press feedback belongs to `:active` on every device, and it is the ONLY
    pointer feedback a touch device gets — so it must not be inside a
@@ -289,7 +359,10 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 44px; height: 44px;
+  /* `var(--tap-target)`, not a literal 44. This rule hard-coded the same number
+     `.btn` reads from the token, which meant raising the accessibility floor
+     would have moved the buttons and left these two behind. */
+  width: var(--tap-target); height: var(--tap-target);
   border-radius: var(--radius-buttons);
   background: transparent;
   border: 1px solid var(--color-pure-white);
@@ -304,9 +377,12 @@
 .social-btn:active,
 .btn-outline-icon:active { transform: translateY(1px); }
 /* The glyph is the only thing in the pill, so it takes the optical centre and
-   an 18px cap — the old font-size:18px is now an explicit box. */
+   an 18px cap — the old font-size:18px is now an explicit box, and the 18 is
+   `--icon-sm`, which `#toast .icon` and `.footer-social .icon` also read. Three
+   owners of one number is how a number stops being a decision. */
 .social-btn .icon,
-.btn-outline-icon .icon { width: 18px; height: 18px; }
+.btn-outline-icon .icon,
+#toast .icon { width: var(--icon-sm); height: var(--icon-sm); }
 
 /* The arrow inside a button slides 4px on hover — the only icon motion a
    button gets. */
@@ -536,7 +612,14 @@
 
 /* =============================================================================
    CODE / TERMINAL SURFACE — DESIGN.md "Code/Syntax Surface"
-   Obsidian, 16px radius, mono 13–14px in Graphite. Nested inside a card.
+   Obsidian, 16px radius, mono in Graphite. Nested inside a card.
+
+   The size is `--text-mono`, which was 13px as a hand-written literal in this
+   rule AND in `.mono` — two owners for one number, and the reason neither ever
+   moved. It is also the most load-bearing size on the page: a terminal's lines
+   are literal strings, so a font that cannot shrink is a font that overflows,
+   and this box is 55px too narrow for its content at 280px today. That is a
+   Stage 4 fix; the token that fixes it starts here.
    ========================================================================== */
 .code {
   padding: var(--spacing-16);
@@ -544,7 +627,7 @@
   background: var(--color-obsidian);
   border: 1px solid var(--color-iron-edge);
   font-family: var(--font-mono);
-  font-size: 13px;
+  font-size: var(--text-mono);
   line-height: 1.7;
   color: var(--color-graphite);
   overflow-x: auto;
@@ -682,7 +765,10 @@ textarea.field { min-height: calc(var(--tap-target) * 2); resize: vertical; }
    "TOOLAPIS." for one logo is a worse screen-reader experience than one. */
 .mobile-menu__brand {
   font-family: var(--font-sans);
-  font-size: 18px;
+  /* `--text-brand`, the same token `.brand__word` reads. These were two
+     hand-written 18px values 600 lines apart, which is why the panel's wordmark
+     was never touched by anything that moved the navbar's. */
+  font-size: var(--text-brand);
   font-weight: var(--weight-medium);
   letter-spacing: 0.02em;
   color: var(--color-pure-white);
@@ -724,7 +810,7 @@ textarea.field { min-height: calc(var(--tap-target) * 2); resize: vertical; }
   .mobile-menu__close:hover { background: rgba(255, 255, 255, 0.08); }
 }
 .mobile-menu__close:active { transform: translateY(1px); }
-.mobile-menu__close .icon { width: 20px; height: 20px; }
+.mobile-menu__close .icon { width: var(--icon-md); height: var(--icon-md); }
 
 /* The link list scrolls; the header and the actions do not. */
 .mobile-menu nav {
@@ -742,7 +828,7 @@ textarea.field { min-height: calc(var(--tap-target) * 2); resize: vertical; }
   justify-content: space-between;
   gap: var(--spacing-16);
   min-height: var(--tap-target);
-  padding: 16px 0;
+  padding-block: clamp(0.75rem, calc(0.5rem + var(--fluid) * 0.004167), 1.125rem);
   border-bottom: 1px solid var(--color-steel-border);
   font-family: var(--font-display);
   /* Fluid: 32px is DESIGN.md's figure at desktop, and it has to shrink with
@@ -755,7 +841,9 @@ textarea.field { min-height: calc(var(--tap-target) * 2); resize: vertical; }
   min-width: 0;
 }
 .mobile-menu nav a span { min-width: 0; overflow-wrap: anywhere; }
-.mobile-menu nav a .icon { color: var(--color-cinder); width: 20px; height: 20px; }
+/* `--icon-md`, the same token the close button reads: the chevron and the X in
+   one panel are one decision about glyph size, not two. */
+.mobile-menu nav a .icon { color: var(--color-cinder); width: var(--icon-md); height: var(--icon-md); }
 .mobile-menu__actions {
   display: flex;
   flex-direction: column;
@@ -813,7 +901,10 @@ html.menu-open #navbar { pointer-events: none; }
   /* Clears the back-to-top button, which owns the same corner. The toast is
      transient and the button is always there once scrolled, so the toast is
      what moves. */
-  bottom: calc(max(var(--gutter), env(safe-area-inset-bottom, 0px)) + 60px);
+  /* Clears the back-to-top button, which owns the same corner, by one tap
+     target plus a gap — derived, because the 60px literal was a measurement of
+     a 44px button taken once and never re-taken when the button moved. */
+  bottom: calc(max(var(--gutter), env(safe-area-inset-bottom, 0px)) + var(--tap-target) + 16px);
   z-index: 70;
   /* Never wider than the space between the two insets, or the glass panel's
      own padding plus the message text sets the page width on a narrow phone. */
@@ -851,9 +942,17 @@ html.menu-open #navbar { pointer-events: none; }
   position: fixed;
   /* Safe-area aware: on a notched phone in landscape, `right: 0` would put
      this button under the rounded corner, where it cannot be tapped at all.
-     The brief asks for `max(16px, env(safe-area-inset-*))` by name. */
-  right: max(16px, env(safe-area-inset-right, 0px));
-  bottom: max(16px, env(safe-area-inset-bottom, 0px));
+
+     `--gutter`, not the 16px literal that was here. This button and `#toast`
+     occupy the SAME CORNER and were 40px apart on every screen wider than
+     about 800px — the toast on `var(--gutter)`, this one on a hard 16px — so
+     the transient toast landed visibly inboard of the permanent button it was
+     supposedly clearing. They are the same corner; they are one expression now.
+     The brief's `max(16px, …)` is still honoured, because `--gutter` floors at
+     12px only on a 280px screen and the safe-area term still wins where there
+     is a notch. */
+  right: max(var(--gutter), env(safe-area-inset-right, 0px));
+  bottom: max(var(--gutter), env(safe-area-inset-bottom, 0px));
   z-index: 55;
   display: grid;
   place-items: center;

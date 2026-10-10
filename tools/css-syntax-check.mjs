@@ -175,8 +175,23 @@ if (chromium && exe) {
   const got = await page.evaluate((vendorSrc) => {
     const vendor = new RegExp(vendorSrc, 'i');
     let n = 0, dropped = [];
+    /* NESTING AT-RULES. `CSSContainerRule` is in this list because
+       css/components.css grew its first `@container` blocks in the fluid pass,
+       and the walker knew only MEDIA and SUPPORTS — so every rule inside a
+       container query was invisible to the count and the tool reported "7 were
+       dropped by the parser" for a sheet that parses perfectly.
+
+       That is the failure mode this whole tool exists to prevent, pointed at
+       itself: a silent under-count reads as a broken stylesheet, and the only
+       available response is to go looking for a syntax error that is not
+       there. `CSSContainerRule` is looked up by NAME rather than by
+       `CSSRule.CONTAINER_RULE` because on an engine without container queries
+       the constant is undefined and the comparison would silently never match
+       again. */
+    const NESTED = ['media', 'supports', 'container', 'layer', 'scope'];
+    const isNested = (r) => NESTED.some((k) => r.constructor && r.constructor.name.toLowerCase().endsWith(k + 'rule'));
     const walk = (rs) => { for (const r of rs) {
-      if (r.type === CSSRule.MEDIA_RULE || r.type === CSSRule.SUPPORTS_RULE) { walk(r.cssRules); continue; }
+      if (isNested(r) && r.cssRules) { walk(r.cssRules); continue; }
       if (!r.selectorText) continue;
       if (vendor.test(r.selectorText)) continue;
       n++;
