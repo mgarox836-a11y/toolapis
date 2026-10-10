@@ -66,6 +66,44 @@ const settle = async (page, ms = 900) => {
   await page.waitForTimeout(ms);
 };
 
+/**
+ * Wait for the entrance to be over.
+ *
+ * The page now holds the screen for five seconds on every load: an overlay from
+ * first paint, a scroll lock until 2.5s, and the hero's own blocks arriving on
+ * a schedule that runs to ~5s. Any assertion that scrolls, clicks, or reads the
+ * hero's opacity has to say whether it is testing THAT or testing the page, and
+ * this is how it says "the page" — without it, every one of those assertions is
+ * really asserting that the entrance is over, and fails for the wrong reason on
+ * a slow machine.
+ *
+ * The predicate is the terminal state itself — no class the page might rename —
+ * so it also reports WHY it gave up, which is the difference between "the
+ * entrance ran long" and "the entrance broke".
+ */
+async function waitForEntrance(page, budget = 12000) {
+  return page.evaluate(async (ms) => {
+    const t0 = performance.now();
+    const d = document.documentElement;
+    while (performance.now() - t0 < ms) {
+      const done = !document.getElementById('intro-overlay')
+        && !d.classList.contains('intro-active')
+        && d.classList.contains('intro-done');
+      if (done) {
+        return { ok: true, ms: Math.round(performance.now() - t0) };
+      }
+      await new Promise((r) => setTimeout(r, 60));
+    }
+    return {
+      ok: false,
+      ms: Math.round(performance.now() - t0),
+      overlay: !!document.getElementById('intro-overlay'),
+      active: d.classList.contains('intro-active'),
+      done: d.classList.contains('intro-done'),
+    };
+  }, budget).catch(() => ({ ok: false, why: 'evaluate failed' }));
+}
+
 /** Open a context. `reducedMotion` is the whole point, so it is required. */
 async function open(browser, { width, height, isMobile, hasTouch, reducedMotion }) {
   const ctx = await browser.newContext({
@@ -135,7 +173,116 @@ for (const dev of DEVICES) {
   for (const rm of ['reduce', 'no-preference']) {
     const tag = `${dev.label} · reducedMotion:${rm}`;
     const { ctx, page, errors } = await open(browser, { ...dev, reducedMotion: rm });
+
+    /* ---- THE ENTRANCE, part 1: it is on screen before anything else ----
+       Sampled immediately, BEFORE `settle`. Every other assertion in this file
+       runs after the entrance and therefore cannot see it; this one is the only
+       place the first 2.5 seconds of the page are observed at all, and the only
+       thing it can honestly assert there is the one that matters to a visitor —
+       there is a screen between them and the content, and it has an exit. */
+    const opening = await page.evaluate(async () => {
+      const d = document.documentElement;
+      const t0 = performance.now();
+      /* Poll rather than sample once: the page may have been committed to some
+         milliseconds before this runs, and the honest reading of "was it on
+         screen" is "was it on screen for the whole opening", not "was it on
+         screen at whichever instant the evaluate happened to be scheduled". */
+      let sawActive = d.classList.contains('intro-active');
+      let covered = false;
+      let opaque = false;
+      /* The scroll is deliberately NOT locked, so this checks the property that
+         actually keeps the page out of reach: a fixed, opaque, viewport-sized
+         layer over it. An earlier version of this assertion read
+         `overflow: hidden` on <body>, which was true for a build that has since
+         been corrected — the lock removed ten pixels of scrollbar from the layout
+         and slid the whole page sideways twice, and tools/check-overflow.mjs
+         caught it. Asserting the lock would have protected the bug. */
+      const t1 = performance.now();
+      while (performance.now() - t1 < 1500) {
+        if (d.classList.contains('intro-active')) sawActive = true;
+        const o = document.getElementById('intro-overlay');
+        if (o) {
+          const cs = getComputedStyle(o);
+          if (cs.position === 'fixed' && cs.visibility !== 'hidden') covered = true;
+          if (cs.visibility !== 'hidden' && parseFloat(cs.opacity) > 0.9) opaque = true;
+        }
+        if (sawActive && covered && opaque) break;
+        await new Promise((r) => setTimeout(r, 40));
+      }
+      const skip = document.getElementById('intro-skip');
+      return {
+        active: sawActive,
+        covered,
+        opaque,
+        skipButton: !!skip,
+        skipFocusable: !!skip && skip.tabIndex >= 0,
+        backgroundInert: (document.getElementById('main-content') || {}).hasAttribute?.('inert') === true,
+        skipped: d.getAttribute('data-intro-skipped'),
+        elapsed: Math.round(performance.now() - t0),
+      };
+    });
+    check(`[${tag}] the entrance holds the screen before the page`,
+      opening.active && opening.covered && opening.opaque,
+      JSON.stringify(opening));
+    check(`[${tag}] the entrance has a Skip control, and the background is inert behind it`,
+      opening.skipButton && opening.skipFocusable && opening.backgroundInert,
+      `button=${opening.skipButton} tabbable=${opening.skipFocusable} inert=${opening.backgroundInert}`);
+
     await settle(page);
+
+    /* ---- THE ENTRANCE, part 2: it ends, and it ends completely ----
+       `inert` on the background and the overlay element itself are two separate
+       things that can each survive a broken handover, and each has a failure
+       mode that looks fine in a screenshot: a page whose Tab starts in the
+       middle of the document, a page with a dead full-viewport layer over it.
+       Nothing is asserted about `overflow` here, and the reason is in
+       css/intro.css: the entrance never changes it, so an assertion either way
+       would be asserting a lock that does not exist. */
+    const entrance = await waitForEntrance(page, 12000);
+    check(`[${tag}] the entrance releases the page`,
+      entrance.ok,
+      entrance.ok ? `over in ${entrance.ms}ms` : JSON.stringify(entrance));
+
+    const after = await page.evaluate(() => {
+      const d = document.documentElement;
+      return {
+        bodyOverflow: getComputedStyle(document.body).overflow,
+        htmlOverflow: getComputedStyle(d).overflow,
+        inert: !!document.querySelector('[inert]'),
+        overlay: !!document.getElementById('intro-overlay'),
+        scrollY: Math.round(window.scrollY),
+      };
+    });
+    check(`[${tag}] nothing is left inert and the overlay is out of the DOM`,
+      !after.inert && !after.overlay,
+      JSON.stringify(after));
+    check(`[${tag}] the entrance never touched the document's overflow`,
+      after.bodyOverflow !== 'hidden' && after.htmlOverflow !== 'hidden',
+      `body ${after.bodyOverflow}, html ${after.htmlOverflow} — a lock here is the bug, not the feature`);
+    check(`[${tag}] the entrance did not scroll the page`,
+      after.scrollY === 0, `scrollY=${after.scrollY}`);
+
+    /* ---- THE ENTRANCE, part 3: the hero really landed ----
+       Polled, because the entrance runs to five seconds and this check fires
+       several seconds into the page's life by which time the hero is usually —
+       but not always — finished. It used to be a single read of a value that
+       used to settle inside 550ms; sampling it once is how this assertion ends
+       up testing the clock instead of the animation. */
+    const landed = await page.evaluate(async () => {
+      const els = [...document.querySelectorAll('[data-load-reveal]')];
+      if (!els.length) return { ok: false, why: 'no [data-load-reveal]' };
+      const t0 = performance.now();
+      let worst = 0;
+      while (performance.now() - t0 < 9000) {
+        worst = Math.min(...els.map((el) => parseFloat(getComputedStyle(el).opacity)));
+        if (worst >= 0.99) return { ok: true, ms: Math.round(performance.now() - t0), worst };
+        await new Promise((r) => setTimeout(r, 60));
+      }
+      return { ok: false, worst, ms: Math.round(performance.now() - t0) };
+    });
+    check(`[${tag}] the hero lands fully visible`,
+      landed.ok,
+      landed.ok ? `worst block at opacity ${landed.worst} after ${landed.ms}ms` : JSON.stringify(landed));
 
     const p = await policy(page);
     check(`[${tag}] html carries motion-on`, p.motionOn && !p.motionReduced, JSON.stringify(p));
@@ -202,6 +349,28 @@ for (const dev of DEVICES) {
       const p = await r.newPage();
       await p.goto(BASE, { waitUntil: 'load', timeout: 90000 });
       const res = await p.evaluate(async () => {
+        /* THE ENTRANCE HAS TO BE OVER BEFORE THIS TEST MEANS ANYTHING.
+
+           Two things go wrong without this, and both of them look like a broken
+           reveal rather than a locked page:
+
+             1. `scrollIntoView` runs against a document with `overflow: hidden`
+                on it, so the block never comes into view and never intersects.
+             2. js/reveal.js QUEUES every handover while `intro-active` is on
+                the <html>, so a scroll that lands inside the first two and a
+                half seconds reveals nothing until the entrance hands over.
+
+           So the scroll reveal is only measurable once the entrance is over,
+           and that is the one thing this test has to establish first. */
+        const t0entrance = performance.now();
+        while (performance.now() - t0entrance < 12000) {
+          const d = document.documentElement;
+          if (!document.getElementById('intro-overlay')
+              && !d.classList.contains('intro-active')
+              && d.classList.contains('intro-done')) break;
+          await new Promise((res) => setTimeout(res, 60));
+        }
+
         /* Wait for `reveal-ready`: js/reveal.js adds that class and the
            stylesheet's hide-initial rule is scoped to it, so before it lands
            every `.reveal` legitimately computes to opacity 1. */
@@ -246,18 +415,38 @@ for (const dev of DEVICES) {
         if (!target) return { ok: false, why: 'no below-fold .reveal in #features' };
 
         const start = await settle(target, 4000);
+        const hiddenFilter = getComputedStyle(target).filter;
+
         target.scrollIntoView({ block: 'center', behavior: 'instant' });
         const t0 = performance.now();
+        const radius = (v) => {
+          const m = /blur\(([\d.]+)px\)/.exec(v || '');
+          return m ? parseFloat(m[1]) : null;
+        };
         let end = parseFloat(getComputedStyle(target).opacity);
-        while (performance.now() - t0 < 5000 && end < 0.99) {
+        let settled = radius(getComputedStyle(target).filter);
+        /* Both properties are polled to their end state, not sampled once. They
+           share a duration and a delay, so they finish together — but "at least
+           0.99 opacity" is reached fractionally before "blur is 0", and reading
+           the filter at the moment the opacity condition first passed produced a
+           0.0011px reading that failed an assertion about a working blur. That
+           is the same trap the opacity-only version of this test walked into. */
+        while (performance.now() - t0 < 5000
+               && (end < 0.99 || settled === null || settled > 0.02)) {
           await new Promise((res) => setTimeout(res, 60));
           end = parseFloat(getComputedStyle(target).opacity);
+          settled = radius(getComputedStyle(target).filter);
         }
+        const settledFilter = getComputedStyle(target).filter;
         return {
           ok: start < 0.9 && end >= 0.99,
           revealReady: document.documentElement.classList.contains('reveal-ready'),
           start: +start.toFixed(3), end: +end.toFixed(3),
           ms: Math.round(performance.now() - t0),
+          hiddenBlur: radius(hiddenFilter),
+          settledBlur: settled,
+          hiddenFilter, settledFilter,
+          willChangeAfter: getComputedStyle(target).willChange,
         };
       });
       await r.close();
@@ -267,6 +456,14 @@ for (const dev of DEVICES) {
       reveal.ok,
       reveal.ok ? `opacity ${reveal.start} → ${reveal.end} in ${reveal.ms}ms`
         : JSON.stringify(reveal));
+    check(`[${tag}] scroll reveal arrives out of focus and resolves to sharp`,
+      !reveal.ok || (reveal.hiddenBlur > 0 && reveal.settledBlur <= 0.02),
+      reveal.ok ? `blur(${reveal.hiddenBlur}px) → blur(${reveal.settledBlur}px)`
+        : 'skipped — the reveal itself failed');
+    check(`[${tag}] the promoted layer is dropped once the reveal lands`,
+      !reveal.ok || !/filter/.test(reveal.willChangeAfter || ''),
+      reveal.ok ? `will-change: ${reveal.willChangeAfter}`
+        : 'skipped — the reveal itself failed');
 
     /* ---- the section backdrop is running while it is on screen ---- */
     const bg = await page.evaluate(async () => {
@@ -287,12 +484,11 @@ for (const dev of DEVICES) {
 
     /* ---- the load choreography really plays, rather than snapping ----
        Read from COMPUTED STYLE, not `getAnimations()`. By the time this check
-       runs — after load, two scroll probes and a couple of waits — the 550ms
-       `load-rise` has already finished, and a finished animation is no longer
-       in `getAnimations()`. Reading the timeline here made this assertion a
-       coin flip that passed or failed on how fast the machine happened to be,
-       which is the worst kind of test: it looked like it was checking the
-       animation and was actually checking the clock.
+       runs the entrance is over and the `load-rise` is long finished, and a
+       finished animation is no longer in `getAnimations()`. Reading the timeline
+       here made this assertion a coin flip that passed or failed on how fast the
+       machine happened to be, which is the worst kind of test: it looked like it
+       was checking the animation and was actually checking the clock.
 
        The computed `animation-name` persists after the animation ends, so it
        answers the real question — is this element choreographed, or does it
@@ -615,6 +811,11 @@ if (!SKIP_FPS) {
     await offC.ctx.close();
 
     const onC = await open(browser, { ...dev, reducedMotion: 'reduce' });
+    /* The entrance holds the scroll lock for the first 2.5 seconds, and
+       `scrollFps` scrolls. Measuring it across a locked document measures the
+       cost of not scrolling — a number that would look excellent and mean
+       nothing. */
+    const onEntrance = await waitForEntrance(onC.page, 14000);
     await settle(onC.page);
     await onC.page.bringToFront();
     const live = await scrollFps(onC.page, 3, 1);
@@ -635,7 +836,7 @@ if (!SKIP_FPS) {
     check(`[fps · ${dev.label}] animation cost <= ${Math.round((1 - THROTTLED_RATIO) * 100)}% of this machine's 4x ceiling`,
       ratio >= THROTTLED_RATIO,
       `${liveThrottled.fps.toFixed(1)} fps live vs ${plainThrottled.fps.toFixed(1)} fps with motion off, both at 4x `
-      + `(${Math.round(ratio * 100)}% of ceiling)`);
+      + `(${Math.round(ratio * 100)}% of ceiling)${onEntrance.ok ? '' : ' · entrance did not release: ' + JSON.stringify(onEntrance)}`);
 
     /* The absolute floor, but only on a machine that can be believed. */
     const loadInfo = await machineLoad();
@@ -713,6 +914,75 @@ if (!SKIP_FPS) {
       && [...document.querySelectorAll('.status-dot, .marquee__track, .activity__dot')]
         .map((el) => getComputedStyle(el).animationName).every((n) => n === 'none'));
   check('[toggle · ?motion=off] loops are stopped', paramAnims);
+
+  /* The entrance, with motion off. This is the assertion that keeps the policy
+     honest: the overlay is not shortened with motion off, it is ABSENT, because
+     someone who has been told this page shows them a five-second loading screen
+     every visit does not want a faster one — they want none of it. The check is
+     on the whole first three seconds, not on the end state, because the end
+     state is identical either way and therefore proves nothing. */
+  const offIntro = await paramCtx.newPage();
+  await offIntro.goto(BASE + '?motion=off', { waitUntil: 'commit', timeout: 90000 });
+  const offIntroState = await offIntro.evaluate(async () => {
+    const d = document.documentElement;
+
+    /* WAIT FOR THE STYLESHEET BEFORE SAMPLING ANYTHING.
+
+       The overlay's markup is in the HTML from the first byte, and until
+       css/bundle.css is in effect it computes to `visibility: visible;
+       opacity: 1; display: block` — a plain unstyled <div> with a wordmark, a
+       rail and a Skip button in it. Sampling there reports that the entrance
+       "painted" itself on a page that never showed it to anyone: the stylesheet
+       is render-blocking, so the first frame a visitor can possibly see is
+       already styled.
+
+       `position: fixed` is the probe because it only ever comes from
+       css/intro.css. If it never becomes fixed the stylesheet did not arrive and
+       that is a different failure, reported by the other checks. */
+    const tcss = performance.now();
+    while (performance.now() - tcss < 15000) {
+      const o0 = document.getElementById('intro-overlay');
+      if (!o0 || getComputedStyle(o0).position === 'fixed') break;
+      await new Promise((r) => setTimeout(r, 40));
+    }
+
+    let sawActive = false;
+    let painted = false;
+    let removed = false;
+    let locked = false;
+    const t0 = performance.now();
+    while (performance.now() - t0 < 3000) {
+      if (d.classList.contains('intro-active')) sawActive = true;
+      if (getComputedStyle(document.body).overflow === 'hidden'
+          || getComputedStyle(d).overflow === 'hidden') locked = true;
+      /* "Did it take the screen", NOT "does the element exist". Asserting the
+         element's absence would be asserting that the markup was deleted, which
+         is not the property the policy is about. What matters is whether it ever
+         became a screen. */
+      const o = document.getElementById('intro-overlay');
+      if (!o) removed = true;
+      else {
+        const cs = getComputedStyle(o);
+        if (cs.visibility !== 'hidden' && parseFloat(cs.opacity) > 0.02) painted = true;
+      }
+      await new Promise((r) => setTimeout(r, 40));
+    }
+    return {
+      sawActive, locked, painted, removed,
+      skipped: d.getAttribute('data-intro-skipped'),
+      nav: parseFloat(getComputedStyle(document.getElementById('navbar')).opacity),
+      cta: parseFloat(getComputedStyle(document.querySelector('.hero-cta-row')).opacity),
+    };
+  });
+  check('[toggle · ?motion=off] the entrance never takes the screen — not shortened, absent',
+    !offIntroState.sawActive && !offIntroState.painted && !offIntroState.locked,
+    JSON.stringify(offIntroState));
+  check('[toggle · ?motion=off] the entrance element does not outlive the decision',
+    offIntroState.removed, `removed from the DOM: ${offIntroState.removed}`);
+  check('[toggle · ?motion=off] and the hero is simply there',
+    offIntroState.nav >= 0.99 && offIntroState.cta >= 0.99,
+    `navbar ${offIntroState.nav}, cta ${offIntroState.cta}`);
+  await offIntro.close();
   await paramCtx.close();
 
   /* ---- tap the mobile-menu copy (this context has hasTouch) ---- */

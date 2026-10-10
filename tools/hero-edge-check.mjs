@@ -331,6 +331,18 @@ const isolateAmbient = () => `
   main > section:not(#hero), header, nav, .grain, #scroll-progress,
   .mobile-menu, .page-transition { display: none !important; }
 
+  /* The entrance overlay. It is a fixed full-viewport panel that only exists for
+     the first few seconds of the page, and this tool grades a screenshot of the
+     hero — so on a page where the entrance is still running it would grade the
+     PANEL, not the hero. Its progress rail is 70vw wide (capped at 320px) and
+     2px tall, which is precisely the "a long straight run of discontinuity is a
+     rectangle showing its edge" this tool exists to catch, and it reported that
+     rectangle at eight of the ten viewports until the rail was named here.
+
+     display: none rather than visibility: hidden because this layer is fixed
+     and contributes no layout the band depends on. */
+  #intro-overlay { display: none !important; }
+
   /* The hero's content: hidden, so its boxes still hold the layout that
      positions the ambient layers. */
   .hero-copy, .hero-cta-row, .hero-play-btn, .hero-chips { visibility: hidden !important; }
@@ -367,7 +379,20 @@ for (const c of CASES) {
 
   await page.goto(BASE, { waitUntil: 'networkidle' });
   /* Let the bloom and the reveal animations settle into a static pose, so a scan
-     cannot trip over a gradient that is mid-breath. */
+     cannot trip over a gradient that is mid-breath.
+
+     THE ENTRANCE HAS TO BE OVER FIRST. The page now holds a panel over the
+     viewport for the first few seconds of every load, and this is a tool that
+     grades what is painted on screen — asked a second and a half in, it would be
+     grading the panel. `intro-done` is written by the <head> bootstrap and by
+     js/intro.js whichever survives, and it is only ever set after the overlay
+     element has left the DOM, so waiting for it cannot hang on a module that
+     never runs. */
+  await page.waitForFunction(
+    () => document.documentElement.classList.contains('intro-done')
+       || !document.getElementById('intro-overlay'),
+    null, { timeout: 20000 },
+  ).catch(() => {});
   await page.waitForTimeout(900);
 
   /* The hero's own height, BEFORE anything is hidden, so the band is the hero as

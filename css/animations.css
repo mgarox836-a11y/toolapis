@@ -22,10 +22,25 @@
 }
 
 /* The display face settles: it arrives slightly tighter than it rests, then
-   eases out to DESIGN.md's 0.056em. */
+   eases out to DESIGN.md's 0.056em.
+
+   IT USED TO ANIMATE `letter-spacing` TOO, AND THAT WAS A LAYOUT BUG.
+
+   `letter-spacing` is not a paint property — it re-runs text layout — and this
+   headline's box is sized by its content, so every frame of a tracking
+   animation moves every other thing that shares the row with it. For 900ms
+   that was a rounding error nobody noticed. Then the entrance gave the words a
+   ~3s delay with a `both` fill, which held the 0.012em from-state for the whole
+   entrance: the headline was laid out 22px narrower than it rests at, for four
+   and a half seconds, on every load. tools/check-overflow.mjs caught it as the
+   h1 measuring differently on a fresh load than on a resized one.
+
+   So: opacity and transform only, which is also what this file's own header
+   rule has said since the beginning. The tracking still settles — it is the
+   authored value, applied from first paint, and nothing moves. */
 @keyframes tl-display-settle {
-  from { opacity: 0; transform: translateY(24px); letter-spacing: 0.012em; }
-  to   { opacity: 1; transform: translateY(0); letter-spacing: var(--tracking-display-face); }
+  from { opacity: 0; transform: translateY(24px) scale(0.985); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
 }
 
 @keyframes tl-pulse {
@@ -73,18 +88,27 @@
 }
 
 /* ------------------------------------------------------------ page load ---- */
-/* Hero headline, per line. .word-reveal is the existing hook script.js and
-   css/hero.css already toggle with `.is-visible`; the stagger below keeps the
-   existing nth-child timing intact and adds the tracking settle. */
+/* Hero headline, per line. `.word-reveal` is the hook js/motion-fx.js toggles
+   and css/hero.css already styles with `.is-visible`.
+
+   THE STAGGER LIVES ON THE ANIMATION, NOT THE TRANSITION, and that is the whole
+   point. `tl-display-settle` is the same 900ms either way, but an `animation`
+   carries a DELAY that its `both` fill holds the from-state through — so a word
+   handed `.is-visible` at DOMContentLoaded still waits exactly as long as its
+   delay says. A `transition-delay` could not do that: the transition starts the
+   moment the class lands, and the animation that is supposed to be carrying the
+   word would then begin on top of a word already in place. */
 .word-reveal {
   display: inline-block;
   transform: translateY(100%);
   opacity: 0;
   will-change: transform, opacity;
+  /* No `letter-spacing` in this list either, and for the same reason as the
+     keyframe above: it is a layout property on a content-sized box. The
+     headline's tracking is its authored value from first paint. */
   transition:
     transform var(--duration-reveal) var(--ease-out-quint),
-    opacity var(--duration-reveal) var(--ease-out-quint),
-    letter-spacing var(--duration-reveal) var(--ease-out-quint);
+    opacity var(--duration-reveal) var(--ease-out-quint);
 }
 .word-reveal.is-visible {
   transform: translateY(0);
@@ -95,46 +119,156 @@
   animation: tl-display-settle var(--duration-slow) var(--ease-out-quint) both;
 }
 
-.hero-title .word-reveal:nth-child(1) { transition-delay: 0ms; }
-.hero-title .word-reveal:nth-child(2) { transition-delay: 80ms; }
-.hero-title .word-reveal:nth-child(3) { transition-delay: 160ms; }
-.hero-title .word-reveal:nth-child(4) { transition-delay: 240ms; }
-.hero-title .word-reveal:nth-child(5) { transition-delay: 320ms; }
-.hero-title .word-reveal:nth-child(6) { transition-delay: 400ms; }
-.hero-title .word-reveal:nth-child(7) { transition-delay: 480ms; }
+/* ---- LOAD REVEAL — the second half of the entrance -------------------------
+   The preloader is gone and the choreography is now a plain CSS keyframe play:
+   no overlay, no scroll lock, no timer that can hold the page. Because the
+   animation is `both`-filled it ends in its final state, and under reduced
+   motion it never starts at all (below), so there is no case where the hero
+   stays hidden.
 
-/* ---- LOAD REVEAL (replaces the intro) ------------------------------------
-   The preloader is gone. These six elements still arrive in sequence, but the
-   choreography is now a plain CSS keyframe play on load: no overlay, no scroll
-   lock, no timer, and nothing that can hold the page. Because the animation is
-   `both`-filled it ends in its final state, and under reduced motion it never
-   starts at all (below), so there is no case where the hero stays hidden. */
+   BLUR. Every block arrives out of focus and resolves, which is what makes the
+   entrance read as a lens focusing rather than a list fading in. The radius is
+   modest on purpose — a filtered layer is rasterised, and these are the largest
+   boxes on the page.
+
+   THE CLOCK. Delays are absolute milliseconds measured from FIRST PAINT, and
+   they are authored against `--intro-total` in css/intro.css: the overlay owns
+   the first 2500ms, and these five blocks arrive underneath it so the handover
+   is a change of focus rather than a cut. js/intro.js reads the page's real t=0
+   back off this very animation, which is what keeps the two halves from
+   disagreeing about where 5 seconds starts.
+
+     2600  #navbar          ─┐
+     2700  .eyebrow           │
+     2750  .hero-title       │  all four land by 3.6s,
+     2950  the title's words ─┤  so the first screen is fully
+     3700  .hero-subtitle   ─┤  readable at 3.7s and the
+     4150  .hero-cta-row    ─┘  entrance finishes at 4950ms.
+
+   EVERY DELAY BELOW IS MULTIPLIED BY `--intro-speed`. That one multiplier is how
+   a visitor who ends the entrance early still gets an arrival rather than a
+   jump: js/intro.js sets it to 0.18 on an early exit, so the whole schedule
+   compresses to about 900ms from the moment they pressed Skip — answered at the
+   speed of the gesture, not stopped dead and not re-run in full. At 1 it is the
+   authored five seconds. */
+:root {
+  --load-blur: 14px;
+  --intro-speed: 1;
+}
+
 @keyframes load-rise {
-  from { opacity: 0; transform: translate3d(0, 24px, 0); }
-  to   { opacity: 1; transform: translate3d(0, 0, 0); }
+  from { opacity: 0; filter: blur(var(--load-blur)); transform: translate3d(0, 24px, 0); }
+  to   { opacity: 1; filter: blur(0);               transform: translate3d(0, 0, 0); }
 }
+/* The headline's own box. Opacity only, no travel and NO BLUR: the seven words
+   inside it are already travelling out of their line masks, and blurring the
+   wrapper as well would stack two filters on the same 88px type for two seconds
+   to buy an effect nobody can see through the words arriving over the top. */
+@keyframes load-fade {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+/* THE RESTART WINDOW. js/intro.js adds `intro-restart` and takes it off again
+   within one frame, with a forced layout flush in between, when a visitor ends
+   the entrance before any of the delays above has elapsed. Its only job is to
+   destroy the running animation so the compressed schedule plays from its
+   first frame: without it the browser would carry on from 1000ms of elapsed
+   timeline into a schedule whose first delay is 468ms, and every block would
+   appear already half-faded. One frame that is never painted, then a clean run. */
+html.intro-restart [data-load-reveal],
+html.intro-restart .word-reveal { animation: none !important; }
+
 [data-load-reveal] {
-  animation: load-rise 550ms var(--ease-out-quint) both;
+  animation: load-rise 800ms var(--ease-out-quint) both;
 }
-[data-load-reveal="1"] { animation-delay: 40ms; }
-[data-load-reveal="2"] { animation-delay: 140ms; }
-[data-load-reveal="3"] { animation-delay: 240ms; }
-[data-load-reveal="4"] { animation-delay: 340ms; }
-[data-load-reveal="5"] { animation-delay: 460ms; }
+[data-load-reveal="1"] { animation-delay: calc(2700ms * var(--intro-speed)); }
+[data-load-reveal="2"] { animation-delay: calc(2700ms * var(--intro-speed)); }
+[data-load-reveal="3"] { animation-delay: calc(3700ms * var(--intro-speed)); }
+[data-load-reveal="4"] { animation-delay: calc(4150ms * var(--intro-speed)); }
+[data-load-reveal="5"] { animation-delay: calc(2600ms * var(--intro-speed)); }
+
+.hero-title[data-load-reveal] {
+  animation: load-fade 700ms var(--ease-out-quint) calc(2750ms * var(--intro-speed)) both;
+}
+
+/* ---- the headline's words ------------------------------------------------
+   The tracking settle is a CSS `animation`, and an animation's `both` fill
+   applies its FROM state through the whole delay. That is the property the
+   whole schedule leans on: these words can be handed `.is-visible` the instant
+   js/motion-fx.js runs and they will still not appear until their own delay has
+   elapsed, with no timer in JavaScript holding them there.
+
+   Staggered per LINE (200ms) and, within a line, per word (120ms) — so the
+   headline walks down the screen the way it reads, rather than all three lines
+   arriving as one slab. `.hero-title-line` is the child index; `.word-reveal`
+   is the child index inside it. Every term is multiplied by `--intro-speed` so
+   a skip compresses the whole cascade, not just its first step. */
+.hero-title .word-reveal.is-visible {
+  animation-delay: calc(2950ms * var(--intro-speed));
+}
+.hero-title-line:nth-child(2) .word-reveal.is-visible {
+  animation-delay: calc((2950ms + 200ms) * var(--intro-speed));
+}
+.hero-title-line:nth-child(3) .word-reveal.is-visible {
+  animation-delay: calc((2950ms + 400ms) * var(--intro-speed));
+}
+.hero-title-line .word-reveal:nth-child(2).is-visible {
+  animation-delay: calc((2950ms + 120ms) * var(--intro-speed));
+}
+.hero-title-line:nth-child(2) .word-reveal:nth-child(2).is-visible {
+  animation-delay: calc((2950ms + 320ms) * var(--intro-speed));
+}
+.hero-title-line:nth-child(3) .word-reveal:nth-child(2).is-visible {
+  animation-delay: calc((2950ms + 520ms) * var(--intro-speed));
+}
+.hero-title-line:nth-child(3) .word-reveal:nth-child(3).is-visible {
+  animation-delay: calc((2950ms + 640ms) * var(--intro-speed));
+}
+/* The fourth word of the third line — "Place." — needs its own rule, because a
+   `.word-reveal` with no `nth-child` of its own falls back to the LINE's delay
+   and therefore lands 240ms ahead of the two words before it. The headline was
+   arriving bottom-up inside one line, which is exactly the sort of thing that
+   reads as "the animation is broken" rather than "the animation is designed". */
+.hero-title-line:nth-child(3) .word-reveal:nth-child(4).is-visible {
+  animation-delay: calc((2950ms + 760ms) * var(--intro-speed));
+}
+
+/* The transition that the same class also triggers, with no delay of its own:
+   while the animation is running it wins over the transition outright, and once
+   it ends the transition is what would take over — so a delay here could only
+   make the words arrive late in the one case where the animation never ran. */
+.hero-title .word-reveal { transition-delay: 0ms; }
+
+/* The transition that the same class also triggers, with no delay of its own:
+   while the animation is running it wins over the transition outright, and once
+   it ends the transition is what would take over — so a delay here could only
+   make the words arrive late in the one case where the animation never ran. */
+.hero-title .word-reveal { transition-delay: 0ms; }
 
 /* Failsafe: if anything above were ever to fail to run, the hero must still be
    readable. `reveal-all` is set by the inline <head> timer when the reveal
-   system never came up. */
+   system never came up.
+
+   `filter: none` is load-bearing here and not a copy of the reveal rule below.
+   `load-rise` now blurs, and this rule is the one that cancels it — without the
+   reset the failsafe would snap the hero to full opacity, full position and
+   still fully defocused, which is the one state in which the page is neither
+   animated nor readable. */
 html.reveal-all [data-load-reveal] {
   animation: none !important;
   opacity: 1 !important;
   transform: none !important;
+  filter: none !important;
 }
-/* Reduced motion: no travel, no stagger — the hero is simply there. */
+/* Reduced motion: no travel, no blur, no stagger — the hero is simply there.
+   The five seconds belong to css/intro.css, which skips the overlay entirely
+   under this class rather than shortening it. */
 html.motion-reduced [data-load-reveal] {
   animation: none !important;
   opacity: 1 !important;
   transform: none !important;
+  filter: none !important;
 }
 
 /* --------------------------------------------------------- scroll reveal --- */
@@ -146,7 +280,18 @@ html.motion-reduced [data-load-reveal] {
    milliseconds for the stagger and the ceiling). */
 :root {
   --reveal-distance: 24px;
-  --reveal-blur: 0px;
+  /* The entrance's second half: every block that arrives on scroll comes out of
+     focus and resolves, the same as the hero, so one gesture reads the same way
+     everywhere on the page. It was 0px — a knob that existed and nothing read
+     it — because the motion was scoped to the entrance and the entrance used a
+     keyframe rather than the reveal system.
+
+     `filter` is the one property here that is not composited, so it is the one
+     that costs. Three things keep it affordable: a modest radius, a duration
+     that has not changed, and `will-change: filter` held only while the block is
+     actually in flight (`.rv-anim`, see js/reveal.js) rather than left on the
+     element to keep a filtered layer alive for the rest of the page's life. */
+  --reveal-blur: 12px;
   --reveal-duration: .7s;
   --reveal-stagger: 80ms;
   --reveal-max-delay: 360ms;
@@ -176,23 +321,37 @@ html.rv-measuring :is(.reveal, [data-reveal], .rv, main h2, footer) {
    selector instead just moves the breakage somewhere less obvious. */
 html.reveal-ready :is(.reveal, [data-reveal], .rv):not([data-load-reveal]):not(#navbar):not(#nav-sentinel):not(#scroll-progress):not(#back-to-top):not(#spotlight):not(.grain):not(#page-transition):not(#toast):not(.mobile-menu):not(.skip-link) {
   opacity: 0;
+  filter: blur(var(--reveal-blur));
   transform: translate3d(0, var(--reveal-distance), 0);
   transition:
     opacity var(--reveal-duration) var(--reveal-ease),
+    filter var(--reveal-duration) var(--reveal-ease),
     transform var(--reveal-duration) var(--reveal-ease);
   transition-delay: var(--reveal-delay, 0ms);
 }
 html.reveal-ready :is(.reveal, [data-reveal], .rv):not([data-load-reveal]):not(#navbar):not(#nav-sentinel):not(#scroll-progress):not(#back-to-top):not(#spotlight):not(.grain):not(#page-transition):not(#toast):not(.mobile-menu):not(.skip-link):is(.is-visible, .active) {
   opacity: 1;
+  /* An explicit `blur(0)`, not `filter: none`. The transition interpolates
+     between two filter values and `none` is not one it can interpolate from, so
+     the block would resolve in a single frame at the end — which reads as a
+     plain fade with a jump in the middle of the arrival. */
+  filter: blur(0);
   transform: translate3d(0, 0, 0);
 }
 html.reveal-ready :is(.reveal, [data-reveal], .rv):not([data-load-reveal]):not(#navbar):not(#nav-sentinel):not(#scroll-progress):not(#back-to-top):not(#spotlight):not(.grain):not(#page-transition):not(#toast):not(.mobile-menu):not(.skip-link):is(.is-visible, .active) {
   opacity: 1;
 }
+/* `filter` is deliberately NOT in this promotion list, and that is a measured
+   decision rather than an oversight. Promoting all three during the flight was
+   worth roughly 6% of the page's scroll frame rate on a throttled run — a
+   filtered block is a composited layer whatever `will-change` says, and asking
+   for one up front only makes the layer exist earlier and for longer. The
+   transition still runs on the compositor for the duration it needs; what it
+   does not do is hold the layer afterwards. */
 html.reveal-ready .rv-anim { will-change: opacity, transform; }
 
 @media (width < 768px) {
-  :root { --reveal-distance: 16px; --reveal-max-delay: 300ms; }
+  :root { --reveal-distance: 16px; --reveal-max-delay: 300ms; --reveal-blur: 8px; }
 }
 
 /* The inline failsafe in index.html adds `reveal-all` when it cannot see both
@@ -332,8 +491,13 @@ html.reveal-all :is(.reveal, [data-reveal], .rv) {
   .hero-grid-lines { animation: none; }
 }
 
-/* Nav entrance: the bar drops in once. */
-html.js #navbar > .shell { animation: tl-fade 600ms var(--ease-out-quint) both; }
+/* Nav entrance: the bar drops in once. Its delay is the navbar's own load
+   delay, so the shell and the bar it contains arrive together — the inner fade
+   finishes inside the outer one rather than finishing after it, which would
+   leave the header at 60% opacity for a frame longer than everything else. */
+html.js #navbar > .shell {
+  animation: tl-fade 600ms var(--ease-out-quint) calc(2600ms * var(--intro-speed)) both;
+}
 
 /* Mobile menu links cascade in. */
 .mobile-menu.open nav a { animation: tl-rise 500ms var(--ease-out-quint) both; }

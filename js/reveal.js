@@ -107,6 +107,40 @@ const seen = new WeakSet();
 const revealed = new WeakSet();
 const targets = [];
 
+/* Blocks handed over while the entrance still owns the screen, waiting for it
+   to let go. See `introHolds`. */
+const deferred = [];
+
+/* ------------------------------------------------------------------ *
+ * 2b. THE ENTRANCE
+ * ------------------------------------------------------------------ */
+
+/**
+ * Is the five-second intro still holding the page?
+ *
+ * The entrance (css/intro.css, js/intro.js) covers the viewport for the first
+ * 2.5 seconds and lifts at 2.5s. Anything this module reveals in that window
+ * reveals BEHIND the overlay: the block finishes its fade and blur while nobody
+ * can see it, and by the time the overlay moves the first screen has already
+ * arrived flat, with none of the choreography the entrance exists to deliver.
+ * So during the hold, handovers are queued rather than played.
+ *
+ * THE DEADLINE IS THE POINT OF THIS FUNCTION. `intro-complete` is dispatched by
+ * a module that can fail, by a bootstrap that can fail, and a reveal system
+ * that defers on a promise nobody kept would leave a page's content at opacity 0
+ * indefinitely. So the hold expires on its own clock regardless: 14s is far past
+ * the inline bootstrap's own 5.8s ceiling, which means this deadline is only
+ * ever reached if the entire entrance has already been broken — and in that case
+ * the right answer is to stop deferring and show the page, which is exactly what
+ * this does. */
+const INTRO_DEADLINE = 14000;
+let introDeadline = 0;
+
+function introHolds() {
+  if (!html.classList.contains('intro-active')) return false;
+  return performance.now() < introDeadline;
+}
+
 /* ------------------------------------------------------------------ *
  * 2. SELECTION
  * ------------------------------------------------------------------ */
@@ -201,14 +235,25 @@ function markAnimating(el) {
     el.classList.remove('rv-anim');
     el.style.willChange = '';
   };
-  /* transitionend is the clean exit; the timer bounds it when the event never
-     comes (a display:none ancestor, a skipped frame, a cancelled transition). */
+  /* `transitionend` is the clean exit and the timer bounds it when the event
+     never comes (a display:none ancestor, a skipped frame, a cancelled
+     transition). The `{ once: true }` listener is removed either way, which
+     matters more than it used to: the reveal now transitions THREE properties,
+     so `transitionend` fires three times per block and a listener left attached
+     would run `done` twice — harmless today, but only because `done` is
+     idempotent. */
   try { el.addEventListener('transitionend', done, { once: true }); } catch (err) { /* noop */ }
   setTimeout(done, animBudget());
 }
 
 function revealOne(el) {
   if (!el || el.dataset.rvDone === '1') return;
+  /* Queued, not played: see `introHolds`. Bounded, because `introDeadline` is
+     and because a duplicate here would only cost one extra class write. */
+  if (introHolds() && deferred.indexOf(el) === -1) {
+    deferred.push(el);
+    return;
+  }
   el.dataset.rvDone = '1';
   for (let i = 0; i < VISIBLE.length; i++) {
     try { el.classList.add(VISIBLE[i]); } catch (err) { /* noop */ }
@@ -222,6 +267,13 @@ function revealOne(el) {
 /** Everything, now. The no-observer path and the watchdog both use it. */
 function revealAll() {
   for (const el of targets) revealOne(el);
+}
+
+/** Play whatever the entrance was holding. Called on `intro-complete`, and again
+ *  from a timer, because the one thing worse than a page that reveals late is a
+ *  page that never reveals. */
+function flushDeferred() {
+  while (deferred.length) revealOne(deferred.shift());
 }
 
 /* ------------------------------------------------------------------ *
@@ -352,6 +404,11 @@ function boot() {
    them would turn the whole system into a no-op. */
   try { html.setAttribute('data-reveal-live', '1'); } catch (err) { /* noop */ }
 
+  /* Set BEFORE anything can call revealOne, including the no-observer path
+     below: `introHolds` reads it, and a deadline of 0 would read as "the
+     entrance is long gone" and skip the hold entirely. */
+  introDeadline = performance.now() + INTRO_DEADLINE;
+
   if ('IntersectionObserver' in window) {
     try {
       io = new IntersectionObserver((entries, obs) => {
@@ -370,15 +427,24 @@ function boot() {
   /* No observer (or one that could not be built): show everything. */
   if (!io) revealAll();
 
-  /* In view right now -> right now, not in 700ms. */
+  /* In view right now -> right now, not in 700ms — unless the entrance still
+     owns the screen, in which case both of those are queued for its handover. */
   passVisible();
   scheduleSweeps(6);
+  /* The belt to the deadline's braces: whatever is still queued when the hold
+     expires is played whether the entrance announced anything or not. */
+  setTimeout(flushDeferred, INTRO_DEADLINE - 200);
 
   /* A deep link jumps the instant it resolves, which can land before every
-     bounded sweep above has run. `toolapis:intro-complete` is retained as an
-     extension point: nothing dispatches it now that the 5s intro is gone, and
-     an event that never fires costs one listener. */
-  const onHandover = () => { passVisible(); scheduleSweeps(4); };
+     bounded sweep above has run. `toolapis:intro-complete` is the entrance's
+     handover: it is dispatched by the inline <head> bootstrap in index.html AND
+     by js/intro.js, so it arrives even when the module never ran — which is
+     precisely why this listener has to flush the queue, not just re-sweep. */
+  const onHandover = () => {
+    flushDeferred();
+    passVisible();
+    scheduleSweeps(4);
+  };
   window.addEventListener('toolapis:intro-complete', onHandover);
   window.addEventListener('load', onHandover, { once: true });
   window.addEventListener('pageshow', onHandover);

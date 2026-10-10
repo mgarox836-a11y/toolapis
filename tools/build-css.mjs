@@ -22,6 +22,11 @@
  * layout, and it needs to win on specificity where a layer and the content in
  * front of it describe the same box.
  *
+ * intro.css sits right after animations.css and before components.css: it is
+ * one component's skin, it owns its own lifecycle, and nothing else on the page
+ * describes the same box, so its position only has to be late enough to read
+ * the tokens and early enough to be overridable by a component.
+ *
  *   node tools/build-css.mjs           # write css/bundle.css
  *   node tools/build-css.mjs --check   # fail if bundle.css is out of date
  * ==========================================================================*/
@@ -43,6 +48,7 @@ export const SOURCES = [
   'tokens.css',
   'base.css',
   'animations.css',
+  'intro.css',
   'components.css',
   'hero.css',
   'hero3d.css',

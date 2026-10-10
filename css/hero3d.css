@@ -61,50 +61,86 @@
   /* Contain the glow so a long dash-offset animation cannot widen the page. */
   contain: paint;
 }
-/* On one column the scene sits UNDER the copy, in flow between the copy and
-   the bottom of the hero. So the scene's bright middle band must not land where
-   the headline and CTAs are: the composition here is copy above, light below,
-   which means the scene wants its light in the LOWER part of its own box at this
-   width, not the middle. */
-@media (width < 900px) {
-  /* In flow, below the copy. Full-bleed: it breaks out of .shell's gutter so
-     the light runs to both viewport edges, which is what makes it read as a
-     scene rather than as an inset panel.
+/* On one column the scene is a BACKGROUND BAND behind and below the copy, not a
+   row of its own. So the scene's bright middle band must not land where the
+   headline and CTAs are: the composition here is copy above, light below, which
+   means the scene wants its light in the LOWER part of its own box at this
+   width, not the middle.
+
+   1024px, not 900px. The scene used to stop being a row at 900px, which left
+   900–1023px on the desktop rule above: a right-anchored box 62% wide with the
+   copy spanning the whole shell, so the ribbon and the `enhance clip` chip cut
+   straight through the headline and the paragraph. The one-column hero ends at
+   1024px in css/hero.css, so the scene has to end there too. */
+@media (width < 1024px) {
+  /* A BACKGROUND LAYER, pinned to the hero's bottom edge. Full-bleed: it breaks
+     out of .shell's gutter so the light runs to both viewport edges, which is
+     what makes it read as a scene rather than as an inset panel.
 
      The bleed is `calc(var(--gutter) * -1)` rather than the literal
      `clamp(20px, 4vw, 32px) * -1` that was here before, which was a THIRD copy
      of the page gutter and had already drifted from the one .shell used. Now
      there is one number and both sides read it. */
   .hero-scene {
-    position: relative;
-    inset: auto;
+    position: absolute;
+    /* `inset: auto 0 0 0` resolves against `.hero-inner` (the .shell), which is
+       why the negative margin below is still needed — without it the scene
+       stops at the gutter instead of running to both viewport edges. */
+    inset: auto 0 0 0;
     width: auto;
-    /* Brief §4: 280–360px on mobile. Fluid, so it is 280px at 320 and 320px at
-       a 500px phone, rather than one fixed 320px at every width. */
-    height: clamp(280px, 62vw, 360px);
-    grid-column: 1 / -1;
+    height: min(34svh, 280px);
+    z-index: 0;
+    pointer-events: none;
     margin-inline: calc(var(--gutter) * -1);
     /* No safe-area correction here, and deliberately: #hero already carries
        `padding-inline: env(safe-area-inset-*)`, so the scene's negative margin
        resolves against a box that is already clear of the notch. Adding a
        padding here instead would offset the absolutely-positioned layers
        inside (the ground, floor and ribbon all position against this box's
-       padding box) and shift the light off-centre. */
-  }
-  /* SHORT LANDSCAPE. The height above asks for 360px of a 390px-tall landscape
-     phone. This lives HERE rather than in css/hero.css beside the other
-     landscape rules because hero3d.css is concatenated AFTER hero.css, so an
-     equally-specific `.hero-scene` rule over there loses the cascade and the
-     override silently does nothing — which is exactly what happened the first
-     time: the media query matched, `#hero` took its new padding, and the scene
-     stayed 360px. Declaring the height and its responsive variant in one place
-     is the fix; raising specificity to win the order would only relocate the
-     next bug. */
-  @media (max-height: 520px) and (orientation: landscape) {
-    .hero-scene { height: clamp(160px, 26vw, 220px); }
+       padding box) and shift the light off-centre.
+
+       THE MASK IS NOT POLISH, IT IS THE TOP EDGE. `inset: auto 0 0 0` ends the
+       box on a straight horizontal line, and everything above that line used to
+       be copy. Fading the top half into transparency is what lets the band sit
+       under the CTAs without a visible cut.
+
+       34svh AND NOT 46svh IS A CONTRAST DECISION, NOT A SIZE ONE. At 46svh the
+       ribbon's bright arc crossed the "See how in 30s" ghost pill and washed the
+       label out. At 34svh the arc's core settles below the lowest button with
+       ~24px to spare. Measured contrast behind that label: 8.0:1 at 360x740 and
+       11.2:1 at 320x568, against the 4.5:1 AA needs. */
+    mask-image: linear-gradient(to bottom, transparent 0%, #000 50%);
+    -webkit-mask-image: linear-gradient(to bottom, transparent 0%, #000 50%);
   }
 
-  /* Fade the right edge too, since on mobile the scene no longer bleeds off
+  /* SHORT SCREEN. Same 34:280 ratio as the clamp above resolves to at an 823px
+     screen, so the arc keeps its distance from the copy instead of growing
+     toward it as the viewport loses height. */
+  @media (max-height: 640px) {
+    .hero-scene { height: min(30svh, 190px); }
+  }
+
+  /* SHORT LANDSCAPE. The height above asks for 280px of a 390px-tall landscape
+     phone. The `position: relative` and the mask come off too, and THAT half of
+     this rule cannot live in css/hero.css beside the other landscape rules:
+     hero3d.css is concatenated AFTER hero.css, so an equally-specific
+     `.hero-scene` rule over there loses the cascade and the override silently
+     does nothing — which is exactly what happened the first time: the media
+     query matched, `#hero` took its new padding, and the scene stayed 360px.
+     Declaring the height and its responsive variant in one place is the fix;
+     raising specificity to win the order would only relocate the next bug. */
+  @media (max-height: 520px) and (orientation: landscape) {
+    .hero-scene {
+      position: relative;
+      inset: auto;
+      width: auto;
+      height: clamp(160px, 26vw, 220px);
+      mask-image: none;
+      -webkit-mask-image: none;
+    }
+  }
+
+  /* Fade the right edge too, since on one column the scene no longer bleeds off
      screen — every edge is now visible and every edge has to dissolve. */
   .hero-scene__ground {
     -webkit-mask-image:
@@ -117,6 +153,11 @@
   /* The ribbon's lower tracks are where the card lands; keep them faint and
      pull the whole composition up out of the card's footprint. */
   .hero-scene__bloom { top: 6%; right: 12%; width: 74%; }
+
+  /* The chips are hidden here rather than in the rule above, because a 12px mono
+     label floating in a band that now sits behind the copy would land on the
+     headline — which is exactly what `enhance clip_0412.mp4` was doing at 900px
+     before this band was a background layer. */
   .hero-chips { display: none; }
 }
 
@@ -360,25 +401,47 @@ The fade is the fix, not the clip — forcing `overflow: visible` to test the
   .hero-chip--2 { top: 68%; left: 5%; }
 }
 
-/* Brief §4/§5: below 768px the parallax and the travelling segments both stop.
-   The parallax writes --px/--py from a pointermove listener, which a touch
-   device does not have, so those transforms were resolving to
-   `translate3d(0px, 0px, 0)` anyway — four extra composited layers for nothing.
-   `animation: none` leaves the ribbon at its rest dashoffset, which is a
-   finished composition rather than a frozen accident.
-
-   The chips are hidden entirely below 900px by the rule above; they are
-   12px mono labels positioned against a scene that is now a horizontal band,
-   and there is nowhere in that band they would not be in the way. */
+/* Brief §4/§5: below 768px the parallax stops. It writes --px/--py from a
+   pointermove listener, which a touch device does not have, so those transforms
+   were resolving to `translate3d(0px, 0px, 0)` anyway — four extra composited
+   layers for nothing. */
 @media (width < 768px) {
-  .ribbon-flow,
-  .ribbon-flow--inner { animation: none; }
-  .ribbon-flow { stroke-dashoffset: 640; }
   .hero-scene__ground,
   .hero-scene__floor,
   .hero-scene__bloom,
   .hero-ribbon,
   .hero-chips { transform: none; }
+}
+
+/* THE TRAVELLING SEGMENTS STOP ON ONE COLUMN — AND THE PLACEMENT IS THE POINT.
+   `.ribbon-flow` is a pure-white stroke that exists only to travel along the
+   ribbon; the mint and ice-blue structural tracks around it are drawn, not
+   travelling.
+
+   Below 900px it was already parked, because the one-column scene used to put
+   the band BELOW the copy where nothing read against it. The band is now BEHIND
+   the copy, and that stops being safe. Measured, this segment was dragging the
+   white "See how in 30s" label down to 2.2:1 against the 4.5:1 AA needs,
+   wherever the geometry happened to carry it across the pill — 360x740,
+   390x844, 700x900, 860x900, 940x800, 960x600, 1000x700 and 1023x768 all
+   failed. Parked, they clear 4.5:1 with room to spare.
+
+   IT LIVES HERE, AFTER `.ribbon-flow`'s OWN `animation`, AND NOT IN THE
+   ONE-COLUMN BLOCK ABOVE. That block sits at line 69 and this one at line 314;
+   both are `.ribbon-flow` at the same specificity, so the later one wins
+   regardless of the media query wrapped around it. Declared up there instead,
+   the override does nothing at all and the segment keeps running — which is
+   exactly what the first attempt at this fix did. `animation: none` also leaves
+   the path at its rest dashoffset, which is a finished composition rather than a
+   frozen accident.
+
+   `1024px`, because that is where the scene stops being a full-height right-hand
+   column and becomes a band behind the copy. Above it the segment has the whole
+   right half of the hero to itself. */
+@media (width < 1024px) {
+  .ribbon-flow,
+  .ribbon-flow--inner { animation: none; }
+  .ribbon-flow { stroke-dashoffset: 640; }
 }
 
 @keyframes chip-float-a {

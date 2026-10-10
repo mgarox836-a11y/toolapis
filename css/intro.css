@@ -1,0 +1,371 @@
+/* =============================================================================
+   INTRO OVERLAY — the five seconds before the page exists
+   -----------------------------------------------------------------------------
+   THE SKIN ONLY. The timeline, the progress maths, the skip paths and the
+   handover belong to js/intro.js. This file draws an instrument panel booting:
+   a wordmark, a 2px phosphor rail, a tabular counter and a status line — which
+   is the page's own metaphor, and the reason the five seconds read as a system
+   coming up rather than as a spinner in front of a blank screen.
+
+   WHY IT IS IN ITS OWN FILE. css/animations.css is the motion system's rulebook
+   and it is already the biggest thing anyone edits by hand; the overlay is one
+   self-contained component with its own lifecycle (`intro-active` → `intro-exit`
+   → removed), so it gets one self-contained file. It is registered in
+   tools/build-css.mjs SOURCES, after animations.css and before components.css:
+   the overlay's own skin must lose to nothing, and it must lose to
+   components.css only where they genuinely describe the same box (they do not).
+
+   COLLAPSED BY DEFAULT. `opacity: 0; visibility: hidden` until <html> carries
+   `intro-active`, which the inline <head> bootstrap in index.html sets before the
+   stylesheet is even requested. There is therefore no frame in which the hero is
+   painted and then covered.
+
+   THE SCROLL IS NEVER LOCKED, so there is nothing here to duplicate in the
+   <head> bootstrap. That file still owns everything that DOES have to be
+   releasable — the `intro-active` class and the background unfocusing — and
+   those two are the only things it is trusted with now. See THE LOCK below for
+   why the lock went away; it is a three-paragraph explanation of the single most
+   expensive bug in this file's history.
+   ========================================================================== */
+
+:root {
+  /* The entrance's clock, read by CSS (hero delays) and by js/intro.js
+     (progress maths). One number, two consumers, no chance of them disagreeing
+     about how long the entrance is. `--intro-total` is also what the module's
+     hard failsafe waits on, so a page whose module never boots still releases
+     on the same schedule the design says it should. */
+  --intro-total: 5000ms;
+  /* When the overlay starts lifting. The hero choreography is authored to begin
+     just after this, so the page is already arriving underneath the last of
+     the fade instead of appearing in a hard cut at the end of it. */
+  --intro-handover: 2500ms;
+  --intro-exit: 600ms;
+
+  /* Blur radii. The entrance blurs; nothing on this page blurs at rest. Kept
+     modest on purpose — a large-radius blur on a full-viewport layer is a
+     per-frame raster of the whole viewport, and this file's job is to be the
+     first thing a phone has to pay for. */
+  --intro-blur: 14px;
+  --intro-blur-sm: 8px;
+}
+
+/* --------------------------------------------------------------- the lock ---
+   THERE IS NO SCROLL LOCK, AND THAT IS THE DESIGN.
+
+   This used to be `overflow: hidden` on <html> and <body> for the length of the
+   entrance, and it was wrong in a way that took three attempts to find. A
+   document with `overflow: hidden` has no scrollbar, so taking the lock for 2.5
+   seconds and giving it back at the handover removes and then restores ten
+   pixels of the layout viewport. Everything centred on this page — the shell,
+   the hero copy, the hero scene — is laid out against that width, so the whole
+   page slid sideways at the moment the entrance began and again at the moment
+   it ended. `scrollbar-gutter: stable` was the obvious repair and it is worse:
+   it reserves the gutter, which makes the content box ten pixels narrower than
+   `clientWidth` and puts every centred element five pixels off centre for the
+   duration. Both were caught by tools/check-overflow.mjs, which is the only
+   reason this paragraph exists.
+
+   The rule is one line long: THE SCROLLBAR'S PRESENCE IS LAYOUT, SO IT MAY NOT
+   CHANGE WHILE THE ENTRANCE RUNS. Not locking it is the only way to honour that.
+
+   Which costs nothing, because the entrance already ends on ANY input: a wheel,
+   a touch, a key, a click, and a scroll event from dragging the scrollbar itself.
+   A visitor who scrolls has said the thing they wanted was the page, and the
+   page is what they get — on the same gesture, not on the next one. The overlay
+   is `position: fixed` and covers the viewport for the whole entrance, so there
+   is nothing underneath to interact with anyway.
+
+   What is left here is the one part that genuinely is not scroll position:
+   stopping a touch-drag from chaining into the browser's pull-to-refresh while
+   the panel is up. */
+html.intro-active,
+html.intro-active body {
+  overscroll-behavior: none;
+}
+
+/* ------------------------------------------------------------ the overlay --- */
+#intro-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  /* Void Canvas, plus the faintest mint bloom from below — the hero's own
+     horizon, at 6% strength, so the two states share a light source. */
+  background-color: var(--color-void-canvas);
+  background-image: radial-gradient(760px circle at 50% 118%, rgba(112, 220, 211, 0.06), transparent 62%);
+  color: var(--color-pure-white);
+  font-family: var(--font-body);
+
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition:
+    opacity var(--intro-exit) var(--ease-out-quint),
+    visibility var(--intro-exit) linear;
+}
+
+/* ACTIVE. `visibility` is transitioned rather than flipped because a hidden
+   element cannot be transitioned OUT — the fade would have nowhere to run. */
+html.intro-active #intro-overlay {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+}
+
+/* EXITING. js/intro.js adds this at the handover, then `intro-done` at the end
+   of it. The blur on the way out is the entrance's mirror image: the overlay
+   itself defocuses as the page resolves behind it, so the handoff is a change
+   of focus rather than a change of brightness. */
+html.intro-exit #intro-overlay {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  filter: blur(var(--intro-blur-sm));
+}
+
+/* Terminal state. `intro-done` is set by the cleanup, which also removes the
+   element from the DOM; this rule exists so that if it is ever left in place,
+   it is inert rather than sitting invisibly over the page eating clicks. */
+html.intro-done #intro-overlay,
+#intro-overlay.is-hidden {
+  display: none !important;
+}
+
+/* `display: none` above is the strong finish, but during the exit the element
+   is still faded out while `visibility` is doing its work. `pointer-events: none`
+   is already there so a click landing on a dying overlay reaches the page. */
+
+/* ----------------------------------------------------------------- panel --- */
+.intro-inner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: clamp(16px, 2.2vw, 24px);
+  padding: 24px;
+  width: min(92vw, 460px);
+  text-align: center;
+}
+
+/* -------------------------------------------------------------- wordmark --- */
+/* A stamp, not a headline: mono, uppercase, wide tracking, with the same mint
+   full stop the navbar's wordmark carries so the two read as one brand. */
+.intro-logo {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  opacity: 0;
+  filter: blur(var(--intro-blur));
+  transform: translateY(10px) scale(0.96);
+}
+html.intro-active .intro-logo {
+  animation: intro-mark 900ms var(--ease-out-quint) 260ms both;
+}
+
+.intro-logo__dot {
+  width: 8px;
+  height: 8px;
+  flex: 0 0 8px;
+  border-radius: var(--radius-badges);
+  background: var(--color-phosphor-mint);
+  /* The one loop on this screen. It is 6s rather than the old 900ms: this is
+     the only motion visible for the whole five seconds, and a fast blink for
+     five seconds is exactly the thing the loop budget in animations.css exists
+     to prevent. */
+  animation: tl-pulse 6s var(--ease-in-out) infinite;
+}
+
+.intro-wordmark {
+  font-family: var(--font-mono);
+  font-size: var(--text-body);
+  font-weight: var(--weight-medium);
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--color-pure-white);
+}
+.intro-wordmark::after {
+  content: '.';
+  color: var(--color-phosphor-mint);
+}
+
+/* ----------------------------------------------------------------- rail --- */
+/* 2px, Iron Edge track, Phosphor Mint fill. Flat — no glow, no shadow. The
+   fill is driven by js/intro.js as a `scaleX` transform rather than a width,
+   because a width change relayouts this element on every frame of the rail's
+   travel and a transform is composited. */
+.intro-rail {
+  width: min(70vw, 320px);
+  height: 2px;
+  border-radius: var(--radius-badges);
+  background: var(--color-iron-edge);
+  overflow: hidden;
+  opacity: 0;
+  transform: translateY(6px);
+}
+html.intro-active .intro-rail {
+  animation: intro-fade-up 600ms var(--ease-out-quint) 700ms both;
+}
+
+.intro-rail__fill {
+  display: block;
+  height: 100%;
+  width: 100%;
+  border-radius: inherit;
+  background: var(--color-phosphor-mint);
+  transform: scaleX(0);
+  transform-origin: left center;
+  will-change: transform;
+}
+
+/* ----------------------------------------------------------------- meta --- */
+/* Tabular numerals so the readout never jitters as the digits change. */
+.intro-meta {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  font-family: var(--font-mono);
+  font-size: var(--text-caption);
+  line-height: var(--leading-caption);
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--color-cinder);
+  opacity: 0;
+  transform: translateY(6px);
+}
+html.intro-active .intro-meta {
+  animation: intro-fade-up 600ms var(--ease-out-quint) 900ms both;
+}
+
+.intro-counter {
+  font-variant-numeric: tabular-nums;
+  color: var(--color-ash);
+}
+.intro-counter::after { content: 'ms'; margin-left: 2px; color: var(--color-cinder); }
+.intro-sep { color: var(--color-steel-border); }
+
+/* Status swaps between three lines on one shared box, so the change never moves
+   the rail. `min-width` is the widest of the three, measured, not guessed. */
+.intro-status { min-width: 18ch; text-align: left; color: var(--color-graphite); }
+
+/* ----------------------------------------------------------------- skip --- */
+/* DESIGN.md "Ghost Pill Button": transparent, 1px white border, pill radius.
+   The one thing on this screen that does something, so it is the only thing on
+   it that is focusable and the only thing lit above the wordmark's white. */
+.intro-skip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 10px 20px;
+  border-radius: var(--radius-buttons);
+  border: 1px solid var(--color-pure-white);
+  background: transparent;
+  color: var(--color-pure-white);
+  font-family: var(--font-body);
+  font-size: var(--text-body-sm);
+  font-weight: var(--weight-medium);
+  cursor: pointer;
+  opacity: 0;
+  transform: translateY(8px);
+  transition: background-color var(--duration-fast) var(--ease-out-quint),
+              color var(--duration-fast) var(--ease-out-quint);
+}
+html.intro-active .intro-skip {
+  animation: intro-fade-up 600ms var(--ease-out-quint) 1300ms both;
+}
+.intro-skip:hover,
+.intro-skip:focus-visible {
+  background: var(--color-pure-white);
+  color: var(--color-void-canvas);
+}
+.intro-skip .icon { width: 14px; height: 14px; }
+
+/* The one focus ring on the page during the intro. `:focus-visible` rather than
+   `:focus` so a mouse click on the button does not leave a ring behind after
+   the overlay has gone. */
+.intro-skip:focus-visible {
+  outline: 2px solid var(--color-phosphor-mint);
+  outline-offset: 3px;
+}
+
+/* =========================================================== keyframes ===== */
+@keyframes intro-mark {
+  from { opacity: 0; filter: blur(var(--intro-blur)); transform: translateY(10px) scale(0.96); }
+  to   { opacity: 1; filter: blur(0);                      transform: translateY(0) scale(1); }
+}
+
+@keyframes intro-fade-up {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ========================================================== small screens == */
+/* Two separate cuts, both about cost rather than taste.
+
+   The blur is the expensive part: a filtered layer is rasterised, and on a
+   phone that layer is the whole viewport. Halving the radius on a 320px screen
+   keeps the effect and halves most of that cost.
+
+   The rail's progress is a composited transform either way, so it stays. The
+   wordmark stays. Nothing that carries meaning is dropped, because the only
+   things on this screen that carry meaning are the status line and the Skip
+   button. */
+@media (width < 768px) {
+  :root { --intro-blur: var(--intro-blur-sm); }
+  .intro-inner { gap: 16px; }
+}
+
+/* Coarse pointers get the same treatment as narrow ones — a blur is a blur on
+   a GPU that is already busy compositing a video-ish hero. */
+@media not all and (hover: hover) {
+  :root { --intro-blur: var(--intro-blur-sm); }
+}
+
+/* ============================================================================
+   SKIPPED — the visitor's answer to the whole thing
+   ----------------------------------------------------------------------------
+   One multiplier, read by every delay in css/animations.css. At 1 it is the
+   authored five seconds; at 0.18 the hero's schedule is 468ms/486ms/495ms/
+   531ms…747ms with its own durations, which lands the whole first screen about
+   900ms after the press — long enough to still read as an arrival, short enough
+   that the page is answering the gesture that was just made.
+
+   It compresses rather than cancels because the hero has NOT started yet at that
+   point: every one of its delays is later than the overlay's handover at 2.5s,
+   so while the overlay is up the hero is sitting in the from-state of its `both`
+   fill and a shorter schedule simply means it begins sooner. js/intro.js checks
+   exactly that window before applying it, and re-applying it after the hero is
+   already in flight would replay the two blocks that had finished. */
+html.intro-skip {
+  --intro-speed: 0.18;
+}
+
+/* ============================================================================
+   MOTION OFF — the visitor's own switch, and the only way in
+   ----------------------------------------------------------------------------
+   `html.motion-reduced` is written by js/motion.js when the visitor presses
+   "Reduce motion", or arrives from `?motion=off`, or from a stored preference.
+   There is no OS path to it. See css/animations.css for the full decision
+   record.
+
+   THE WHOLE OVERLAY, INCLUDING THE FIVE SECONDS OF WAITING, IS REMOVED. Not
+   shortened, not faded — gone. A person who has said "less motion" has also
+   been told, in plain terms, that this page shows them a loading screen for
+   five seconds every time they visit. Making them wait through a condensed
+   version of the thing they declined is not respecting the preference.
+
+   The inline <head> bootstrap also skips adding `intro-active` in that case, so
+   this is the second line of defence, not the only one: a visitor with motion
+   off should never see a single frame of the overlay. */
+html.motion-reduced #intro-overlay,
+html.motion-reduced.intro-active #intro-overlay {
+  display: none !important;
+  animation: none !important;
+  opacity: 0 !important;
+}
+
+/* The hero's own choreography is switched off in animations.css; nothing to add
+   here. The `.intro-*` keyframes above are only ever bound to elements inside
+   the overlay, and the overlay's display:none takes them with it. */

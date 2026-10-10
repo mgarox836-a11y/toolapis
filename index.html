@@ -132,6 +132,202 @@
     })();
   </script>
 
+  <!-- ==========================================================================
+       THE ENTRANCE — five seconds of choreography, and the one thing on this
+       page that can take the visitor's attention hostage if it is wrong.
+
+       WHAT THIS SCRIPT IS
+       The `intro-active` class, the unfocusing of everything behind the
+       overlay, and a hard ceiling that clears both — written inline, before the
+       stylesheet is even requested, and depending on NOTHING: no module, no
+       import, no CDN, no build step.
+
+       It is NOT a scroll lock, and that is deliberate. `overflow: hidden` for
+       2.5 seconds removes ten pixels of scrollbar from the layout viewport and
+       puts them back at the handover, so the whole page slides sideways twice;
+       `scrollbar-gutter: stable` trades that for a five-pixel off-centre page
+       for the duration. Both were caught by tools/check-overflow.mjs. The
+       entrance ends on any input instead — see css/intro.css, "THE LOCK" — so
+       there is nothing here that has to be undone and nothing that can be left
+       stuck.
+
+       WHY IT IS INLINE AND WHY IT IS SEPARATE FROM js/intro.js
+       Two reasons, and they are different reasons.
+
+       First, ordering. A module is deferred, so js/intro.js cannot run before
+       first paint — and an overlay that appears after first paint is a flash of
+       the hero, then a cover, which is worse than no overlay at all. Only
+       something inline can hold the screen from the very first frame.
+
+       Second, and the reason it is duplicated rather than shared: the lock has
+       to be releasable when js/intro.js never runs. That module is ordinary
+       JavaScript and ordinary JavaScript fails — a CDN timeout, a syntax error,
+       an exception during import. If the release path lived in the module, the
+       failure mode is a page with `overflow: hidden` and a full-viewport layer
+       over it, forever. So the release lives HERE, independently, on a timer
+       that does not care whether anything else executed.
+
+       `window.__tlIntro` is the seam. Both halves call the same two functions;
+       neither owns a second implementation of "the intro is over". This file
+       defines them, js/intro.js calls them.
+
+       WHEN IT DOES NOT RUN AT ALL
+       - `html.motion-reduced`, i.e. the visitor pressed "Reduce motion", or
+         arrived on `?motion=off`, or chose it on an earlier visit. The whole
+         overlay, INCLUDING THE FIVE SECONDS OF WAITING, is skipped. Not
+         shortened: condensed. Someone who has been told this page shows them a
+         loading screen for five seconds every visit does not want a faster
+         version of it, they want none of it.
+       - A deep link (`#flow`). Someone clicked a link to a specific section.
+         Playing them five seconds of chrome before putting them there is the
+         page deciding it knows better than the link did. The old intro had the
+         same rule and the same reasoning.
+       ========================================================================== -->
+  <script>
+    (function () {
+      var d = document.documentElement;
+
+      /* Read the decision the motion bootstrap above already made, rather than
+         re-deriving it: two readers of one policy is how a page ends up with
+         the overlay visible and `motion-reduced` on <html> at the same time. */
+      var motionOn = true;
+      try {
+        motionOn = (typeof window.__toolapisMotion === 'function')
+          ? !!window.__toolapisMotion()
+          : !d.classList.contains('motion-reduced');
+      } catch (e) {
+        motionOn = !d.classList.contains('motion-reduced');
+      }
+
+      var deepLink = false;
+      try { deepLink = !!window.location.hash; } catch (e) {}
+
+      /* 600ms is css/intro.css's `--intro-exit`. It is written as a literal
+         here on purpose: this script runs BEFORE that stylesheet is requested,
+         so reading the custom property would read nothing. A constant that can
+         disagree with a variable is a smaller problem than a failsafe that
+         silently depends on a resource it exists to survive the loss of. */
+      var EXIT_MS = 600;
+      var CEILING_MS = 5800;
+
+      var released = false;
+      var done = false;
+
+      /* Everything behind the overlay: taken out of the focus ring and out of
+         the accessibility tree for as long as the overlay owns the screen.
+         `inert` does the real work; `aria-hidden` is there for engines that do
+         not implement it yet. On an engine that has both they cannot disagree,
+         because an inert element cannot take focus and therefore cannot be the
+         aria-hidden-but-focusable violation. */
+      var BACKGROUND = ['#navbar', '#main-content', '.site-footer', '#mobile-menu', '.skip-link'];
+
+      function holdBackground() {
+        for (var i = 0; i < BACKGROUND.length; i++) {
+          var els;
+          try { els = document.querySelectorAll(BACKGROUND[i]); } catch (e) { continue; }
+          for (var j = 0; j < els.length; j++) {
+            try {
+              if (els[j].hasAttribute('inert') || els[j].getAttribute('aria-hidden') === 'true') continue;
+              els[j].setAttribute('inert', '');
+              els[j].setAttribute('aria-hidden', 'true');
+            } catch (e) {}
+          }
+        }
+      }
+
+      function releaseBackground() {
+        for (var i = 0; i < BACKGROUND.length; i++) {
+          var els;
+          try { els = document.querySelectorAll(BACKGROUND[i]); } catch (e) { continue; }
+          for (var j = 0; j < els.length; j++) {
+            try {
+              els[j].removeAttribute('inert');
+              els[j].removeAttribute('aria-hidden');
+            } catch (e) {}
+          }
+        }
+      }
+
+      /* HANDOVER, PART ONE: the panel stops owning the screen and the page
+         behind it becomes reachable.
+
+         Note what is NOT here. There is no `overflow: hidden` to undo, because
+         the entrance never sets one — see "THE LOCK" in css/intro.css for the
+         three-paragraph reason (a document with no scrollbar is ten pixels
+         wider than one with it, and every centred thing on this page is laid
+         out against that width). There is also nothing to unlock, which means
+         there is no way for this page to end up with a full-viewport panel over
+         a document the visitor cannot scroll: the failure mode a scroll lock
+         introduces simply does not exist here. */
+      function unlock() {
+        try { d.classList.remove('intro-active'); } catch (e) {}
+        try { d.classList.add('intro-exit'); } catch (e) {}
+        releaseBackground();
+      }
+
+      /* HANDOVER. Idempotent: Skip also fires a window pointerdown, the ceiling
+         can land on the same tick as the schedule, and the visitor can press two
+         keys at once. Whatever runs second does nothing. */
+      function release(reason) {
+        if (released) return;
+        released = true;
+        unlock();
+
+        /* `intro-handover` is for anything that wants to start its own entrance
+           as the overlay lifts. `intro-complete` is the contract js/reveal.js
+           already waits on, and the only one other modules should depend on. */
+        try { window.dispatchEvent(new CustomEvent('toolapis:intro-handover',
+          { detail: { reason: reason || 'done' } })); } catch (e) {}
+        try { window.dispatchEvent(new CustomEvent('toolapis:intro-complete',
+          { detail: { reason: reason || 'done' } })); } catch (e) {}
+
+        /* The terminal state, one exit-fade later, whether or not a module is
+           still alive to arrange it. */
+        window.setTimeout(function () { finish('auto'); }, EXIT_MS + 80);
+      }
+
+      /* TERMINAL. The overlay leaves the DOM: for the rest of the page's life
+         there is no full-viewport layer, no z-index 1200 and no focusable Skip
+         button a later stylesheet might make visible. */
+      function finish(reason) {
+        if (done) return;
+        done = true;
+        if (!released) { release(reason); }
+        try { d.classList.add('intro-done'); d.classList.remove('intro-exit'); } catch (e) {}
+        try {
+          var o = document.getElementById('intro-overlay');
+          if (o && o.parentNode) o.parentNode.removeChild(o);
+        } catch (e) {}
+      }
+
+      /* The seam. js/intro.js calls these and owns no version of either. */
+      window.__tlIntro = { release: release, finish: finish };
+
+      /* Nothing to run: still publish the seam, so a stray call cannot find an
+         undefined function and throw where a no-op was meant. */
+      if (!motionOn || deepLink) {
+        try { d.setAttribute('data-intro-skipped', motionOn ? 'deep-link' : 'motion-off'); } catch (e) {}
+        return;
+      }
+
+      try { d.setAttribute('data-intro-state', 'active'); } catch (e) {}
+      try { d.classList.add('intro-active'); } catch (e) {}
+      /* A page restored mid-document is not an entrance. Do not pin a visitor
+         who arrived 4000px down to the top for five seconds. */
+      try { if (window.scrollY > 0 || window.scrollX > 0) window.scrollTo(0, 0); } catch (e) {}
+
+      try {
+        if (document.body) holdBackground();
+        else document.addEventListener('DOMContentLoaded', holdBackground, { once: true });
+      } catch (e) {}
+
+      /* THE HARD CEILING. Unconditional, module-independent, and generous past
+         the authored 5000ms: this exists to release a page nobody else is going
+         to release, so being late is free and being early would be a bug. */
+      window.setTimeout(function () { finish('ceiling'); }, CEILING_MS);
+    })();
+  </script>
+
   <!-- viewport-fit=cover lets the page paint into the safe-area insets on a
        notched device, which is what makes the `env(safe-area-inset-*)` values
        in css/base.css resolve to something other than 0. Without it the browser
@@ -266,6 +462,52 @@ sections.css: marquee, bento, features, flow, clarity, footer layouts
   </div>
 
   <!-- ==========================================================================
+       ENTRANCE OVERLAY — the five seconds before the page exists.
+
+       Collapsed by default. css/intro.css keeps it at opacity 0 / hidden and
+       only `html.intro-active`, written by the inline <head> bootstrap before
+       first paint, gives it a screen. So there is no frame in which the hero is
+       painted and then covered.
+
+       `aria-hidden` for the same reason: the overlay is not in the page at all
+       until the entrance starts, and js/intro.js removes the attribute when it
+       does. Keeping it here means a failed bootstrap leaves an invisible
+       overlay rather than a live, unlabelled, full-viewport region in the
+       accessibility tree.
+
+       THE RAIL, THE COUNTER AND THE STATUS LINE are decorative duplicates of
+       one fact — how far through the entrance this is — so the whole cluster is
+       `aria-hidden`. The only thing here that carries meaning is the Skip
+       button, which is the only thing here that is focusable.
+
+       The button says "Skip intro" rather than "Skip" because a visitor who
+       has never seen the five seconds should know what they are declining.
+       ========================================================================== -->
+  <div id="intro-overlay" aria-hidden="true">
+    <div class="intro-inner">
+      <div class="intro-logo" aria-hidden="true">
+        <span class="intro-logo__dot"></span>
+        <span class="intro-wordmark">TOOLAPIS</span>
+      </div>
+
+      <div class="intro-rail" aria-hidden="true">
+        <span class="intro-rail__fill" id="intro-rail-fill"></span>
+      </div>
+
+      <div class="intro-meta" aria-hidden="true">
+        <span class="intro-counter" id="intro-counter">000</span>
+        <span class="intro-sep">/</span>
+        <span class="intro-status" id="intro-status">Initializing tools</span>
+      </div>
+
+      <button type="button" class="intro-skip" id="intro-skip">
+        <span>Skip intro</span>
+        <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-arrow-right"></use></svg>
+      </button>
+    </div>
+  </div>
+
+  <!-- ==========================================================================
        HEADER NAVIGATION — DESIGN.md "Navigation Bar"
        Sticky, 64px, Void Canvas, hairline under it once scrolled.
 
@@ -376,7 +618,13 @@ sections.css: marquee, bento, features, flow, clarity, footer layouts
     </div>
   </div>
 
-  <main id="main-content">
+  <!-- `tabindex="-1"` and nothing else: it makes <main> programmatically
+       focusable so the entrance can put focus on the page when the overlay
+       lifts — otherwise Tab continues from the Skip button's now-removed
+       position and lands the visitor somewhere arbitrary. It is not a tab stop,
+       which is why the attribute is -1 and not 0, and it needs no role: <main>
+       already is a landmark. -->
+  <main id="main-content" tabindex="-1">
 
     <!-- ======================================================================
          HERO — DESIGN.md "Hero Headline (Calsans Display)"
@@ -1302,7 +1550,14 @@ sections.css: marquee, bento, features, flow, clarity, footer layouts
   <script defer src="script.js"></script>
 
   <!-- Motion policy wiring, then the controllers. Every one has its own
-       failsafe, so a failure here costs an effect, never the page. -->
+       failsafe, so a failure here costs an effect, never the page.
+
+       js/intro.js IS FIRST, deliberately. It is the entrance, so it is the one
+       module whose execution order relative to the others is visible: the
+       motion watcher and the readout both need the page's timeline zero, and
+       every other module here is content that arrives after the overlay is
+       already lifting. -->
+  <script type="module" src="js/intro.js"></script>
   <script type="module" src="js/motion-boot.js"></script>
   <script type="module" src="js/motion-toggle.js"></script>
   <script type="module" src="js/motion-fx.js"></script>

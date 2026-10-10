@@ -47,27 +47,44 @@ function still() {
 /* ---------------------------------------------------------------------------
    1. HERO HEADLINE
    The words start translated down inside their own line mask and are released
-   one at a time. The nth-child delays live in css/animations.css, so this
-   function only has to add the class.
+   one at a time.
+
+   THIS FUNCTION NOW ONLY HANDS OVER THE CLASS; THE TIMING IS NOT HERE.
+
+   The stagger used to be `i * 80` in this file, on top of nth-child
+   transition-delays in css/animations.css that could not actually do the job —
+   an animation (`tl-display-settle`) outranks a transition in the cascade, so
+   every word began its animation the moment the class landed and the delays
+   only ever described the tail. The entrance is now a five-second schedule with
+   the words released at 2950ms, and it is expressed where it has to be, as
+   `animation-delay` on that animation: an animation's `both` fill holds the
+   from-state through its whole delay, which is precisely the property that
+   lets the class be added here at DOMContentLoaded and the word still not
+   appear for another three seconds.
+
+   That also means a visitor who presses Skip gets the compressed schedule for
+   free — the same class, a `--intro-speed` multiplier, and a restart. Nothing
+   here has to know which of the two is happening.
    ------------------------------------------------------------------------- */
 function heroReveal() {
   const words = document.querySelectorAll('.hero-title .word-reveal');
   if (!words.length) return;
 
   const release = () => {
-    Array.prototype.forEach.call(words, (w, i) => {
-      window.setTimeout(() => w.classList.add('is-visible'), i * 80);
-    });
+    for (const w of words) {
+      try { w.classList.add('is-visible'); } catch (e) { /* noop */ }
+    }
   };
 
   if (still()) {
-    Array.prototype.forEach.call(words, w => w.classList.add('is-visible'));
+    release();
     return;
   }
 
-  /* There is no preloader to wait out any more, so the words go as soon as the
-     DOM is ready. The nth-child transition-delays in css/animations.css do the
-     staggering; this only hands over the class. */
+  /* On the DOM, not on the intro: the words' own delays hold them until their
+     moment, so there is nothing here to wait for and no event to miss. A module
+     that never runs still leaves the page correct, because the words are only
+     hidden by a class this function adds. */
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', release, { once: true });
   } else {

@@ -3,6 +3,132 @@
 Status: **complete**. See `RESPONSIVE-REPORT.md` for the full report and
 `responsive-audit.md` for the before-state measurements.
 
+## Latest pass — the five-second entrance
+
+Added 2026-10-10. Every load and every refresh now opens with a full-screen
+entrance that runs for five seconds end to end, and every block of the page
+arrives out of focus and resolves. **Read this section before touching
+`css/animations.css`, `js/intro.js`, `css/intro.css` or the `<head>` scripts in
+`index.html`** — three of the design decisions below were made because a
+straightforward implementation of them broke the page in ways that only two of
+the project's own checks could see.
+
+### The schedule
+
+`--intro-total`, `--intro-handover` and `--intro-exit` live on `:root` in
+`css/intro.css` and are the only copy. `js/intro.js` reads them back; nothing
+in JavaScript re-declares them.
+
+| t | what |
+|---|---|
+| 0.00 | overlay fades up over Void Canvas; `intro-active`; the background goes `inert` |
+| 0.26–1.16 | wordmark resolves from `blur(14px)` |
+| 0.70 / 0.90 | progress rail, then the tabular counter and status line |
+| 0–2.50 | rail fills 0→100%, counter climbs, status cycles through four lines |
+| 2.50 | **handover** — overlay starts lifting, background released, `intro-complete` |
+| 2.60–4.95 | navbar → eyebrow → headline → subtitle → CTA, each `blur(14px) → 0` |
+
+The rail and counter deliberately measure `--intro-handover`, not
+`--intro-total`. Measured against the whole entrance they stop dead at ~62% with
+the rail half empty, which reads as a frozen progress bar; measured against the
+overlay's own window the rail is full at the exact moment it stops being visible,
+which is the only ending it could have that looks deliberate.
+
+### Three decisions that are not obvious
+
+**1. There is no scroll lock, and adding one back is a regression.**
+The obvious implementation is `overflow: hidden` on `<html>` for the length of
+the entrance. A document with no scrollbar is ~10px wider than one with it, so
+the lock slides the entire page sideways when it is applied and again when it is
+removed — twice, on every load, on every browser with classic scrollbars.
+`scrollbar-gutter: stable` is the obvious repair and it is worse: it reserves
+the gutter, which makes the content box narrower than `clientWidth` and puts
+every centred element 5px off centre for the duration. `tools/check-overflow.mjs`
+caught both.
+
+The entrance does not need a lock. The overlay is `position: fixed` over the
+whole viewport, so there is nothing underneath to reach, and the entrance already
+ends on **any** input — wheel, touch, pointer, key, and `scroll` (which is what
+catches a scrollbar drag, since that dispatches nothing else into the document).
+A visitor who scrolls has said the thing they wanted was the page, and gets it on
+that gesture.
+
+**2. `tl-display-settle` no longer animates `letter-spacing`.**
+It did, and it re-ran text layout on every frame of a content-sized box. For
+900ms that was invisible. The entrance gave the words a ~3s delay with a `both`
+fill, which held the from-state for the whole entrance: the headline laid out
+22px narrower than it rests at, for four and a half seconds, on every load.
+`tools/check-overflow.mjs` caught it as the h1 measuring differently on a fresh
+load than on a resized one. The keyframe is opacity + transform now, which is
+also what the header comment of `css/animations.css` has always claimed.
+
+**3. The release lives in the `<head>`, the choreography lives in the module.**
+`index.html` defines `window.__tlIntro.release()` and `.finish()`; `js/intro.js`
+calls them and owns no version of either. If the module never runs — CDN down, an
+exception during import, a syntax error — the bootstrap's own 5.8s timer still
+clears the classes and the `inert`, because the failure mode of the alternative
+is a full-viewport layer over a page with a background that cannot be focused or
+clicked. The release statement is the FIRST thing `finish()` does, before the
+compress path, because an exception after it leaves the visitor exactly in that
+state.
+
+### What the entrance does when it is ended early
+
+`html.intro-skip { --intro-speed: 0.18 }` multiplies every delay in the load
+choreography, so the hero's 5s schedule compresses to ~900ms from the press —
+answered at the speed of the gesture. It only applies while the overlay is still
+up: every hero delay is later than the handover, so nothing has begun and a
+shorter schedule simply starts sooner. Once the hero is in flight, rescaling
+would replay the blocks that had already finished, so it is not applied.
+
+### Accessibility, stated plainly
+
+- `html.motion-reduced` skips the entrance **entirely**. Not shortened. Someone
+  who has been told this page shows them a five-second panel every visit does not
+  want a faster one. The `<head>` bootstrap never adds `intro-active` in that
+  case, so there is no frame of it.
+- A deep link (`#flow`) skips it too: the visitor clicked a link to a section.
+- The background is `inert` + `aria-hidden` while the panel is up; focus starts
+  on the Skip button and moves to `#main-content` when the panel leaves.
+- `?motion=off`, a stored preference, a bfcache restore, a hidden tab, any key,
+  any click and any scroll all end it. There is no state in which a visitor
+  cannot get out of it in one gesture.
+
+### Files
+
+| file | what changed |
+|---|---|
+| `css/intro.css` | **new.** The skin + the clock custom properties. Registered in `tools/build-css.mjs` SOURCES between `animations.css` and `components.css`. |
+| `js/intro.js` | **new.** The timeline, the readout, every way out. No imports. |
+| `index.html` | `#intro-overlay` markup; the inline `<head>` bootstrap (classes, `inert`, ceiling, `window.__tlIntro`); `tabindex="-1"` on `<main>`; the module tag. |
+| `css/animations.css` | the 5s load choreography + blur; `--reveal-blur: 12px` for scroll reveals; `load-rise`/`load-fade` keyframes; the letter-spacing removal; `filter: none !important` added to the two failsafes that cancel the load reveal. |
+| `js/reveal.js` | handovers are QUEUED while `intro-active` is set, and flushed on `toolapis:intro-complete` — otherwise the first screen reveals behind the panel and arrives flat. |
+| `js/motion-fx.js` | the hero words no longer carry their own `i * 80` timers; the stagger is `animation-delay` on `tl-display-settle`, which holds its from-state through the delay. |
+| `tools/check-motion.mjs` | `waitForEntrance()`; six new assertions per context (holds the screen, has a Skip control + inert background, releases the page, leaves nothing inert, never touches `overflow`, the hero lands); the scroll-reveal test now waits for the entrance and asserts the blur resolves; `?motion=off` asserts the panel never takes the screen. |
+| `tools/hero-edge-check.mjs` | waits for `intro-done` before grading, and hides `#intro-overlay`. Without this it graded the progress rail — a 320px × 2px rectangle, i.e. exactly the "long straight run of discontinuity" it exists to catch — and failed 8 of 10 viewports. |
+
+### Known state of the gates on this machine
+
+`npm run check` is green apart from one assertion:
+`[fps · desktop] animation cost <= 50% of this machine's 4x ceiling`. Everything
+else — 114 of 115 assertions, including all twelve entrance assertions per
+context, the blur assertions, `check:css`, `check:fluid` and `check:hero-edge` —
+passes.
+
+That one is **not** a regression. Measured as an A/B against a baseline worktree
+on the same machine at the same moment, both report **37% of ceiling** (baseline
+live 14.5 fps / ceiling 39.5; working live 13.7 / 36.6). The ratio gate is not
+load-invariant — both halves of it degrade when the box is saturated — and this
+one ran at load 6.7–8.2 across 4 cores. The absolute floor already skips on a
+busy machine; this gate does not. Either run it on a quieter box or give it the
+same guard. Do not simply lower the threshold.
+
+`filter: blur()` on the scroll reveals was measured the same way and is worth
+about 10–15% of the live page's throttled frame rate; `will-change: filter` was
+worth a further ~6% and was dropped, which is why `.rv-anim` promotes only
+`opacity, transform`. The blur RADIUS is not the lever — 6px, 8px and 12px
+measure the same — so `--reveal-blur` is set by design, not by budget.
+
 ## Latest pass — TOOL PASS card removed, hero edge fixed
 
 See "2026-10-09 · TOOL PASS removal + hero edge" at the bottom.

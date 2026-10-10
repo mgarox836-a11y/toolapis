@@ -183,6 +183,25 @@
   /* The scene spans the full grid on desktop too, so its `right` edge is the
      hero's rather than the copy column's. */
   .hero-inner > .hero-scene { grid-column: 1 / -1; }
+
+  /* THE COPY SITS HIGH ON A TWO-COLUMN HERO, AND THIS IS THE ONLY REASON.
+     `#hero` is `min-height: 100svh` and `.hero-inner` centres its content, so
+     a copy block of roughly fixed pixel height drifts DOWN the page as the
+     monitor gets taller — the hero grows, the copy does not. Measured as a
+     percentage of hero height: 24% at 1024x768, 25% at 1440x900, 28% at
+     1440x1024, 29% at 1920x1080, and 35% at 2560x1440, where the eyebrow sits
+     507px under a 64px navbar.
+
+     Weighting the bottom padding moves the block up without moving the hero:
+     centring gives `blockTop = (vh + padTop - padBot - copyH) / 2`, so a
+     `padBot` that grows with the viewport cancels the growth the hero already
+     has. It is padding rather than a `transform` or a `margin-top` for the same
+     reason the one-column rule below is: it holds when the viewport changes and
+     survives zoom. Measured 1920x1080: 318 -> 270. 2560x1440: 507 -> 373.
+
+     `svh`, not `vh`: the hero would otherwise be sized to the address-bar-retracted
+     height on Chrome for Android and jump as that bar shows and hides. */
+  #hero { padding-bottom: clamp(56px, 13svh, 190px); }
 }
 
 .hero-copy {
@@ -422,6 +441,72 @@
    OS setting no longer stops the hero for anyone. */
 html.motion-reduced .hero-glow,
 html.motion-reduced .hero-grid-lines { animation: none !important; }
+
+/* ============================================================================
+   ONE COLUMN — THE COPY IS CENTRED IN THE FIRST SCREEN
+   -----------------------------------------------------------------------------
+   Below 1024px the hero is one column, and `.hero-inner` is a grid whose second
+   row was `.hero-scene` (see css/hero3d.css). That put ~280px of visual BELOW
+   the copy as a sibling row, so the two of them together overflowed the floor
+   `#hero`'s `min-height: 100svh` sets — `.hero-inner`'s `align-content: center`
+   then had no free space left to distribute and did nothing at all. The copy
+   sat flush against the hero's `padding-top`, ~44px under the navbar, with 200px
+   of dead space beneath it.
+
+   The fix is to stop the visual being a row. `.hero-scene` becomes a
+   background layer (absolute, z-index 0, pinned to the hero's bottom edge), the
+   copy is the only in-flow row left, and `.hero-inner`'s existing
+   `align-content: center` finally has slack to hand out.
+
+   THE BREAKPOINT IS 1024px, NOT 768px, AND THAT IS THE WHOLE POINT OF THIS
+   REVISION. At 768px the scene reverted to `position: relative` and the hero
+   snapped back to the broken layout for the entire tablet band — measured at
+   820x1180: gapAbove 78, gapBelow 464, a 386px cliff between 767px and 768px.
+   An iPad in portrait is 820 CSS px. The two-column hero starts at 1024px, so
+   1024px is where this layout has to end, and the earlier 768px line was
+   simply the wrong edge of it.
+
+   THE PADDING IS SYMMETRIC ON PURPOSE. `#navbar` is `position: fixed` and
+   `#hero` starts at y=0, so this `padding-top` IS the navbar clearance and it
+   cannot simply be dropped. With `p` = clearance above the navbar and `q` =
+   the space below the copy, centring the block gives
+
+       gapAbove = p + free/2      gapBelow = free/2 + q
+
+   so `gapAbove - gapBelow == p - q`. Setting `q == p` therefore centres the
+   block EXACTLY, with no fixed px offset and nothing that has to be retuned
+   when the viewport changes — which is why this is padding and not a
+   `translateY`. Measured 360x740: gapAbove 126.4, gapBelow 126.4.
+
+   `svh`, not `vh`, for the same reason the hero uses it above: on Chrome for
+   Android `vh` is the height with the address bar retracted, and a hero sized
+   to it grows under the reader mid-scroll. */
+@media (width < 1024px) {
+  #hero {
+    min-height: 100svh;
+    padding-top: calc(clamp(56px, 4.5vw + 44px, var(--navbar-height))
+                      + clamp(24px, 5svh, 56px));
+    padding-bottom: clamp(24px, 5svh, 56px);
+  }
+  /* The scene is absolutely positioned at z-index 0 inside `.hero-inner`, and a
+     static box paints below any positioned sibling — so without this the ribbon
+     drew straight over both CTA pills. `.hero-inner` itself already carries
+     `z-index: 1`; the copy needs its own because it is the thing being painted
+     against the scene, not the box around it. */
+  .hero-copy { position: relative; z-index: 1; }
+
+  /* SHORT SCREEN. At 320x568 the copy is 491.5px tall and the fold leaves it
+     ~477.6px, so padding alone cannot save it — the `.hero-copy` gap has to give
+     8px at each of its three joins. The clamp above already handles the type
+     (headline and subtitle are fluid); this is the only non-fluid term left. */
+  @media (max-height: 640px) {
+    #hero {
+      padding-top: calc(clamp(56px, 4.5vw + 44px, var(--navbar-height)) + 16px);
+      padding-bottom: 16px;
+    }
+    .hero-copy { gap: 16px; }
+  }
+}
 
 /* ============================================================================
    SECTION LAYOUT — MOVED
