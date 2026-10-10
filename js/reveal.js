@@ -284,19 +284,21 @@ let io = null;
 let sweepId = 0;
 
 /** Anything whose box already touches the viewport reveals immediately. This
- *  is what covers the first paint, a deep link (`#flow` is at the top of the
- *  document on arrival) and any block the observer was too late for. */
-function passVisible() {
-  const vh = window.innerHeight || 0;
-  const vw = window.innerWidth || 0;
-  for (const el of targets) {
-    if (revealed.has(el)) continue;
-    let r = null;
-    try { r = el.getBoundingClientRect(); } catch (err) { r = null; }
-    if (!r || (r.width === 0 && r.height === 0)) continue;
-    if (r.bottom > 0 && r.top < vh && r.right > 0 && r.left < vw) revealOne(el);
+   *  is what covers the first paint, a deep link (`#flow` is at the top of the
+   *  document on arrival) and any block the observer was too late for.
+   *  Uses 1.05x viewport height to catch elements just past the fold. */
+  function passVisible() {
+    const vh = window.innerHeight || 0;
+    const vw = window.innerWidth || 0;
+    const vhThreshold = vh * 1.05;
+    for (const el of targets) {
+      if (revealed.has(el)) continue;
+      let r = null;
+      try { r = el.getBoundingClientRect(); } catch (err) { r = null; }
+      if (!r || (r.width === 0 && r.height === 0)) continue;
+      if (r.bottom > 0 && r.top < vhThreshold && r.right > 0 && r.left < vw) revealOne(el);
+    }
   }
-}
 
 /** Bounded re-sweep: fonts land, Tailwind's CDN lands, and a deep link
  *  jumps. None of those is an observer event. */
@@ -435,23 +437,112 @@ function boot() {
      expires is played whether the entrance announced anything or not. */
   setTimeout(flushDeferred, INTRO_DEADLINE - 200);
 
+  /* Reveal elements that have already scrolled past the viewport (rect.bottom < 0)
+     during intro hold. These are revealed INSTANTLY without animation so they
+     don't stay hidden. Called from onHandover (rAF) and flushDeferred. */
+  function revealScrolledPast() {
+    for (const el of targets) {
+      if (revealed.has(el)) continue;
+      let r = null;
+      try { r = el.getBoundingClientRect(); } catch (err) { continue; }
+      if (!r || r.height === 0) continue;
+      if (r.bottom < 0) {
+        el.dataset.rvDone = '1';
+        for (let i = 0; i < VISIBLE.length; i++) {
+          try { el.classList.add(VISIBLE[i]); } catch (err) { /* noop */ }
+        }
+        revealed.add(el);
+        /* No animation - just snap to final state */
+        el.style.transition = 'none';
+        el.style.opacity = '1';
+        el.style.transform = 'none';
+        el.style.filter = 'none';
+        el.style.willChange = 'auto';
+      }
+    }
+  }
+
   /* A deep link jumps the instant it resolves, which can land before every
      bounded sweep above has run. `toolapis:intro-complete` is the entrance's
      handover: it is dispatched by the inline <head> bootstrap in index.html AND
      by js/intro.js, so it arrives even when the module never ran — which is
      precisely why this listener has to flush the queue, not just re-sweep. */
   const onHandover = () => {
-    flushDeferred();
-    passVisible();
-    scheduleSweeps(4);
+    /* Defer to next frame so scroll event bubble phase has updated layout. */
+    requestAnimationFrame(() => {
+      flushDeferred();
+      revealScrolledPast();
+      passVisible();
+      scheduleSweeps(4);
+      /* Self-heal starts ~700ms after intro-done (which is ~680ms after this). */
+      setTimeout(startSelfHeal, 1400);
+    });
   };
   window.addEventListener('toolapis:intro-complete', onHandover);
   window.addEventListener('load', onHandover, { once: true });
   window.addEventListener('pageshow', onHandover);
-  if ('ResizeObserver' in window) {
+if ('ResizeObserver' in window) {
     try { new ResizeObserver(onHandover).observe(document.body); }
     catch (err) { /* resize + scroll sweeps cover it */ }
   }
+
+  /* Self-heal safety net: 700ms after intro:done, then every 1.5s for 6s (4 checks),
+     check for any reveal target in viewport with opacity < 0.05. If found, force
+     reveal and warn in dev mode. Stops early if 2 consecutive clean checks. */
+  let selfHealTimer = 0;
+  let selfHealCount = 0;
+  let selfHealClean = 0;
+  function startSelfHeal() {
+    if (selfHealTimer) return;
+    const tick = () => {
+      if (selfHealCount >= 4) { stopSelfHeal(); return; }
+      selfHealCount++;
+      let hidden = 0;
+      for (const el of targets) {
+        if (revealed.has(el)) continue;
+        let r = null;
+        try { r = el.getBoundingClientRect(); } catch (err) { continue; }
+        if (!r || r.width === 0 || r.height === 0) continue;
+        if (r.bottom > 0 && r.top < window.innerHeight && r.right > 0 && r.left < window.innerWidth) {
+          const op = parseFloat(getComputedStyle(el).opacity);
+          if (op < 0.05) {
+            hidden++;
+            /* Force reveal */
+            el.dataset.rvDone = '1';
+            for (let i = 0; i < VISIBLE.length; i++) {
+              try { el.classList.add(VISIBLE[i]); } catch (e) {}
+            }
+            revealed.add(el);
+            markAnimating(el);
+          }
+        }
+      }
+      if (hidden > 0) {
+        selfHealClean = 0;
+        try {
+          if (location.hostname === 'localhost' || location.hostname === '127.0.0.1') {
+            console.warn('[reveal:self-heal] forced', hidden, 'elements visible');
+          }
+        } catch (e) {}
+      } else {
+        selfHealClean++;
+        if (selfHealClean >= 2) { stopSelfHeal(); return; }
+      }
+      selfHealTimer = setTimeout(tick, 1500);
+    };
+    selfHealTimer = setTimeout(tick, 700);
+  }
+  function stopSelfHeal() {
+    if (selfHealTimer) { clearTimeout(selfHealTimer); selfHealTimer = 0; }
+  }
+
+  /* Also call revealScrolledPast in flushDeferred for any deferred elements. */
+  const originalFlushDeferred = flushDeferred;
+  flushDeferred = function() {
+    originalFlushDeferred();
+    revealScrolledPast();
+  };
+
   let rafId = 0;
   const onLayout = () => {
     if (rafId) return;

@@ -213,6 +213,35 @@
       var released = false;
       var done = false;
 
+      /* Scroll restoration: prevent Chrome from restoring scroll position after F5
+         during the intro. We take manual control and restore to 'auto' when done. */
+      try { history.scrollRestoration = 'manual'; } catch (e) {}
+
+      /* Scroll lock during intro: non-passive listeners that preventDefault on
+         wheel/touchmove/keydown (except Esc/Enter/Tab for Skip/focus).
+         Released in all exit paths: release(), finish(), visibilitychange, pageshow. */
+      var scrollLockActive = false;
+      function enableScrollLock() {
+        if (scrollLockActive) return;
+        scrollLockActive = true;
+        window.addEventListener('wheel', preventScroll, { passive: false, capture: true });
+        window.addEventListener('touchmove', preventScroll, { passive: false, capture: true });
+        window.addEventListener('keydown', preventScrollKeys, { passive: false, capture: true });
+      }
+      function disableScrollLock() {
+        if (!scrollLockActive) return;
+        scrollLockActive = false;
+        window.removeEventListener('wheel', preventScroll, { capture: true });
+        window.removeEventListener('touchmove', preventScroll, { capture: true });
+        window.removeEventListener('keydown', preventScrollKeys, { capture: true });
+      }
+      function preventScroll(e) { e.preventDefault(); }
+      function preventScrollKeys(e) {
+        /* Allow Esc (Skip), Enter/Space (Skip), Tab (focus) through. Block others. */
+        var allowed = ['Escape', 'Enter', ' ', 'Tab'];
+        if (allowed.indexOf(e.key) === -1) e.preventDefault();
+      }
+
       /* Everything behind the overlay: taken out of the focus ring and out of
          the accessibility tree for as long as the overlay owns the screen.
          `inert` does the real work; `aria-hidden` is there for engines that do
@@ -263,6 +292,7 @@
         try { d.classList.remove('intro-active'); } catch (e) {}
         try { d.classList.add('intro-exit'); } catch (e) {}
         releaseBackground();
+        disableScrollLock();
       }
 
       /* HANDOVER. Idempotent: Skip also fires a window pointerdown, the ceiling
@@ -298,6 +328,9 @@
           var o = document.getElementById('intro-overlay');
           if (o && o.parentNode) o.parentNode.removeChild(o);
         } catch (e) {}
+        /* Restore scroll restoration so normal navigation works afterwards. */
+        try { history.scrollRestoration = 'auto'; } catch (e) {}
+        disableScrollLock();
       }
 
       /* The seam. js/intro.js calls these and owns no version of either. */
@@ -312,6 +345,7 @@
 
       try { d.setAttribute('data-intro-state', 'active'); } catch (e) {}
       try { d.classList.add('intro-active'); } catch (e) {}
+      enableScrollLock();
       /* A page restored mid-document is not an entrance. Do not pin a visitor
          who arrived 4000px down to the top for five seconds. */
       try { if (window.scrollY > 0 || window.scrollX > 0) window.scrollTo(0, 0); } catch (e) {}
@@ -320,6 +354,19 @@
         if (document.body) holdBackground();
         else document.addEventListener('DOMContentLoaded', holdBackground, { once: true });
       } catch (e) {}
+
+      /* Scroll restoration: Chrome may restore scroll position at multiple points
+         (DOMContentLoaded, load, pageshow). Force scroll to top while intro-active. */
+      function forceScrollTop() {
+        if (d.classList.contains('intro-active')) {
+          try { window.scrollTo(0, 0); } catch (e) {}
+        }
+      }
+      document.addEventListener('DOMContentLoaded', forceScrollTop, { once: true });
+      window.addEventListener('load', forceScrollTop, { once: true });
+      window.addEventListener('pageshow', function (e) {
+        if (!e.persisted) forceScrollTop();
+      });
 
       /* THE HARD CEILING. Unconditional, module-independent, and generous past
          the authored 5000ms: this exists to release a page nobody else is going
