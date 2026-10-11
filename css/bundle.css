@@ -1632,12 +1632,12 @@ html.motion-reduced #page-transition { transition: opacity 150ms linear; }
    stylesheet is even requested. There is therefore no frame in which the hero is
    painted and then covered.
 
-   THE SCROLL IS NEVER LOCKED, so there is nothing here to duplicate in the
-   <head> bootstrap. That file still owns everything that DOES have to be
-   releasable — the `intro-active` class and the background unfocusing — and
-   those two are the only things it is trusted with now. See THE LOCK below for
-   why the lock went away; it is a three-paragraph explanation of the single most
-   expensive bug in this file's history.
+   THE SCROLL IS LOCKED FOR THE WHOLE ENTRANCE, at zero layout cost, and the
+   compensation for the scrollbar it costs lives in "THE LOCK" below. This file
+   owns the skin and the clock; the inline <head> bootstrap in index.html owns
+   the class writes, the `inert` background and the lock's event handlers,
+   because all three have to be releasable when no module on the page runs at
+   all. See THE STATE CLASSES below before renaming anything in here.
    ========================================================================== */
 
 :root {
@@ -1662,37 +1662,97 @@ html.motion-reduced #page-transition { transition: opacity 150ms linear; }
 }
 
 /* --------------------------------------------------------------- the lock ---
-   THERE IS NO SCROLL LOCK, AND THAT IS THE DESIGN.
+   THE ENTRANCE LOCKS THE SCROLL, AND THE LOCK MUST COST ZERO PIXELS.
 
-   This used to be `overflow: hidden` on <html> and <body> for the length of the
-   entrance, and it was wrong in a way that took three attempts to find. A
-   document with `overflow: hidden` has no scrollbar, so taking the lock for 2.5
-   seconds and giving it back at the handover removes and then restores ten
-   pixels of the layout viewport. Everything centred on this page — the shell,
-   the hero copy, the hero scene — is laid out against that width, so the whole
-   page slid sideways at the moment the entrance began and again at the moment
-   it ended. `scrollbar-gutter: stable` was the obvious repair and it is worse:
-   it reserves the gutter, which makes the content box ten pixels narrower than
-   `clientWidth` and puts every centred element five pixels off centre for the
-   duration. Both were caught by tools/check-overflow.mjs, which is the only
-   reason this paragraph exists.
+   History, because the wrong version of this is a three-paragraph trap:
 
-   The rule is one line long: THE SCROLLBAR'S PRESENCE IS LAYOUT, SO IT MAY NOT
-   CHANGE WHILE THE ENTRANCE RUNS. Not locking it is the only way to honour that.
+   1. It used to have NO lock at all, on the reasoning that the overlay is a
+      fixed full-viewport layer and a visitor who scrolls gets the page on that
+      same gesture. That reasoning was wrong for the entrance's actual schedule:
+      `js/intro.js` treats any input as "end it now", so a visitor who flicked a
+      wheel at t=0.2s got the hero's blocks mid-entrance AND a document that could
+      still be scrolled for the next two seconds. Worse, the compressed schedule
+      that skip applies (`intro-compressed`) is applied at the same instant, and
+      that class is what caused the blank screen — see THE STATE CLASSES below.
+   2. Adding `overflow: hidden` to <html> is the obvious repair and it is wrong
+      in a way that is invisible until you measure it. A document with
+      `overflow: hidden` has no scrollbar, so the layout viewport is ten to fifteen
+      pixels WIDER for the length of the entrance. Everything centred on this page
+      — the shell, the hero copy, the hero scene — is laid out against that width,
+      so the whole page slid sideways at the moment the entrance began and again
+      at the handover.
+   3. `scrollbar-gutter: stable` is the textbook compensation and it is ALSO
+      wrong here, for the opposite reason: it reserves the gutter unconditionally,
+      so it changes the layout of the *unlocked* page too. Measured at 1366 with
+      the page at rest: the shell moved from left 83 to left 78, i.e. five pixels
+      off centre for the rest of the page's life, on every browser. A layout tool
+      is the wrong tool for a layout that has to stay identical.
 
-   Which costs nothing, because the entrance already ends on ANY input: a wheel,
-   a touch, a key, a click, and a scroll event from dragging the scrollbar itself.
-   A visitor who scrolls has said the thing they wanted was the page, and the
-   page is what they get — on the same gesture, not on the next one. The overlay
-   is `position: fixed` and covers the viewport for the whole entrance, so there
-   is nothing underneath to interact with anyway.
+   THE REPAIR. The scrollbar's width is read ONCE, while the document still has
+   one, and handed back as `padding-right` on <html> for exactly as long as the
+   scrollbar is gone. The content box is therefore the same width locked and
+   unlocked, in every browser, whether the scrollbar is 0px (overlay/headless) or
+   15px (classic desktop). `--intro-gutter` is written by the inline <head>
+   bootstrap in index.html at DOMContentLoaded, which is the first moment the
+   document is tall enough to own a scrollbar; until then it is 0px, which is
+   also correct, because before that the document cannot scroll and there is
+   nothing to lock. The JavaScript half of the lock — non-passive `wheel`,
+   `touchmove` and `keydown` handlers, plus a one-shot `scroll` snap-back —
+   lives in the same bootstrap, because it has to be installed before this
+   stylesheet is even requested.
 
-   What is left here is the one part that genuinely is not scroll position:
-   stopping a touch-drag from chaining into the browser's pull-to-refresh while
-   the panel is up. */
+   `height: 100%` is deliberately NOT set here. The hero is sized in `svh`, so
+   pinning the root's height for five seconds re-resolves the hero's height twice
+   — once at the lock, once at the handover — for a benefit (bouncing) that
+   `overscroll-behavior: none` already covers. */
+
 html.intro-active,
 html.intro-active body {
+  overflow: hidden !important;
   overscroll-behavior: none;
+}
+
+html.intro-active {
+  padding-right: var(--intro-gutter, 0px);
+}
+
+/* A touch-drag that starts on the panel must not chain into the browser's
+   pull-to-refresh, and it must not become a scroll either: the lock's own
+   `touchmove` handler cancels it. */
+html.intro-active #intro-overlay {
+  touch-action: none;
+  overscroll-behavior: contain;
+}
+
+/* ------------------------------------------------- the state classes -------
+   A NAME COLLISION THAT EMPTIED THE PAGE. Read this before renaming anything.
+
+   `js/intro.js` compressed the hero's schedule by writing `intro-skip` onto
+   <html>, and the Skip BUTTON in this file was also called `.intro-skip`:
+
+       .intro-skip      { opacity: 0; transform: translateY(8px);
+                          display: inline-flex; ... }
+
+   A class selector matches <html> when <html> carries that class. So ending the
+   entrance early put `opacity: 0` on the document element itself: the entire
+   page went invisible, permanently, and the only thing left on screen was the
+   user-agent canvas — a flat #121212, because this page declares
+   `<meta name="color-scheme" content="dark">`. Measured at 1366×530 after
+   scrolling during the entrance: 1366×530 pixels, every one of them rgb(18,18,18).
+
+   The two things that fix it, and both are kept on purpose:
+
+   1. THE STATE CLASS IS NOT `.intro-skip`. It is `intro-compressed`, a name
+      nothing else in the project uses, because a state class on <html> has no
+      business sharing an identifier with a component's skin class.
+   2. THE BUTTON'S SKIN IS SCOPED TO ITS ID. `#intro-skip` cannot match <html>
+      under any circumstances, so even the next collision of this shape is inert.
+
+   THE RULE, for whoever adds the third one: a class written onto <html> must
+   never be a bare class selector that any other element in the document could
+   also be carrying. Scope the skin to the element, never the other way round. */
+html.intro-compressed {
+  --intro-speed: 0.18;
 }
 
 /* ------------------------------------------------------------ the overlay --- */
@@ -1861,11 +1921,16 @@ html.intro-active .intro-meta {
    the rail. `min-width` is the widest of the three, measured, not guessed. */
 .intro-status { min-width: 18ch; text-align: left; color: var(--color-graphite); }
 
-/* ----------------------------------------------------------------- skip --- */
-/* DESIGN.md "Ghost Pill Button": transparent, 1px white border, pill radius.
+/* ----------------------------------------------------------------- skip ---
+   DESIGN.md "Ghost Pill Button": transparent, 1px white border, pill radius.
    The one thing on this screen that does something, so it is the only thing on
-   it that is focusable and the only thing lit above the wordmark's white. */
-.intro-skip {
+   it that is focusable and the only thing lit above the wordmark's white.
+
+   SCOPED TO THE ID, NOT TO A CLASS — see THE STATE CLASSES above. This skin
+   sets `opacity: 0`, and <html> is an element a state class can be written onto.
+   `#intro-skip` cannot match <html> under any circumstances, so even the next
+   collision of this shape is inert. */
+#intro-skip {
   display: inline-flex;
   align-items: center;
   gap: 8px;
@@ -1884,20 +1949,20 @@ html.intro-active .intro-meta {
   transition: background-color var(--duration-fast) var(--ease-out-quint),
               color var(--duration-fast) var(--ease-out-quint);
 }
-html.intro-active .intro-skip {
+html.intro-active #intro-skip {
   animation: intro-fade-up 600ms var(--ease-out-quint) 1300ms both;
 }
-.intro-skip:hover,
-.intro-skip:focus-visible {
+#intro-skip:hover,
+#intro-skip:focus-visible {
   background: var(--color-pure-white);
   color: var(--color-void-canvas);
 }
-.intro-skip .icon { width: 14px; height: 14px; }
+#intro-skip .icon { width: 14px; height: 14px; }
 
 /* The one focus ring on the page during the intro. `:focus-visible` rather than
    `:focus` so a mouse click on the button does not leave a ring behind after
    the overlay has gone. */
-.intro-skip:focus-visible {
+#intro-skip:focus-visible {
   outline: 2px solid var(--color-phosphor-mint);
   outline-offset: 3px;
 }
@@ -1949,9 +2014,39 @@ html.intro-active .intro-skip {
    so while the overlay is up the hero is sitting in the from-state of its `both`
    fill and a shorter schedule simply means it begins sooner. js/intro.js checks
    exactly that window before applying it, and re-applying it after the hero is
-   already in flight would replay the two blocks that had finished. */
-html.intro-skip {
-  --intro-speed: 0.18;
+   already in flight would replay the two blocks that had finished.
+
+   The class is `intro-compressed`, NOT `intro-skip` — see THE STATE CLASSES near
+   the top of this file for the blank-screen bug that name collision caused, and
+   read it before renaming this to anything that already exists. */
+
+/* ============================================================================
+   THE PAGE-TRANSITION PLATE CANNOT BE THE THING THAT GOES WRONG
+   ----------------------------------------------------------------------------
+   `#page-transition` is a second fixed, viewport-sized, opaque layer with a
+   `transition` on `opacity`. It exists for in-page anchor navigation, it is in
+   the markup on every single load, and nothing in the entrance drives it — which
+   is exactly why it is a good place for a stuck animation to hide: a frozen
+   full-viewport layer reads on screen as "the page is blank", and that is the
+   symptom this file's whole lock section is about.
+
+   So the terminal state is written once, here, in the strongest terms, and
+   js/intro.js adds `.intro-purged` to it from every exit path including the
+   failsafe. `display: none` last, so nothing here depends on a transition having
+   finished, on the page being visible, or on a class arriving in order.
+
+   `.intro-purged` — and NOT `html.intro-done` — because `#page-transition` is
+   also the outbound-navigation plate: script.js fades it in before leaving for
+   another page, and a rule that hid it for the rest of the session would delete
+   that feature along with the bug. script.js drops the class in the same breath
+   that it adds `.active`, so the purge is a statement about the entrance and
+   nothing else. */
+html.intro-active #page-transition,
+#page-transition.intro-purged {
+  opacity: 0 !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
+  display: none !important;
 }
 
 /* ============================================================================

@@ -8,7 +8,8 @@
     "check:fluid:all:quick": "node tools/check-fluid-all.mjs --quick",
     "check:motion": "node tools/check-motion.mjs",
     "check:hero-edge": "node tools/hero-edge-check.mjs",
-    "check": "npm run build:css && npm run check:css && npm run check:motion && npm run check:fluid && npm run check:hero-edge"
+    "check:intro-scroll": "node tools/check-intro-scroll.mjs",
+    "check": "npm run build:css && npm run check:css && npm run check:motion && npm run check:fluid && npm run check:hero-edge && npm run check:intro-scroll"
   },
   "dependencies": {
     "aceternity-ui": "^0.2.2",

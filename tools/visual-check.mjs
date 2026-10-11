@@ -105,7 +105,11 @@ for (const width of WIDTHS) {
   page.on('pageerror', (e) => errors.push('pageerror: ' + e.message));
   page.on('requestfailed', (r) => failedReqs.push(`${r.url()} — ${r.failure()?.errorText}`));
 
-  await page.goto(BASE, { waitUntil: 'domcontentloaded', timeout: 90000 });
+  /* `?intro=off` — the entrance holds a real scroll lock for its first five
+     seconds, and this tool's whole job is to scroll to named offsets and take
+     pictures of them. The overlay is `position: fixed` and was excluded from
+     every shot anyway. */
+  await page.goto(BASE + (BASE.indexOf('?') === -1 ? '?' : '&') + 'intro=off', { waitUntil: 'domcontentloaded', timeout: 90000 });
   await page.waitForFunction(() => document.readyState === 'complete', null, { timeout: 180000 }).catch(() => {});
   await wait(2000);
 

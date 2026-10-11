@@ -132,44 +132,49 @@
     })();
   </script>
 
-  <!-- ==========================================================================
+<!-- ==========================================================================
        THE ENTRANCE — five seconds of choreography, and the one thing on this
        page that can take the visitor's attention hostage if it is wrong.
 
        WHAT THIS SCRIPT IS
-       The `intro-active` class, the unfocusing of everything behind the
-       overlay, and a hard ceiling that clears both — written inline, before the
-       stylesheet is even requested, and depending on NOTHING: no module, no
-       import, no CDN, no build step.
+       `finishIntro(reason)` — ONE idempotent function that owns every exit — plus
+       the `intro-active` class, the unfocusing of everything behind the
+       overlay, the layered scroll lock, and a hard ceiling that clears both. It
+       is written inline, before the stylesheet is even requested, and it depends
+       on NOTHING: no module, no import, no CDN, no build step.
 
-       It is NOT a scroll lock, and that is deliberate. `overflow: hidden` for
-       2.5 seconds removes ten pixels of scrollbar from the layout viewport and
-       puts them back at the handover, so the whole page slides sideways twice;
-       `scrollbar-gutter: stable` trades that for a five-pixel off-centre page
-       for the duration. Both were caught by tools/check-overflow.mjs. The
-       entrance ends on any input instead — see css/intro.css, "THE LOCK" — so
-       there is nothing here that has to be undone and nothing that can be left
-       stuck.
+       WHY IT IS HERE AND NOT IN js/intro.js
+       js/intro.js is ordinary JavaScript and ordinary JavaScript fails — a CDN
+       timeout, a syntax error, an exception during import. If the release path
+       lived in the module, the failure mode is a full-viewport panel over a page
+       whose background cannot be focused or clicked. So the release lives HERE,
+       on a timer that does not care whether anything else executed, and the
+       module calls this file's function rather than owning a second copy.
 
-       WHY IT IS INLINE AND WHY IT IS SEPARATE FROM js/intro.js
-       Two reasons, and they are different reasons.
+       WHY ONE FUNCTION (this is new, and it is the fix)
+       For one pass the entrance had two of them — `release()` and `finish()` —
+       plus a third copy of the same idea inside js/intro.js, and they had to be
+       called in the right order by every caller. They were not always. The blank
+       screen a visitor reported after scrolling during the entrance was traced
+       to `js/intro.js` writing the class `intro-skip` onto <html> to compress the
+       hero's schedule, where it collided with the Skip BUTTON's own class and put
+       `opacity: 0` on the document element — the whole page, permanently,
+       leaving only the user-agent canvas (#121212, because this page declares
+       `color-scheme: dark`). Read "THE STATE CLASSES" in css/intro.css before
+       renaming anything on <html>.
 
-       First, ordering. A module is deferred, so js/intro.js cannot run before
-       first paint — and an overlay that appears after first paint is a flash of
-       the hero, then a cover, which is worse than no overlay at all. Only
-       something inline can hold the screen from the very first frame.
-
-       Second, and the reason it is duplicated rather than shared: the lock has
-       to be releasable when js/intro.js never runs. That module is ordinary
-       JavaScript and ordinary JavaScript fails — a CDN timeout, a syntax error,
-       an exception during import. If the release path lived in the module, the
-       failure mode is a page with `overflow: hidden` and a full-viewport layer
-       over it, forever. So the release lives HERE, independently, on a timer
-       that does not care whether anything else executed.
-
-       `window.__tlIntro` is the seam. Both halves call the same two functions;
-       neither owns a second implementation of "the intro is over". This file
-       defines them, js/intro.js calls them.
+       THE SCROLL LOCK, IN THREE LAYERS, NONE OF THEM PER FRAME
+       1. `overflow: hidden` on <html> for as long as `intro-active` is set,
+          with the scrollbar's width handed back as `padding-right` so the layout
+          viewport is identical locked and unlocked (see "THE LOCK" in
+          css/intro.css for the measurement that made both obvious repairs wrong).
+       2. Non-passive `wheel`, `touchmove` and `keydown` handlers that
+          `preventDefault()`, so scrolling never starts in the first place.
+       3. A single `scroll` listener that puts the document back at 0 — and ONLY
+          when `scrollY !== 0`, which is the only case where it has anything to
+          do. This is the layer that catches a scrollbar drag and a scripted
+          `scrollTo`, neither of which layer 2 can see, and there is no rAF loop
+          anywhere in it.
 
        WHEN IT DOES NOT RUN AT ALL
        - `html.motion-reduced`, i.e. the visitor pressed "Reduce motion", or
@@ -180,16 +185,18 @@
          version of it, they want none of it.
        - A deep link (`#flow`). Someone clicked a link to a specific section.
          Playing them five seconds of chrome before putting them there is the
-         page deciding it knows better than the link did. The old intro had the
-         same rule and the same reasoning.
+         page deciding it knows better than the link did.
+       - `?intro=off`, for the tools: it skips the entrance and nothing else, so
+         a layout sweep can navigate without waiting five seconds per page and
+         without the motion switch changing the layout it is measuring.
        ========================================================================== -->
   <script>
     (function () {
       var d = document.documentElement;
 
       /* Read the decision the motion bootstrap above already made, rather than
-         re-deriving it: two readers of one policy is how a page ends up with
-         the overlay visible and `motion-reduced` on <html> at the same time. */
+         re-deriving it: two readers of one policy is how a page ends up with the
+         overlay visible and `motion-reduced` on <html> at the same time. */
       var motionOn = true;
       try {
         motionOn = (typeof window.__toolapisMotion === 'function')
@@ -202,6 +209,13 @@
       var deepLink = false;
       try { deepLink = !!window.location.hash; } catch (e) {}
 
+      /* `?intro=off` — the entrance and nothing else. Not `?motion=off`, which
+         also stops every loop on the page and therefore changes the layout a
+         layout tool is trying to measure. */
+      var paramIntro = null;
+      try { paramIntro = new URL(window.location.href).searchParams.get('intro'); } catch (e) {}
+      var introOff = paramIntro === 'off';
+
       /* 600ms is css/intro.css's `--intro-exit`. It is written as a literal
          here on purpose: this script runs BEFORE that stylesheet is requested,
          so reading the custom property would read nothing. A constant that can
@@ -210,37 +224,10 @@
       var EXIT_MS = 600;
       var CEILING_MS = 5800;
 
-      var released = false;
-      var done = false;
-
-      /* Scroll restoration: prevent Chrome from restoring scroll position after F5
-         during the intro. We take manual control and restore to 'auto' when done. */
-      try { history.scrollRestoration = 'manual'; } catch (e) {}
-
-      /* Scroll lock during intro: non-passive listeners that preventDefault on
-         wheel/touchmove/keydown (except Esc/Enter/Tab for Skip/focus).
-         Released in all exit paths: release(), finish(), visibilitychange, pageshow. */
-      var scrollLockActive = false;
-      function enableScrollLock() {
-        if (scrollLockActive) return;
-        scrollLockActive = true;
-        window.addEventListener('wheel', preventScroll, { passive: false, capture: true });
-        window.addEventListener('touchmove', preventScroll, { passive: false, capture: true });
-        window.addEventListener('keydown', preventScrollKeys, { passive: false, capture: true });
-      }
-      function disableScrollLock() {
-        if (!scrollLockActive) return;
-        scrollLockActive = false;
-        window.removeEventListener('wheel', preventScroll, { capture: true });
-        window.removeEventListener('touchmove', preventScroll, { capture: true });
-        window.removeEventListener('keydown', preventScrollKeys, { capture: true });
-      }
-      function preventScroll(e) { e.preventDefault(); }
-      function preventScrollKeys(e) {
-        /* Allow Esc (Skip), Enter/Space (Skip), Tab (focus) through. Block others. */
-        var allowed = ['Escape', 'Enter', ' ', 'Tab'];
-        if (allowed.indexOf(e.key) === -1) e.preventDefault();
-      }
+      var finished = false;
+      var teardownId = 0;
+      var auditId = 0;
+      var lockLive = false;
 
       /* Everything behind the overlay: taken out of the focus ring and out of
          the accessibility tree for as long as the overlay owns the screen.
@@ -251,6 +238,18 @@
       var BACKGROUND = ['#navbar', '#main-content', '.site-footer', '#mobile-menu', '.skip-link'];
 
       function holdBackground() {
+        /* THE ONE ORDER THAT MATTERS, AND IT IS A RACE.
+           This runs at DOMContentLoaded when the script above ran before there
+           was a body — and a visitor who skipped the entrance in the first
+           200ms has already been through `finishIntro`, whose `releaseBackground`
+           found nothing to release because there was nothing to release YET. So
+           without this guard the sequence is: hold, release, hold — and the
+           second hold is never undone, which leaves the whole page `inert`: it
+           looks normal, it cannot be clicked or tabbed into, and nothing else
+           in the codebase is looking for that combination.
+           `tools/check-intro-scroll.mjs` found it; it is asserted there for the
+           same reason it exists here. */
+        if (finished) return;
         for (var i = 0; i < BACKGROUND.length; i++) {
           var els;
           try { els = document.querySelectorAll(BACKGROUND[i]); } catch (e) { continue; }
@@ -277,101 +276,264 @@
         }
       }
 
-      /* HANDOVER, PART ONE: the panel stops owning the screen and the page
-         behind it becomes reachable.
+      /* ========================================================================
+         THE SCROLL LOCK — three layers, released in one place.
+         ======================================================================== */
 
-         Note what is NOT here. There is no `overflow: hidden` to undo, because
-         the entrance never sets one — see "THE LOCK" in css/intro.css for the
-         three-paragraph reason (a document with no scrollbar is ten pixels
-         wider than one with it, and every centred thing on this page is laid
-         out against that width). There is also nothing to unlock, which means
-         there is no way for this page to end up with a full-viewport panel over
-         a document the visitor cannot scroll: the failure mode a scroll lock
-         introduces simply does not exist here. */
-      function unlock() {
-        try { d.classList.remove('intro-active'); } catch (e) {}
-        try { d.classList.add('intro-exit'); } catch (e) {}
-        releaseBackground();
-        disableScrollLock();
+      /* Keys that are scroll keys. Esc/Enter/Space are deliberately NOT here:
+         they are how the visitor skips (js/intro.js), and Tab is how they move
+         focus. Cancelling Tab would trap them on the Skip button. */
+      var SCROLL_KEYS = { ' ': 1, Spacebar: 1, Space: 1, PageDown: 1, PageUp: 1,
+                          Home: 1, End: 1, ArrowUp: 1, ArrowDown: 1, ArrowLeft: 1, ArrowRight: 1 };
+      var PASSTHROUGH_KEYS = { Escape: 1, Esc: 1, Enter: 1, NumpadEnter: 1, Tab: 1 };
+
+      function onWheel(e) { e.preventDefault(); }
+      function onTouchMove(e) { e.preventDefault(); }
+      function onKeyDown(e) {
+        if (e.defaultPrevented) return;
+        if (PASSTHROUGH_KEYS[e.key]) return;
+        if (!SCROLL_KEYS[e.key]) return;
+        e.preventDefault();
       }
 
-      /* HANDOVER. Idempotent: Skip also fires a window pointerdown, the ceiling
-         can land on the same tick as the schedule, and the visitor can press two
-         keys at once. Whatever runs second does nothing. */
-      function release(reason) {
-        if (released) return;
-        released = true;
-        unlock();
-
-        /* `intro-handover` is for anything that wants to start its own entrance
-           as the overlay lifts. `intro-complete` is the contract js/reveal.js
-           already waits on, and the only one other modules should depend on. */
-        try { window.dispatchEvent(new CustomEvent('toolapis:intro-handover',
-          { detail: { reason: reason || 'done' } })); } catch (e) {}
-        try { window.dispatchEvent(new CustomEvent('toolapis:intro-complete',
-          { detail: { reason: reason || 'done' } })); } catch (e) {}
-
-        /* The terminal state, one exit-fade later, whether or not a module is
-           still alive to arrange it. */
-        window.setTimeout(function () { finish('auto'); }, EXIT_MS + 80);
+      /* Layer 3. The only listener that can see a scrollbar drag or a scripted
+         `scrollTo`, and the only one that touches scroll position at all. It
+         runs on scroll events, not on a timer: if the document is already at 0
+         — which is the case for every scroll event that is not a real scroll —
+         this is one integer comparison. */
+      function onScroll() {
+        if (!d.classList.contains('intro-active')) return;
+        try { if (window.scrollY !== 0 || window.scrollX !== 0) window.scrollTo(0, 0); } catch (e) {}
       }
 
-      /* TERMINAL. The overlay leaves the DOM: for the rest of the page's life
-         there is no full-viewport layer, no z-index 1200 and no focusable Skip
-         button a later stylesheet might make visible. */
-      function finish(reason) {
-        if (done) return;
-        done = true;
-        if (!released) { release(reason); }
-        try { d.classList.add('intro-done'); d.classList.remove('intro-exit'); } catch (e) {}
-        try {
-          var o = document.getElementById('intro-overlay');
-          if (o && o.parentNode) o.parentNode.removeChild(o);
-        } catch (e) {}
-        /* Restore scroll restoration so normal navigation works afterwards. */
+      function enableScrollLock() {
+        if (lockLive) return;
+        lockLive = true;
+        /* Chrome restores the pre-refresh scroll position on its own schedule,
+           which is why the entrance owns `history.scrollRestoration` outright:
+           'manual' makes the restore a no-op, and the explicit `scrollTo` calls
+           below cover the engines that ignore it. */
+        try { history.scrollRestoration = 'manual'; } catch (e) {}
+        window.addEventListener('wheel', onWheel, { passive: false, capture: true });
+        window.addEventListener('touchmove', onTouchMove, { passive: false, capture: true });
+        window.addEventListener('keydown', onKeyDown, { passive: false, capture: true });
+        window.addEventListener('scroll', onScroll, { passive: true, capture: true });
+      }
+
+      function disableScrollLock() {
+        if (!lockLive) return;
+        lockLive = false;
+        window.removeEventListener('wheel', onWheel, { capture: true });
+        window.removeEventListener('touchmove', onTouchMove, { capture: true });
+        window.removeEventListener('keydown', onKeyDown, { capture: true });
+        window.removeEventListener('scroll', onScroll, { capture: true });
         try { history.scrollRestoration = 'auto'; } catch (e) {}
-        disableScrollLock();
       }
 
-      /* The seam. js/intro.js calls these and owns no version of either. */
-      window.__tlIntro = { release: release, finish: finish };
+      /* THE SCROLLBAR'S WIDTH, ONCE. `overflow: hidden` removes the scrollbar,
+         which makes the layout viewport wider by exactly that much, which slides
+         every centred thing on the page sideways and back again. Handing the
+         width back as padding on <html> for the same interval keeps the content
+         box identical in both states — measured, not reasoned: see "THE LOCK" in
+         css/intro.css.
+
+         It is read at DOMContentLoaded because that is the first moment the
+         document is tall enough to own a scrollbar. Before that the document
+         cannot scroll, so there is nothing to lock and a width of 0 is also the
+         correct answer. */
+      function measureGutter() {
+        if (!d.classList.contains('intro-active')) return;
+        try {
+          var w = Math.max(0, window.innerWidth - d.clientWidth);
+          if (w > 0) d.style.setProperty('--intro-gutter', w + 'px');
+        } catch (e) {}
+      }
+
+      /* Chrome restores scroll after a refresh at more than one moment. Each of
+         these is a single call, made once each — never on a timer and never per
+         frame. */
+      function forceScrollTop() {
+        if (!d.classList.contains('intro-active')) return;
+        try { if (window.scrollY !== 0 || window.scrollX !== 0) window.scrollTo(0, 0); } catch (e) {}
+      }
+
+      /* ========================================================================
+         finishIntro(reason) — the ONE way the entrance ends.
+         ========================================================================
+         Idempotent on purpose. The Skip click also fires a pointerdown, the
+         ceiling can land on the same tick as the schedule, `pageshow` fires on
+         every single load, and a visitor can press two keys at once. Whatever
+         runs second must do nothing at all.
+
+         The order below is the argument of the whole file:
+
+           1. take the screen off the page (the classes),
+           2. stop the lock and give the scrollbar back,
+           3. give the page back to the visitor (the background, the events),
+           4. schedule the teardown of the two full-viewport layers,
+           5. schedule an AUDIT of that teardown.
+
+         Steps 1–3 are synchronous and unconditional, so an exception anywhere
+         after them still leaves a working page. The audit in step 5 is the part
+         that had no equivalent before: if either overlay is somehow still
+         covering the middle of the screen 1.2s later, it is removed outright. */
+      function finishIntro(reason) {
+        if (finished) return;
+        finished = true;
+
+        var how = reason || 'done';
+
+        /* 1. the screen */
+        try { d.classList.remove('intro-active'); d.classList.add('intro-exit'); } catch (e) {}
+
+        /* 2. the lock. Before the events: a visitor whose gesture ended the
+              entrance and whose keydown is still travelling must not get a
+              scroll out of it. */
+        disableScrollLock();
+        try { d.style.removeProperty('--intro-gutter'); } catch (e) {}
+        forceScrollTop();
+
+        /* 3. the page */
+        releaseBackground();
+        try {
+          window.dispatchEvent(new CustomEvent('toolapis:intro-handover',
+            { detail: { reason: how } }));
+          window.dispatchEvent(new CustomEvent('toolapis:intro-complete',
+            { detail: { reason: how } }));
+        } catch (e) {}
+
+        /* 4. the layers, one exit-fade later, whether or not a module is still
+              alive to arrange it. `#page-transition` is purged immediately and
+              unconditionally: it has nothing to do with the entrance, it is a
+              fixed opaque layer with an opacity transition, and a stuck one is
+              indistinguishable from a blank page on screen. */
+        teardownId = window.setTimeout(teardown, EXIT_MS + 80);
+
+        /* 5. the audit */
+        if (auditId) { try { window.clearTimeout(auditId); } catch (e) {} }
+        auditId = window.setTimeout(audit, EXIT_MS + 1200);
+      }
+
+      /* TERMINAL. Both layers leave the DOM: for the rest of the page's life
+         there is no full-viewport layer, no z-index 1200 and no focusable Skip
+         button a later stylesheet might accidentally make visible. */
+      function teardown() {
+        if (teardownId) { try { window.clearTimeout(teardownId); } catch (e) {} teardownId = 0; }
+        try { d.classList.add('intro-done'); d.classList.remove('intro-exit'); } catch (e) {}
+        purgeLayer('intro-overlay');
+        purgeLayer('page-transition');
+      }
+
+      /* Remove one of the two full-viewport layers. `#page-transition` is only
+         PURGED, not removed: script.js needs it for outbound navigation later in
+         the session. */
+      function purgeLayer(id) {
+        try {
+          var el = document.getElementById(id);
+          if (!el) return;
+          if (id !== 'page-transition' && el.parentNode) el.parentNode.removeChild(el);
+          else {
+            el.classList.remove('active');
+            el.classList.add('intro-purged');
+            el.style.opacity = '0';
+            el.style.visibility = 'hidden';
+            el.style.pointerEvents = 'none';
+          }
+        } catch (e) {}
+      }
+
+      /* THE SECOND FAILSAFE. Teardown is a timer, and a timer is a promise
+         JavaScript does not always keep. If either layer is still on top of the
+         middle of the screen a second later, it is gone — the failure mode this
+         whole pass exists to remove is a page that is invisible for reasons
+         nobody can see, and a stubborn overlay is the only thing that can
+         produce one once the reveal system has swept. */
+      function audit() {
+        auditId = 0;
+        try {
+          var hit = document.elementFromPoint(window.innerWidth / 2, window.innerHeight / 2);
+          if (hit && hit.id === 'intro-overlay') {
+            var o = document.getElementById('intro-overlay');
+            if (o && o.parentNode) o.parentNode.removeChild(o);
+          }
+          var pt = document.getElementById('page-transition');
+          if (pt && getComputedStyle(pt).display !== 'none') {
+            pt.classList.remove('active');
+            pt.classList.add('intro-purged');
+          }
+          if (!hit || (hit.id !== 'intro-overlay' && hit.id !== 'page-transition')) {
+            try { d.classList.add('intro-done'); d.classList.remove('intro-exit'); } catch (e) {}
+          }
+        } catch (e) {}
+      }
+
+      /* The seam. js/intro.js calls this and owns no version of it. The older
+         `release`/`finish` pair is kept as aliases so a cached copy of the module
+         that still calls them cannot throw its way past the handover. */
+      window.__tlIntro = {
+        finishIntro: finishIntro,
+        release: finishIntro,
+        finish: teardown,
+        isLocked: function () { return !finished; }
+      };
 
       /* Nothing to run: still publish the seam, so a stray call cannot find an
          undefined function and throw where a no-op was meant. */
-      if (!motionOn || deepLink) {
-        try { d.setAttribute('data-intro-skipped', motionOn ? 'deep-link' : 'motion-off'); } catch (e) {}
+      if (!motionOn || deepLink || introOff) {
+        try {
+          d.setAttribute('data-intro-skipped',
+            introOff ? 'param' : (motionOn ? 'deep-link' : 'motion-off'));
+        } catch (e) {}
+        /* The layer must be inert on these paths too, or a broken transition on
+           `#page-transition` is a blank page on a page that never had an
+           entrance in the first place. */
+        try { d.classList.add('intro-done'); } catch (e) {}
+        purgeLayer('page-transition');
         return;
       }
 
       try { d.setAttribute('data-intro-state', 'active'); } catch (e) {}
       try { d.classList.add('intro-active'); } catch (e) {}
       enableScrollLock();
-      /* A page restored mid-document is not an entrance. Do not pin a visitor
-         who arrived 4000px down to the top for five seconds. */
-      try { if (window.scrollY > 0 || window.scrollX > 0) window.scrollTo(0, 0); } catch (e) {}
+      forceScrollTop();
 
       try {
-        if (document.body) holdBackground();
-        else document.addEventListener('DOMContentLoaded', holdBackground, { once: true });
+        if (document.body) { holdBackground(); measureGutter(); }
+        else document.addEventListener('DOMContentLoaded', function () {
+          holdBackground(); measureGutter();
+          /* And if the entrance is ALREADY over by the time the body exists —
+             a skip in the first 200ms — `holdBackground` returns without
+             writing anything, and this is the line that makes sure it also
+             releases whatever a *previous* path may have held. */
+          if (finished) releaseBackground();
+        }, { once: true });
       } catch (e) {}
 
-      /* Scroll restoration: Chrome may restore scroll position at multiple points
-         (DOMContentLoaded, load, pageshow). Force scroll to top while intro-active. */
-      function forceScrollTop() {
-        if (d.classList.contains('intro-active')) {
-          try { window.scrollTo(0, 0); } catch (e) {}
-        }
-      }
       document.addEventListener('DOMContentLoaded', forceScrollTop, { once: true });
-      window.addEventListener('load', forceScrollTop, { once: true });
+      window.addEventListener('load', function () {
+        forceScrollTop();
+        measureGutter();
+      }, { once: true });
       window.addEventListener('pageshow', function (e) {
-        if (!e.persisted) forceScrollTop();
+        /* `persisted` is a back/forward-cache restore. The entrance must never
+           re-run itself in the middle of a page the visitor is already reading,
+           and a restore must never leave `intro-active` behind. Both are the
+           same one-liner: end it, wherever we are. */
+        if (e && e.persisted) { finishIntro('restored'); return; }
+        forceScrollTop();
+        measureGutter();
+      });
+
+      /* A tab that was switched away from has missed the entrance. */
+      document.addEventListener('visibilitychange', function () {
+        if (!document.hidden) return;
+        finishIntro('hidden');
       });
 
       /* THE HARD CEILING. Unconditional, module-independent, and generous past
          the authored 5000ms: this exists to release a page nobody else is going
          to release, so being late is free and being early would be a bug. */
-      window.setTimeout(function () { finish('ceiling'); }, CEILING_MS);
+      window.setTimeout(function () { finishIntro('ceiling'); }, CEILING_MS);
     })();
   </script>
 
@@ -547,7 +709,13 @@ sections.css: marquee, bento, features, flow, clarity, footer layouts
         <span class="intro-status" id="intro-status">Initializing tools</span>
       </div>
 
-      <button type="button" class="intro-skip" id="intro-skip">
+      <!-- The class is GONE, deliberately. It was `intro-skip`, which is also the
+           compressed-schedule state js/intro.js writes onto <html> — and a
+           `.intro-skip { opacity: 0 }` selector then matched the document
+           element itself, which is how a visitor who skipped the entrance ended
+           up looking at an empty page. The skin is now `#intro-skip`, which
+           cannot match <html>. See "THE STATE CLASSES" in css/intro.css. -->
+      <button type="button" id="intro-skip">
         <span>Skip intro</span>
         <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-arrow-right"></use></svg>
       </button>

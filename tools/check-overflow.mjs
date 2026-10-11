@@ -99,6 +99,19 @@ for (const p of CANDIDATES) { try { await access(p); exe = p; break; } catch { /
 if (!exe) { console.error('no browser found'); process.exit(1); }
 
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+
+/* Add or replace one query parameter on a URL string, without caring whether the
+   base already has a query or a hash. Used only for `?intro=off` — see
+   `measure()`. */
+function withParam(url, key, value) {
+  try {
+    const u = new URL(url);
+    u.searchParams.set(key, value);
+    return u.toString();
+  } catch (e) {
+    return url + (url.indexOf('?') === -1 ? '?' : '&') + key + '=' + value;
+  }
+}
 let failures = 0;
 const fail = (m) => { failures++; console.log('   FAIL  ' + m); };
 
@@ -123,7 +136,18 @@ async function measure(ctx, page, w, h) {
   page.on('pageerror', onPageErr);
 
   await page.setViewportSize({ width: w, height: h });
-  await page.goto(BASE, { waitUntil: 'load', timeout: 60000 });
+  /* `?intro=off` skips the entrance and nothing else. This is a LAYOUT sweep,
+     and the entrance is not part of what it measures: the overlay is
+     `position: fixed` (so it is filtered out of the offender scan anyway) and it
+     does not change a single box on the page. What it does change, now that the
+     entrance holds a real scroll lock, is the sweep below — `window.scrollTo`
+     inside the first five seconds is cancelled, the unvisited sections stay
+     unvisited, and the measurement silently becomes a measurement of the first
+     screen at every width. Waiting for the entrance instead would cost five
+     seconds × 144 navigations, so `?intro=off` is the cheaper half of the same
+     correct answer. It is deliberately NOT `?motion=off`: that stops every loop
+     on the page and would change the layout being measured. */
+  await page.goto(withParam(BASE, 'intro', 'off'), { waitUntil: 'load', timeout: 60000 });
   /* Wait for the webfont before measuring anything. Google Sans is loaded from
      a CDN, and a fallback face has different metrics: an earlier version of this
      test reported a spurious 1px h1 width difference (673 vs 672) at 1440 that

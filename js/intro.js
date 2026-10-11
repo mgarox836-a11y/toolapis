@@ -9,23 +9,24 @@
  * WHAT IT OWNS
  * ----------------------------------------------------------------------------
  *   1. the progress rail, the tabular counter and the status line;
- *   2. every way out — Skip, click, any key, a scroll attempt, a tab switch, a
- *      bfcache restore, the motion switch, and a hard ceiling.
+ *   2. the schedule, and therefore WHEN the entrance ends if nothing else does.
  *
  * WHAT IT DOES NOT OWN
  * ----------------------------------------------------------------------------
- *   The class writes, the background unfocusing and the `toolapis:intro-complete`
- *   event belong to the inline <head> bootstrap in index.html, which exposes
- *   them as `window.__tlIntro`. That split is the whole safety argument: if this
- *   module never executes — CDN down, syntax error, an exception in an import —
- *   the bootstrap's own timer still releases everything, and the two paths call
- *   the SAME two functions rather than each owning a second implementation of
- *   "the intro is over".
+ *   `finishIntro(reason)` — the release, the background unfocusing, the scroll
+ *   lock, the events, the teardown of both full-viewport layers, and the audit
+ *   that follows it — belongs to the inline <head> bootstrap in index.html,
+ *   which exposes it as `window.__tlIntro.finishIntro`. That split is the whole
+ *   safety argument: if this module never executes — CDN down, a syntax error,
+ *   an exception during import — the bootstrap's own 5.8s timer still releases
+ *   everything, because the failure mode of the alternative is a full-viewport
+ *   layer over a page with a background that cannot be focused or clicked.
  *
- *   Note what is not in that list either: there is no scroll lock to release,
- *   because there is none. See "THE LOCK" in css/intro.css — locking the scroll
- *   was two lines that cost ten pixels of layout in both directions and bought
- *   nothing this module's input handling does not already give away.
+ *   Note what is not in that list either: there is no second copy of "the intro
+ *   is over" in here. There used to be one, the two had to be called in the
+ *   right order by every path, and one caller got it wrong. The visitor saw a
+ *   blank page for the rest of the session; the paragraph on state classes
+ *   below is what that bug was.
  *
  * WHY THE OVERLAY IS NOT A LOADER
  * ----------------------------------------------------------------------------
@@ -33,9 +34,23 @@
  * parsed, and the page behind it is already in the DOM and already laid out.
  * Those five seconds are choreography, and choreography that cannot be
  * interrupted is a prison. So there is exactly one thing the visitor has to do
- * to end it early, and then everything else ends it too: pressing a key,
- * clicking, or trying to scroll all skip. Somebody who has seen it once and does
- * not want to see it again never has to sit through it twice.
+ * to end it early, and then everything else ends it too: pressing Esc, Enter or
+ * Space, clicking the panel, tapping it, or pressing the Skip button. Somebody
+ * who has seen it once and does not want to see it again never has to sit
+ * through it twice.
+ *
+ * WHY SCROLLING IS NOT ONE OF THOSE THINGS (this changed, deliberately)
+ * ----------------------------------------------------------------------------
+ * It used to be. Any wheel, touch, pointer, key or scroll event ended the
+ * entrance, on the reasoning that a visitor who scrolls has said the thing they
+ * wanted is the page. That reasoning stopped being true the moment the entrance
+ * gained a real scroll lock — because the first gesture got cancelled and every
+ * gesture after it scrolled, since the same gesture is what releases the lock.
+ * So the visitor got a document moving under a panel that was halfway out, with
+ * the hero's schedule compressed underneath it. Scrolling is now locked, not
+ * honoured: a visitor who scrolls during the entrance gets nothing for five
+ * seconds and a normal page afterwards, which is what "I pressed the key too
+ * early" should mean. The Skip control is right there and says what it does.
  *
  * WHAT IT MUST NOT DO
  * ----------------------------------------------------------------------------
@@ -49,6 +64,12 @@
  *     `data-load-reveal`, and is `both`-filled, so it lands on its final state
  *     whatever happens to this module. Skipping early cannot strand it: worst
  *     case the hero is simply already there when the overlay lifts.
+ *   - WRITE A CLASS ONTO <html> THAT ANY OTHER ELEMENT ALSO CARRIES. It did,
+ *     once: `intro-skip` was both the compressed-schedule state and the Skip
+ *     BUTTON's skin class, so skipping put `opacity: 0` on the document element
+ *     and emptied the page — the blank screen this file was rewritten for. The
+ *     state class is `intro-compressed`, a name nothing else in the project
+ *     uses. See "THE STATE CLASSES" in css/intro.css before renaming it.
  *   - DISAGREE WITH THE CSS ABOUT WHEN THAT IS. The hero's delays are authored
  *     against first paint; `firstPaintOffset` reads the page's real zero back off
  *     its own animation so the overlay is always lifting while the first hero
@@ -264,17 +285,14 @@ function stopWatching() {
 /**
  * HANDOVER. One-way. Everything else in this file is a way of calling it.
  *
- * The overlay does not vanish here: it starts its exit fade, because a hard cut
- * from black to a page that is still arriving is the one thing that would make
- * five seconds look like five seconds. `cleanup` is what removes it, one exit
- * duration later.
+ * It owns no state worth the name: `window.__tlIntro.finishIntro` is idempotent
+ * and does the classes, the lock, the unfocusing, the events, the teardown and
+ * the audit. What is left here is the ONE thing only this module can do — tell
+ * the hero's CSS choreography that it may start sooner — and only while the
+ * overlay is still up.
  *
- * The actual release — classes, unfocusing the background, the
- * `intro-complete` event — is `window.__tlIntro.release`, owned by the inline
- * bootstrap so that it still happens when this module does not.
- *
- * `early` is the only thing that changes the page's own schedule, and it is the
- * difference between "you waited for the entrance" and "you ended it".
+ * `early` is the difference between "you waited for the entrance" and "you
+ * ended it".
  */
 function finish(reason, early) {
   if (finished) return;
@@ -287,25 +305,28 @@ function finish(reason, early) {
 
   const how = reason || 'done';
 
-  /* THE RELEASE COMES FIRST, ALWAYS.
+  /* THE HANDOVER COMES FIRST, ALWAYS.
      Everything below this line is an optimisation on top of a page being handed
      over; everything above it is the handover. The order is not stylistic: a
      throw in the compress path once left the visitor with a full-viewport layer
      over the page and no way to dismiss it, because the one statement that
      releases everything had not run yet when the exception unwound past it. */
   if (typeof window.__tlIntro === 'object' && window.__tlIntro
-      && typeof window.__tlIntro.release === 'function') {
-    try { window.__tlIntro.release(how); } catch (e) {}
+      && typeof window.__tlIntro.finishIntro === 'function') {
+    try { window.__tlIntro.finishIntro(how); } catch (e) {}
   } else {
     /* The bootstrap is missing (someone deleted it, or this page is not the one
        the module was written for). Release the minimum, by hand, rather than
-       leaving a full-viewport layer with a live button on it. */
+       leaving a full-viewport layer with a live button on it. This is the ONE
+       place a second implementation of the release is allowed to exist: it is
+       the branch where the first one is provably absent. */
     try { html.classList.remove('intro-active'); html.classList.add('intro-exit'); } catch (e) {}
     try { html.style.overflow = ''; if (document.body) document.body.style.overflow = ''; } catch (e) {}
-    /* Belt and braces from an older design that locked the scroll here. It is a
-       no-op now — nothing sets overflow in the first place — and it stays because
-       a one-line no-op costs nothing while a stale inline `overflow: hidden`
-       from a cached copy of this file would cost a page nobody can scroll. */
+    try {
+      window.dispatchEvent(new CustomEvent('toolapis:intro-complete',
+        { detail: { reason: how } }));
+    } catch (e) {}
+    exitId = setTimeout(orphanCleanup, 0);
   }
 
   /* Compress, but only if there is anything left to compress. Every delay in
@@ -320,11 +341,29 @@ function finish(reason, early) {
      that works, and a page still wearing its loading panel is not. */
   if (early) {
     try {
-      if (elapsed() < clock.handover) compress();
+      /* No overlay means nothing was being watched, so there is no schedule to
+         answer. Compressing it anyway would rewrite the hero's delays for a
+         visitor who never saw an entrance. */
+      if (overlay && elapsed() < clock.handover) compress();
     } catch (e) { /* the long schedule is the harmless outcome */ }
   }
 
+  /* Focus is handed to the page one exit-fade later, by `cleanup`. The bootstrap
+     removes the overlay on its own clock; this one exists for the focus handoff
+     and for the `intro-done` class in the no-bootstrap branch, and both are
+     idempotent, so the two clocks agreeing is the only thing they need. */
   exitId = setTimeout(cleanup, neverPainted() ? 0 : clock.exit + 60);
+}
+
+/** Only reachable when the inline bootstrap is gone. It exists so that a page
+ *  with no bootstrap still loses its overlay, rather than keeping a full-screen
+ *  layer and a focusable button forever. */
+function orphanCleanup() {
+  try { html.classList.add('intro-done'); html.classList.remove('intro-exit'); } catch (e) {}
+  try {
+    const o = document.getElementById('intro-overlay');
+    if (o && o.parentNode) o.parentNode.removeChild(o);
+  } catch (e) {}
 }
 
 /** Did the overlay ever actually become a screen? If it did not — motion off, a
@@ -352,10 +391,16 @@ function neverPainted() {
  * never painted, because the two class writes land in the same frame around a
  * forced layout flush — and then the compressed schedule plays from its
  * beginning.
+ *
+ * `intro-compressed`, and the name is load-bearing. This used to write
+ * `intro-skip` onto <html>, and css/intro.css also gave the Skip BUTTON the
+ * class `intro-skip` — whose skin starts at `opacity: 0`. A class selector
+ * matches <html> when <html> carries that class, so every visitor who skipped
+ * the entrance got an invisible document for the rest of the session.
  */
 function compress() {
   try {
-    html.classList.add('intro-skip', 'intro-restart');
+    html.classList.add('intro-compressed', 'intro-restart');
     void html.offsetHeight;
     html.classList.remove('intro-restart');
   } catch (e) {
@@ -366,13 +411,19 @@ function compress() {
 }
 
 /**
- * TERMINATE. The overlay leaves the DOM.
+ * TERMINAL. The overlay leaves the DOM.
  *
  * Removing it rather than hiding it is deliberate: for the rest of the page's
  * life there is no full-viewport layer, no z-index 1200, and no focusable Skip
  * button that a later stylesheet might accidentally make visible. What is gone
  * cannot be interacted with.
- */
+ *
+ * The bootstrap's `finishIntro` does the removal and sets the classes on the
+ * normal path; this function is what still runs if `finishIntro` was never
+ * reached, and either way it runs before focus is handed over — because focusing
+ * the Skip button while it is still on screen leaves the visitor with a focus on
+ * an element that is about to be deleted, and a browser that loses the focused
+ * element resets focus to <body>. */
 function cleanup() {
   if (cleanedUp) return;
   cleanedUp = true;
@@ -381,40 +432,76 @@ function cleanup() {
   stopWatching();
 
   try { if (overlay && overlay.parentNode) overlay.parentNode.removeChild(overlay); } catch (e) {}
-
-  /* Focus is handed to the page HERE rather than at the handover, and the reason
-     is the order of the two lines above. Focusing anything while the Skip button
-     is still on screen puts focus on a button that is about to be deleted, and
-     a browser that loses the focused element resets focus to <body> — so doing it
-     early produced a page nobody had focus on at all, which is the same as a
-     page where Tab starts from the top and the skip link is the first stop. */
   focusPage();
-
-  if (typeof window.__tlIntro === 'object' && window.__tlIntro
-      && typeof window.__tlIntro.finish === 'function') {
-    try { window.__tlIntro.finish('module'); } catch (e) {}
-  } else {
-    try { html.classList.add('intro-done'); html.classList.remove('intro-exit'); } catch (e) {}
-  }
 }
 
 /* ------------------------------------------------------------------ *
  * 7. THE WAYS OUT
  * ------------------------------------------------------------------ */
 
-/* Every one of these is a genuine "I don't want to wait", which is the only
-   reason the overlay has an exit at all. None of them is a gesture that merely
-   means "I moved" — and `scroll` earns its place for a specific reason: dragging
-   the scrollbar dispatches no pointer or wheel event into the document, so it is
-   the only listener that hears that visitor at all. */
-const INPUTS = ['wheel', 'touchstart', 'pointerdown', 'mousedown', 'keydown', 'scroll'];
+/* A gesture ends the entrance when it means "I don't want to watch this", and
+   not when it means something else. The distinction is not a detail: the entrance
+   LOCKS the scroll (index.html, "THE SCROLL LOCK"), and the previous version of
+   this file ended the entrance on `wheel`/`touchmove`/`scroll` as well — so the
+   same gesture that was cancelled by the lock also released it, and every
+   gesture after it scrolled a document that had just been handed over
+   mid-animation. The visitor who scrolled too early got a broken page; the fix
+   is that scrolling is no longer an exit.
 
-function onInput() { finish('dismissed', true); }
+   WHAT IS STILL AN EXIT
+     - the Skip button, by click;
+     - a TAP anywhere on the panel — pointerup within 10px of where it went
+       down, inside 600ms. A drag is not a tap, which is exactly what keeps a
+       thumb-drag on a phone from releasing the lock half-way through the swipe;
+     - Esc, Enter and Space. Tab is left alone, because a visitor who tabs into
+       the page and then tabs back has not asked for anything.
+
+   The three keys are cancelled in this handler as well as allowed through by the
+   bootstrap's key handler: Space is a scroll key in every browser, and the only
+   reason it does not scroll is that focus happens to be on the Skip button. That
+   is not a guarantee, it is a coincidence of the current focus order. */
+const SKIP_KEYS = { Escape: 1, Esc: 1, Enter: 1, NumpadEnter: 1, ' ': 1, Space: 1, Spacebar: 1 };
+
+function onSkipKey(e) {
+  /* `defaultPrevented` is deliberately NOT consulted. The scroll lock in the
+     <head> bootstrap runs first on the same phase and the same target, and it
+     cancels Space — correctly, because Space scrolls a page whose focus is not
+     on a button. The consequence was that this handler, which arrived second,
+     read a cancelled key as "someone else has it" and did nothing: Space became
+     the one key that neither scrolled nor skipped. The lock and this handler
+     are the same feature answering for the same gesture, and the lock's answer
+     is not a veto. */
+  if (!SKIP_KEYS[e.key]) return;
+  e.preventDefault();
+  finish('skipped', true);
+}
+
+let downX = 0;
+let downY = 0;
+let downAt = 0;
+let dragging = false;
+
+function onPointerDown(e) {
+  downX = e.clientX; downY = e.clientY;
+  downAt = (e.timeStamp || performance.now());
+  dragging = false;
+}
+
+function onPointerMove(e) {
+  if (Math.abs(e.clientX - downX) + Math.abs(e.clientY - downY) > 10) dragging = true;
+}
+
+function onPointerUp(e) {
+  if (dragging) return;
+  if ((e.timeStamp || performance.now()) - downAt > 600) return;
+  finish('tapped', true);
+}
 
 function wireInput() {
-  for (let i = 0; i < INPUTS.length; i++) {
-    try { window.addEventListener(INPUTS[i], onInput, { passive: true, capture: true }); } catch (e) {}
-  }
+  try { window.addEventListener('keydown', onSkipKey, { passive: false, capture: true }); } catch (e) {}
+  try { window.addEventListener('pointerdown', onPointerDown, { passive: true, capture: true }); } catch (e) {}
+  try { window.addEventListener('pointermove', onPointerMove, { passive: true, capture: true }); } catch (e) {}
+  try { window.addEventListener('pointerup', onPointerUp, { passive: true, capture: true }); } catch (e) {}
   try {
     const btn = document.getElementById('intro-skip');
     if (btn) btn.addEventListener('click', (e) => { e.preventDefault(); finish('skipped', true); });
@@ -427,7 +514,8 @@ function wireInput() {
 
 function boot() {
   /* Someone removed the overlay, or this page has no intro. Nothing to time —
-     and, critically, the lock the <head> bootstrap took has to come off. */
+     and, critically, `finishIntro` still has to run, because the bootstrap has
+     already put `intro-active` on <html> and installed the scroll lock. */
   if (!overlay) { finish('no-overlay', true); return; }
 
   /* The switch can be flipped between the <head> script and here: localStorage,
@@ -475,22 +563,12 @@ function boot() {
      free, arriving early would be a bug. */
   scheduleId = setTimeout(() => finish('timed', false), Math.max(0, clock.handover - elapsed()));
 
-  /* `pageshow` FIRES ON EVERY LOAD, including this one. Unfiltered it would end
-     the intro in the same tick it started, which is exactly the bug a
-     "restore" handler invites. `persisted` is the whole difference: true only
-     for a page coming back out of the back/forward cache. */
-  try {
-    window.addEventListener('pageshow', (e) => {
-      if (e && e.persisted) finish('restored', true);
-    });
-  } catch (e) {}
-  /* A tab that was switched away from has missed the entrance. Coming back to
-     find it still running is worse than never having run it. */
-  try {
-    document.addEventListener('visibilitychange', () => {
-      if (document.hidden) finish('hidden', true);
-    });
-  } catch (e) {}
+  /* `pageshow` (bfcache) and `visibilitychange` are the bootstrap's, not this
+     module's, and they were duplicated here until this pass. Both are
+     idempotent, so the duplication was harmless and it was also invisible: a
+     reader comparing the two could not tell which one was load-bearing for the
+     scroll lock. They live in index.html now, which is the file that has to
+     release the page when nothing on this side runs at all. */
 
   /* The hard ceiling. The bootstrap holds the same one independently: this one
      guarantees the authored schedule is honoured when the module ran, and that

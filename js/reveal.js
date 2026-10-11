@@ -36,9 +36,20 @@
  *    scene and its floating chips are excluded by container, and anything whose
  *    computed position is
  *    `fixed` or `sticky` is excluded by measurement.
- * 3. Never leaves a block hidden. No IntersectionObserver -> reveal everything.
- *    Anything already in the viewport -> revealed on the spot, on load, after
- *    the intro hands over, and on a deep link. A watchdog re-runs the sweep.
+ * 3. NEVER LEAVES A BLOCK HIDDEN. Not "eventually, unless the observer fires" —
+ *    never. An IntersectionObserver only ever answers the question "did this
+ *    element ENTER the viewport", and that question has no answer for a block
+ *    that travelled across the viewport while nothing was looking: it was above
+ *    the root when the observer first saw it and below it when it looked again,
+ *    so it was never seen entering, and `isIntersecting` was false for both
+ *    samples. The entrance's hold is what makes that window exist — handovers
+ *    are queued for the length of it — so this module's own deferral is the
+ *    first thing that can strand a block. The answer is a sweep that asks the
+ *    other question: anything not yet revealed whose top is above the fold (or
+ *    already behind the visitor) is revealed NOW. It runs on every handover, on
+ *    the first scroll after one, on `load`, on `pageshow`, on a resize and on a
+ *    9s watchdog, and a 4-pass self-heal checks computed opacity on screen for
+ *    six seconds afterwards and says so in the console if it has to intervene.
  * 4. Cannot fail the page. Everything is wrapped; the whole module is inside
  *    one try/catch, and any failure before the class is added leaves the
  *    hide-initial styles switched off, i.e. the content visible.
@@ -246,7 +257,13 @@ function markAnimating(el) {
   setTimeout(done, animBudget());
 }
 
-function revealOne(el) {
+/**
+ * REVEAL ONE BLOCK. `instant` skips the transition and writes the finished
+ * state directly, which is what a block the visitor has already scrolled past
+ * needs: animating it would mean spending 900ms on something nobody is looking
+ * at, from a page that is trying to stop wasting frames.
+ */
+function revealOne(el, instant) {
   if (!el || el.dataset.rvDone === '1') return;
   /* Queued, not played: see `introHolds`. Bounded, because `introDeadline` is
      and because a duplicate here would only cost one extra class write. */
@@ -261,6 +278,20 @@ function revealOne(el) {
   /* One-way: `revealed` is a WeakSet, so a swept-and-revealed element can
      never be un-revealed by a later pass. */
   revealed.add(el);
+  try { if (io) io.unobserve(el); } catch (err) { /* noop */ }
+
+  if (instant) {
+    /* The final state, written. `transition: none` first so the class just added
+       above does not animate from the hidden state on its way here — which is
+       the whole point of the `instant` branch. */
+    try {
+      el.style.transition = 'none';
+      el.style.opacity = '1';
+      el.style.transform = 'none';
+      el.style.filter = 'none';
+      el.style.willChange = 'auto';
+    } catch (err) { /* noop */ }
+  }
   markAnimating(el);
 }
 
@@ -269,11 +300,17 @@ function revealAll() {
   for (const el of targets) revealOne(el);
 }
 
-/** Play whatever the entrance was holding. Called on `intro-complete`, and again
- *  from a timer, because the one thing worse than a page that reveals late is a
- *  page that never reveals. */
+/** Play whatever the entrance was holding, and report what it played. Called on
+ *  `intro-complete`, and again from a timer, because the one thing worse than a
+ *  page that reveals late is a page that never reveals. */
 function flushDeferred() {
-  while (deferred.length) revealOne(deferred.shift());
+  const played = [];
+  while (deferred.length) {
+    const el = deferred.shift();
+    revealOne(el, passed(el));
+    played.push(el);
+  }
+  return played;
 }
 
 /* ------------------------------------------------------------------ *
@@ -283,29 +320,93 @@ function flushDeferred() {
 let io = null;
 let sweepId = 0;
 
+/** Has this block already gone past the top of the viewport? Measured, not
+ *  assumed — a block that is off to the side, or inside a collapsed section,
+ *  can sit at a negative top without ever having been on screen. */
+function passed(el) {
+  try {
+    const r = el.getBoundingClientRect();
+    return !!r && r.height > 0 && r.bottom < 0;
+  } catch (err) {
+    return false;
+  }
+}
+
 /** Anything whose box already touches the viewport reveals immediately. This
-   *  is what covers the first paint, a deep link (`#flow` is at the top of the
-   *  document on arrival) and any block the observer was too late for.
-   *  Uses 1.05x viewport height to catch elements just past the fold. */
-  function passVisible() {
-    const vh = window.innerHeight || 0;
-    const vw = window.innerWidth || 0;
-    const vhThreshold = vh * 1.05;
-    for (const el of targets) {
-      if (revealed.has(el)) continue;
-      let r = null;
-      try { r = el.getBoundingClientRect(); } catch (err) { r = null; }
-      if (!r || (r.width === 0 && r.height === 0)) continue;
-      if (r.bottom > 0 && r.top < vhThreshold && r.right > 0 && r.left < vw) revealOne(el);
+ *  is what covers the first paint, a deep link (`#flow` is at the top of the
+ *  document on arrival) and any block the observer was too late for.
+ *  Uses 1.05x viewport height to catch elements just past the fold. */
+function passVisible() {
+  const vh = window.innerHeight || 0;
+  const vw = window.innerWidth || 0;
+  const vhThreshold = vh * 1.05;
+  const shown = [];
+  for (const el of targets) {
+    if (revealed.has(el)) continue;
+    let r = null;
+    try { r = el.getBoundingClientRect(); } catch (err) { r = null; }
+    if (!r || (r.width === 0 && r.height === 0)) continue;
+    if (r.top < vhThreshold && r.right > 0 && r.left < vw) {
+      revealOne(el, passed(el));
+      shown.push(el);
     }
   }
+  return shown;
+}
+
+/**
+ * THE RECOVERY SWEEP. This is the function the blank screen came down to.
+ *
+ * Every other path in this file asks "has this block entered the viewport?".
+ * The entrance holds those handovers for as long as it owns the screen, and a
+ * block that MOVED during that hold — because the document scrolled, or because
+ * Chrome restored a position after a refresh, or because the layout above it
+ * changed height — is never seen entering. It was above the viewport before the
+ * observer's first callback and below it after, and `isIntersecting` was false
+ * for both. The block was then never revealed by anything, at any point, for
+ * the rest of the session: the page renders a hole where a paragraph is.
+ *
+ * So the sweep asks the other question. Anything not yet revealed whose top is
+ * above `innerHeight * 1.05` — in view OR already behind the visitor — is
+ * revealed now, and anything already behind is revealed without its transition,
+ * because an animation the visitor cannot see is 900ms of layout on a page that
+ * is already behind.
+ *
+ * It is called on every entrance handover, on the first `scroll` after one, on
+ * `load`, on `pageshow`, on a resize, and again by the self-heal below. It is
+ * idempotent, it is `targets.length` of integer comparisons, and it cannot make
+ * anything invisible — the only thing it does is add a class that makes an
+ * element visible.
+ */
+function recover() {
+  const batch = flushDeferred();
+  const seen = passVisible();
+  if (!batch.length && !seen.length) return;
+
+  /* AT MOST SIX STEPS. A recovery sweep can be asked to reveal twenty blocks at
+     once — a visitor who restored a deep scroll position, then scrolled back to
+     the top, hands this function a screenful of past-the-fold blocks all at
+     once. With the authored per-group staggers those twenty land inside the same
+     420ms ceiling and arrive as one flat slab, which is the exact thing the
+     cascade exists to avoid. Six steps across the batch is the compromise: the
+     walk is still legible, and the last block is still inside the ceiling the
+     rest of the system is budgeted against. */
+  const n = batch.length + seen.length;
+  if (n > 1) {
+    const step = Math.min(70, Math.floor(420 / (n - 1)));
+    for (let i = 0; i < n; i++) {
+      const el = batch[i] || seen[i];
+      try { el.style.setProperty('--reveal-delay', Math.round(i * step) + 'ms'); } catch (e) {}
+    }
+  }
+}
 
 /** Bounded re-sweep: fonts land, Tailwind's CDN lands, and a deep link
  *  jumps. None of those is an observer event. */
 function scheduleSweeps(count) {
   let left = count;
   const tick = () => {
-    passVisible();
+    recover();
     left -= 1;
     if (left > 0) sweepId = setTimeout(tick, REVEAL.sweepMs);
     else sweepId = 0;
@@ -414,11 +515,33 @@ function boot() {
   if ('IntersectionObserver' in window) {
     try {
       io = new IntersectionObserver((entries, obs) => {
-        entries.forEach((en) => {
-          if (!en.isIntersecting) return;
-          obs.unobserve(en.target);
-          revealOne(en.target);
-        });
+        for (const en of entries) {
+          const el = en.target;
+          /* TWO WAYS IN, NOT ONE.
+             `isIntersecting` is the normal one: the block is entering, play it.
+             The second is the bug this whole pass exists for: a block that was
+             ALREADY above the viewport when the observer first looked at it —
+             it moved during the entrance's hold, or Chrome restored a scroll
+             position, or the layout above it changed height. For those,
+             `isIntersecting` is false and always was: the observer saw the
+             element above the root, then below it, and never "entering". So the
+             top edge of the element against the top edge of the root is the
+             second condition, and it is checked from the entry's own geometry
+             rather than from a fresh measurement. */
+          let arrived = en.isIntersecting;
+          if (!arrived) {
+            try {
+              const root = en.rootBounds;
+              arrived = !!root && en.boundingClientRect.top < root.top;
+            } catch (err) { arrived = false; }
+          }
+          if (!arrived) continue;
+          /* `revealOne` unobserves, and only once the block has actually been
+             handed over. The old order — unobserve, then discover that the
+             entrance is holding this one and queue it — dropped it on the floor
+             with nothing left watching it. */
+          revealOne(el);
+        }
       }, { threshold: REVEAL.threshold, rootMargin: REVEAL.rootMargin });
       for (const el of targets) io.observe(el);
     } catch (err) {
@@ -435,118 +558,132 @@ function boot() {
   scheduleSweeps(6);
   /* The belt to the deadline's braces: whatever is still queued when the hold
      expires is played whether the entrance announced anything or not. */
-  setTimeout(flushDeferred, INTRO_DEADLINE - 200);
+  setTimeout(recover, INTRO_DEADLINE - 200);
 
-  /* Reveal elements that have already scrolled past the viewport (rect.bottom < 0)
-     during intro hold. These are revealed INSTANTLY without animation so they
-     don't stay hidden. Called from onHandover (rAF) and flushDeferred. */
-  function revealScrolledPast() {
-    for (const el of targets) {
-      if (revealed.has(el)) continue;
-      let r = null;
-      try { r = el.getBoundingClientRect(); } catch (err) { continue; }
-      if (!r || r.height === 0) continue;
-      if (r.bottom < 0) {
-        el.dataset.rvDone = '1';
-        for (let i = 0; i < VISIBLE.length; i++) {
-          try { el.classList.add(VISIBLE[i]); } catch (err) { /* noop */ }
-        }
-        revealed.add(el);
-        /* No animation - just snap to final state */
-        el.style.transition = 'none';
-        el.style.opacity = '1';
-        el.style.transform = 'none';
-        el.style.filter = 'none';
-        el.style.willChange = 'auto';
-      }
-    }
-  }
+  /* ========================================================== THE HANDOVER.
+     Every one of these four listeners runs the same recovery sweep, and the
+     reason there are four is that they fail independently of one another:
 
-  /* A deep link jumps the instant it resolves, which can land before every
-     bounded sweep above has run. `toolapis:intro-complete` is the entrance's
-     handover: it is dispatched by the inline <head> bootstrap in index.html AND
-     by js/intro.js, so it arrives even when the module never ran — which is
-     precisely why this listener has to flush the queue, not just re-sweep. */
+       - `toolapis:intro-complete` is dispatched by the inline <head> bootstrap
+         and by js/intro.js, so it arrives even when one of them never runs;
+       - `load` covers a page whose entrance was skipped entirely (`?intro=off`,
+         a deep link, motion off), where no handover event will ever be fired;
+       - `pageshow` covers a bfcache restore, which arrives with the page already
+         at whatever position it had;
+       - the ResizeObserver covers a viewport change, which is the other way a
+         block can travel out of view without ever being seen entering.
+
+     The sweep is deferred one frame because it reads geometry, and a scroll
+     event's geometry is only final after the frame that moved it. */
   const onHandover = () => {
-    /* Defer to next frame so scroll event bubble phase has updated layout. */
     requestAnimationFrame(() => {
-      flushDeferred();
-      revealScrolledPast();
-      passVisible();
+      recover();
       scheduleSweeps(4);
-      /* Self-heal starts ~700ms after intro-done (which is ~680ms after this). */
-      setTimeout(startSelfHeal, 1400);
+      startSelfHeal(700);
     });
   };
   window.addEventListener('toolapis:intro-complete', onHandover);
   window.addEventListener('load', onHandover, { once: true });
   window.addEventListener('pageshow', onHandover);
-if ('ResizeObserver' in window) {
+  if ('ResizeObserver' in window) {
     try { new ResizeObserver(onHandover).observe(document.body); }
     catch (err) { /* resize + scroll sweeps cover it */ }
   }
 
-  /* Self-heal safety net: 700ms after intro:done, then every 1.5s for 6s (4 checks),
-     check for any reveal target in viewport with opacity < 0.05. If found, force
-     reveal and warn in dev mode. Stops early if 2 consecutive clean checks. */
+  /* `intro-done` is the class the terminal teardown writes, and it is the one
+     signal that is TRUE by construction: every exit path ends in it, including
+     the paths where nothing above ran at all. It is watched rather than read so
+     that a handover this module was not present for still starts the watchdog. */
+  if (typeof MutationObserver === 'function') {
+    try {
+      new MutationObserver(() => {
+        if (html.classList.contains('intro-done')) { startSelfHeal(700); recover(); }
+      }).observe(html, { attributes: true, attributeFilter: ['class'] });
+    } catch (err) { /* the event listener above is the primary path */ }
+  }
+
+  /* THE SELF-HEAL. Four checks, 700ms after the handover and then every 1.5s,
+     covering the six seconds in which fonts land, the CDN lands and any layout
+     this module was not built for arrives.
+
+     It asks the only question that matters — is anything intersecting the
+     viewport that is still transparent? — and if the answer is yes, it reveals
+     it and says so in the console. It is not a repair for a known bug: it is the
+     assertion that this class of bug is not allowed to exist silently. A future
+     change that breaks the reveal produces four loud lines on localhost instead
+     of a blank page reported by a visitor. */
   let selfHealTimer = 0;
-  let selfHealCount = 0;
+  let selfHealLeft = 0;
   let selfHealClean = 0;
-  function startSelfHeal() {
-    if (selfHealTimer) return;
+
+  function startSelfHeal(delay) {
+    if (selfHealTimer || selfHealLeft > 0) return;
+    selfHealLeft = 4;
     const tick = () => {
-      if (selfHealCount >= 4) { stopSelfHeal(); return; }
-      selfHealCount++;
-      let hidden = 0;
-      for (const el of targets) {
-        if (revealed.has(el)) continue;
-        let r = null;
-        try { r = el.getBoundingClientRect(); } catch (err) { continue; }
-        if (!r || r.width === 0 || r.height === 0) continue;
-        if (r.bottom > 0 && r.top < window.innerHeight && r.right > 0 && r.left < window.innerWidth) {
-          const op = parseFloat(getComputedStyle(el).opacity);
-          if (op < 0.05) {
-            hidden++;
-            /* Force reveal */
-            el.dataset.rvDone = '1';
-            for (let i = 0; i < VISIBLE.length; i++) {
-              try { el.classList.add(VISIBLE[i]); } catch (e) {}
-            }
-            revealed.add(el);
-            markAnimating(el);
-          }
-        }
-      }
-      if (hidden > 0) {
+      if (selfHealLeft <= 0) { stopSelfHeal(); return; }
+      selfHealLeft -= 1;
+      const hidden = forceRevealHidden();
+      if (hidden) {
         selfHealClean = 0;
-        try {
-          if (location.hostname === 'localhost' || location.hostname === '127.0.0.1') {
-            console.warn('[reveal:self-heal] forced', hidden, 'elements visible');
-          }
-        } catch (e) {}
-      } else {
-        selfHealClean++;
-        if (selfHealClean >= 2) { stopSelfHeal(); return; }
+        warn('forced ' + hidden + ' hidden reveal block(s) visible');
+      } else if (++selfHealClean >= 2) {
+        stopSelfHeal();
+        return;
       }
       selfHealTimer = setTimeout(tick, 1500);
     };
-    selfHealTimer = setTimeout(tick, 700);
+    selfHealTimer = setTimeout(tick, delay || 700);
   }
+
   function stopSelfHeal() {
     if (selfHealTimer) { clearTimeout(selfHealTimer); selfHealTimer = 0; }
+    selfHealLeft = 0;
   }
 
-  /* Also call revealScrolledPast in flushDeferred for any deferred elements. */
-  const originalFlushDeferred = flushDeferred;
-  flushDeferred = function() {
-    originalFlushDeferred();
-    revealScrolledPast();
-  };
+  /** Anything on screen that is still transparent, revealed and counted. The
+   *  check is on computed opacity rather than on the bookkeeping, so it also
+   *  catches a block this module never tagged — which is the failure mode that
+   *  matters, because an untagged block is invisible to every other path here. */
+  function forceRevealHidden() {
+    const vh = window.innerHeight || 0;
+    const vw = window.innerWidth || 0;
+    let forced = 0;
+    for (const el of targets) {
+      let r = null;
+      try { r = el.getBoundingClientRect(); } catch (err) { continue; }
+      if (!r || r.width === 0 || r.height === 0) continue;
+      if (r.bottom <= 0 || r.top >= vh || r.right <= 0 || r.left >= vw) continue;
+      let op = 1;
+      try { op = parseFloat(getComputedStyle(el).opacity); } catch (err) { op = 1; }
+      if (!(op < 0.05)) continue;
+      el.dataset.rvDone = '1';
+      for (let i = 0; i < VISIBLE.length; i++) {
+        try { el.classList.add(VISIBLE[i]); } catch (e) {}
+      }
+      revealed.add(el);
+      try { if (io) io.unobserve(el); } catch (e) {}
+      markAnimating(el);
+      forced += 1;
+    }
+    return forced;
+  }
 
+  function warn(msg) {
+    try {
+      if (location.hostname === 'localhost' || location.hostname === '127.0.0.1') {
+        console.warn('[reveal:self-heal] ' + msg);
+      }
+    } catch (e) {}
+  }
+
+  /* Every scroll and every resize re-runs the sweep, debounced to one frame.
+     This is the "and on the first scroll after the intro" arm of the recovery:
+     a visitor who scrolls straight into a block the observer never saw enter
+     gets it revealed on that same scroll rather than at the end of the page. */
   let rafId = 0;
   const onLayout = () => {
     if (rafId) return;
-    rafId = requestAnimationFrame(() => { rafId = 0; passVisible(); });
+    rafId = requestAnimationFrame(() => { rafId = 0; recover(); });
   };
   window.addEventListener('scroll', onLayout, { passive: true });
   window.addEventListener('resize', onLayout, { passive: true });
