@@ -36,22 +36,47 @@ which is the only ending it could have that looks deliberate.
 
 ### Three decisions that are not obvious
 
-**1. There is no scroll lock, and adding one back is a regression.**
-The obvious implementation is `overflow: hidden` on `<html>` for the length of
-the entrance. A document with no scrollbar is ~10px wider than one with it, so
-the lock slides the entire page sideways when it is applied and again when it is
-removed — twice, on every load, on every browser with classic scrollbars.
-`scrollbar-gutter: stable` is the obvious repair and it is worse: it reserves
-the gutter, which makes the content box narrower than `clientWidth` and puts
-every centred element 5px off centre for the duration. `tools/check-overflow.mjs`
-caught both.
+**1. The entrance locks the scroll, and the lock costs nothing while the page is
+at rest.**
+Three layers, all released in one place — `finishIntro` in the `<head>` bootstrap —
+and none of them is a per-frame loop:
 
-The entrance does not need a lock. The overlay is `position: fixed` over the
-whole viewport, so there is nothing underneath to reach, and the entrance already
-ends on **any** input — wheel, touch, pointer, key, and `scroll` (which is what
-catches a scrollbar drag, since that dispatches nothing else into the document).
-A visitor who scrolls has said the thing they wanted was the page, and gets it on
-that gesture.
+1. `overflow: hidden` on `<html>` for exactly as long as `intro-active` is set, with
+   the scrollbar's width handed back as `padding-right` (`--intro-gutter`, read once
+   at DOMContentLoaded, the first moment the document is tall enough to own a
+   scrollbar). A document with no scrollbar is ~10px wider than one with it, so a
+   bare `overflow: hidden` slides the whole page sideways when it is applied and
+   again when it is removed — twice per load, on every browser with classic
+   scrollbars. The padding makes the content box identical locked and unlocked;
+   measured, the shift is 0px.
+2. Non-passive `wheel` / `touchmove` / `keydown` handlers that `preventDefault()`, so
+   a scroll never starts. `Esc`, `Enter` and `Tab` are passed straight through — they
+   are how the visitor skips and how they move focus.
+3. One `scroll` listener that calls `scrollTo(0,0)` only when `scrollY !== 0`. This
+   is the layer that catches a scrollbar drag and a scripted `scrollTo`, neither of
+   which layer 2 can see, and it is the only thing in the lock that touches scroll
+   position at all.
+
+`history.scrollRestoration` is `'manual'` for the duration, and `scrollTo(0,0)` is
+called at the four moments that matter — first script, DOMContentLoaded, `load`,
+`pageshow` — so Chrome's own restore-on-refresh cannot drop the visitor mid-page
+underneath the overlay. Measured: reloading from `scrollY=4000` reads `0` at every
+sample through the entrance.
+
+**`scrollbar-gutter: stable` was tried and rejected.** It is the textbook
+compensation and it is wrong here: it reserves the gutter *unconditionally*, so it
+changes the layout of the **unlocked** page too. Measured at 1366 with the page at
+rest, the shell moved from left 83 to left 78 — five pixels off centre for the rest
+of the page's life, on every browser, for every visitor including the ones who asked
+for reduced motion. The compensation above costs 0px and exists only while the
+entrance does.
+
+Scrolling is **not** an exit any more. It used to be, and that was the bug this
+whole pass exists for: the first gesture was cancelled by the lock and every
+gesture after it scrolled, since the same gesture was what released the lock — so
+the visitor got a document moving under a panel that was halfway out. The Skip
+button, a tap, `Esc`, `Enter` and `Space` all still end it, and the Skip control is
+right there saying what it does.
 
 **2. `tl-display-settle` no longer animates `letter-spacing`.**
 It did, and it re-ran text layout on every frame of a content-sized box. For
@@ -74,12 +99,24 @@ state.
 
 ### What the entrance does when it is ended early
 
-`html.intro-skip { --intro-speed: 0.18 }` multiplies every delay in the load
+`html.intro-compressed { --intro-speed: 0.18 }` multiplies every delay in the load
 choreography, so the hero's 5s schedule compresses to ~900ms from the press —
 answered at the speed of the gesture. It only applies while the overlay is still
 up: every hero delay is later than the handover, so nothing has begun and a
 shorter schedule simply starts sooner. Once the hero is in flight, rescaling
 would replay the blocks that had already finished, so it is not applied.
+
+**The class is `intro-compressed` and the name is load-bearing.** An earlier pass
+wrote `intro-skip` onto `<html>` here, and the Skip *button* in `css/intro.css` is
+also styled `.intro-skip` — with `opacity: 0` in its skin. A class selector matches
+`<html>` when `<html>` carries the class, so every visitor who skipped got
+`opacity: 0` on the document element: a permanently invisible page showing nothing
+but the user-agent canvas, `rgb(18,18,18)`, because the page declares
+`color-scheme: dark`. Measured by re-injecting the old rule at runtime — pixels go
+from `rgb(7,7,7)` variance 903.88 to `rgb(18,18,18)` variance 0. Both halves are
+kept as insurance: the state class has a name nothing else uses, and the button's
+skin is scoped to `#intro-skip`, which cannot match `<html>` under any
+circumstances.
 
 ### Accessibility, stated plainly
 
@@ -102,26 +139,56 @@ would replay the blocks that had already finished, so it is not applied.
 | `js/intro.js` | **new.** The timeline, the readout, every way out. No imports. |
 | `index.html` | `#intro-overlay` markup; the inline `<head>` bootstrap (classes, `inert`, ceiling, `window.__tlIntro`); `tabindex="-1"` on `<main>`; the module tag. |
 | `css/animations.css` | the 5s load choreography + blur; `--reveal-blur: 12px` for scroll reveals; `load-rise`/`load-fade` keyframes; the letter-spacing removal; `filter: none !important` added to the two failsafes that cancel the load reveal. |
-| `js/reveal.js` | handovers are QUEUED while `intro-active` is set, and flushed on `toolapis:intro-complete` — otherwise the first screen reveals behind the panel and arrives flat. |
+| `js/reveal.js` | handovers are QUEUED while `intro-active` is set, and flushed on `toolapis:intro-complete` — otherwise the first screen reveals behind the panel and arrives flat. `recover()` / `passVisible()` then sweep **anything unrevealed whose top is above the fold, in view or already behind the visitor** — the answer to the question an IntersectionObserver cannot answer, since a block that travelled across the viewport during the hold was above the root when it was first sampled and below it the next time, and `isIntersecting` was false for both. Blocks already behind are revealed with no transition; blocks in view keep their stagger, compressed to six steps. `startSelfHeal()` then re-checks computed opacity on screen 700ms after the handover and every 1.5s for six seconds. |
 | `js/motion-fx.js` | the hero words no longer carry their own `i * 80` timers; the stagger is `animation-delay` on `tl-display-settle`, which holds its from-state through the delay. |
 | `tools/check-motion.mjs` | `waitForEntrance()`; six new assertions per context (holds the screen, has a Skip control + inert background, releases the page, leaves nothing inert, never touches `overflow`, the hero lands); the scroll-reveal test now waits for the entrance and asserts the blur resolves; `?motion=off` asserts the panel never takes the screen. |
 | `tools/hero-edge-check.mjs` | waits for `intro-done` before grading, and hides `#intro-overlay`. Without this it graded the progress rail — a 320px × 2px rectangle, i.e. exactly the "long straight run of discontinuity" it exists to catch — and failed 8 of 10 viewports. |
+| `tools/check-intro-scroll.mjs` | **new.** `npm run check:intro-scroll`, the gate for the blank screen. Every entrance input at every timing, plus the entrance's own duration (5.0s ± 0.15s, measured on the document timeline from `[data-load-reveal]`, not from the overlay disappearing), all four Skip paths, both re-refreshes, bfcache, the hidden tab, `?intro=off`, a deep link and both motion states. It asserts nothing is invisible in the viewport, no layer is on top at **five** points, `<html>` is never transparent, the lock held `scrollY` at 0 and then released it, and the screenshot is not a flat fill. `--full` is the whole 60-run input matrix; the default is an 8-run subset, because the matrix costs ~21s a run and a 22-minute gate is a gate nobody runs. |
+| `tools/diagnose-intro-scroll.mjs` | evidence pass, not a gate. Prints scrollY, overlay state, hidden-block count and the element at the centre of the screen for every input at every timing, into `/tmp/shots/intro-scroll/`. |
 
 ### Known state of the gates on this machine
 
-`npm run check` is green apart from one assertion:
-`[fps · desktop] animation cost <= 50% of this machine's 4x ceiling`. Everything
-else — 114 of 115 assertions, including all twelve entrance assertions per
-context, the blur assertions, `check:css`, `check:fluid` and `check:hero-edge` —
-passes.
+Measured 2026-10-11 against the server on `http://127.0.0.1:8765/`:
 
-That one is **not** a regression. Measured as an A/B against a baseline worktree
-on the same machine at the same moment, both report **37% of ceiling** (baseline
-live 14.5 fps / ceiling 39.5; working live 13.7 / 36.6). The ratio gate is not
-load-invariant — both halves of it degrade when the box is saturated — and this
-one ran at load 6.7–8.2 across 4 cores. The absolute floor already skips on a
-busy machine; this gate does not. Either run it on a quieter box or give it the
-same guard. Do not simply lower the threshold.
+| gate | result | time |
+|---|---|---|
+| `check:intro-scroll` (quick) | **205 passed, 0 failed** | **191s** |
+| `check:intro-scroll --no-inputs` | **95 passed, 0 failed** | 113s |
+| `check:motion` | **114 passed**, 2 skipped (machine too loaded) | ~13 min |
+| `check:hero-edge` | **10/10** viewports | 61s |
+| `check:fluid` | **177/177** | 361s |
+| `check:css` | all sources parse cleanly | — |
+| `build:css --check` | bundle up to date | — |
+| `diagnose-intro-scroll.mjs` | 32 scenarios, 0 errors | ~5 min |
+
+The entrance measured **4950ms** end to end on the document timeline against the
+5.0s ± 0.15s the design specifies, from the five `[data-load-reveal]` blocks.
+
+**`check:intro-scroll` has two modes and the difference is 60 runs against 8.**
+`--full` is the whole input matrix and costs roughly **22 minutes**, which is why
+it is not the default: a gate that takes that long is a gate nobody runs. The
+quick default keeps all four gesture shapes — `wheel` and `space` for the
+`preventDefault` layer, `end` for a jump that leaves the first screen behind, and
+`dragscroll` for the one input that bypasses that layer entirely — at the two
+timings the file already treats as the interesting ones. `extras()` runs in both
+modes and is where the invariants are.
+
+**Port mismatch — pre-existing, not fixed by this pass.**
+`check-overflow.mjs`, `hero-edge-check.mjs` and `check-motion.mjs` all default to
+`http://localhost:5500/`, while `HANDOFF.md`, `check-intro-scroll.mjs` and the
+documented local server use `8765`. On a machine serving 8765, `npm run check`
+fails at `check:motion` with `ERR_CONNECTION_REFUSED` before reaching anything
+else. Every number in the table above was taken with `--url
+http://127.0.0.1:8765/` passed explicitly. Align the defaults before trusting
+`npm run check` unattended.
+
+**One environment limit worth knowing.** This box uses overlay scrollbars:
+`innerWidth - clientWidth` is `0` at every width, including with
+`--disable-features=OverlayScrollbar`, and there is no Xvfb. So the classic-scrollbar
+claims above — the ~10px slide and the 0px of the `--intro-gutter` compensation —
+**cannot be verified here** and need a real Chrome desktop. What *is* verifiable
+here is the `scrollbar-gutter: stable` rejection: injecting it moves the shell from
+left 83 to left 78 at rest, which is the permanent 5px the entrance does not have.
 
 `filter: blur()` on the scroll reveals was measured the same way and is worth
 about 10–15% of the live page's throttled frame rate; `will-change: filter` was
@@ -171,9 +238,15 @@ build script refuses with *"older than its sources AND differs from them"*, run
 ## Checks
 
 ```bash
-npm run check            # build:css + check:css + check:fluid + check:hero-edge
-npm run check:hero-edge  # hero has no hard rectangular edge (needs the server up)
+npm run check                      # build:css + check:css + check:motion + check:fluid
+                                   #   + check:hero-edge + check:intro-scroll (quick)
+npm run check:intro-scroll         # the blank-screen gate, quick subset
+npm run check:intro-scroll:full    # the full 60-run input matrix (~22 min)
+npm run check:hero-edge            # hero has no hard rectangular edge (needs the server up)
+node tools/diagnose-intro-scroll.mjs   # evidence pass, not a gate
 ```
+
+All of them need the local server up (default `http://127.0.0.1:8765/`).
 
 ## Files changed
 

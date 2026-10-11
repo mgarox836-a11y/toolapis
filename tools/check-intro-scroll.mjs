@@ -50,6 +50,27 @@ const MOBILE = devices['iPhone 13'];
 const TIMES = [200, 1000, 2500, 4000];              /* ms after load */
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 
+/* TWO MODES, because the full matrix cannot live in `npm run check`.
+   Measured on this machine the 60-run matrix costs ~21s a run — roughly 22 to 25
+   minutes — which is a gate nobody runs, so a gate nobody runs is a gate that is
+   not a gate. `--full` is that matrix and stays the default for a deliberate run.
+
+   The subset keeps all four gesture SHAPES, because they exercise different
+   layers of the lock and dropping any one of them loses a class of bug:
+     - `wheel` and `space` are the inputs layer 2 can `preventDefault()`;
+     - `end` is a jump large enough to matter and far enough to leave the first
+       screen behind, which is where stranded reveals show up;
+     - `dragscroll` is the one input that bypasses layer 2 completely and can
+       only be answered by the `scroll` listener.
+   And it keeps the two timings this file already treats as the interesting ones
+   (`worst`, below: the one before the entrance owns the screen, and the one
+   immediately after it stops). `extras()` runs in BOTH modes — that is where the
+   invariants are: the 5.0s ± 0.15s entrance, all four Skip paths, both
+   re-refreshes, bfcache, the hidden tab, `?intro=off`, a deep link and motion. */
+const FULL = has('full');
+const QUICK_INPUTS = ['wheel', 'space', 'end', 'dragscroll'];
+const QUICK_TIMES = [200, 2500];
+
 let pass = 0;
 const failures = [];
 const notes = [];
@@ -238,16 +259,17 @@ const HANDOVER = () => !document.documentElement.classList.contains('intro-activ
 /* ------------------------------------------------------------------ runs */
 
 async function runInputMatrix(browser) {
-  for (const kind of ['desktop', 'mobile']) {
+  for (const kind of FULL ? ['desktop', 'mobile'] : ['desktop']) {
     const w = kind === 'mobile' ? MOBILE.viewport.width : VIEW.width;
     for (const input of INPUTS) {
+      if (!FULL && !QUICK_INPUTS.includes(input.name)) continue;
       /* A swipe is a touch gesture; a desktop drag is a mouse gesture. Run each
          on its own device so neither is faked. */
       const kinds = kind === 'mobile'
         ? (input.name === 'swipe' ? ['mobile'] : ['mobile'])
         : (input.name === 'swipe' ? [] : ['desktop']);
       for (const k of kinds) {
-        for (const t of TIMES) {
+        for (const t of (FULL ? TIMES : QUICK_TIMES)) {
           await one(browser, k, input, t, w);
         }
       }
@@ -520,6 +542,102 @@ async function extras(browser) {
     await ctx.close();
   }
 
+  /* --- 4b. the bfcache branch, dispatched by hand -------------------------
+     The block above cannot test this, and the reason is worth writing down
+     because it is the difference between a green assertion and a real one.
+     Measured on this machine, `goBack()` produces a SINGLE `pageshow` with
+     `persisted === false`: the page is reloaded, not restored from cache. So
+     `if (e && e.persisted) finishIntro('restored')` in index.html is never
+     entered by any test in this file, and every Back assertion above is really
+     asserting that a fresh load behaves. A real cache restore cannot be forced
+     from Playwright — but the EVENT the handler reads can be, `PageTransitionEvent`
+     is constructible in the page and `persisted` is exactly the field the branch
+     branches on.
+
+     Two cases, because they assert opposite things:
+
+       - AFTER the entrance, the restore must change NOTHING. The scroll position
+         is the whole point: it is what distinguishes a restore from a reload, and
+         a `scrollTo(0,0)` on this path would put a visitor who was reading the
+         fourth section back at the top of the page.
+       - MID-ENTRANCE, the restore must release EVERYTHING, or the visitor comes
+         back to a full-viewport overlay, a locked document and an inert page
+         behind it — which is the exact failure this file exists to catch, and the
+         exact shape of the blank screen it was written for. */
+  {
+    const { ctx, page, errors } = await newContext(browser, 'desktop');
+    try {
+      await page.goto(BASE, { waitUntil: 'load' });
+      await page.waitForFunction(OVER, null, { timeout: 15000 }).catch(() => {});
+      await settle(page);
+      await wait(500);
+      await page.evaluate(() => window.scrollTo(0, 2500));
+      await wait(400);
+      const before = await page.evaluate(() => Math.round(scrollY));
+      const dispatched = await page.evaluate(() => {
+        if (typeof PageTransitionEvent !== 'function') return false;
+        window.dispatchEvent(new PageTransitionEvent('pageshow', { persisted: true }));
+        return true;
+      });
+      check('[bfcache:event] the synthetic restore could be dispatched', dispatched,
+        'PageTransitionEvent is not constructible here');
+      await wait(600);
+      const s = await page.evaluate(probe);
+      /* `>= 2000` rather than `=== before`. What is under test is that the restore
+         did not reposition the document; exact equality would fail on a layout
+         change instead of on a defect, and a gate that fails for the wrong reason
+         is a gate that gets ignored. */
+      check('[bfcache:event] a restore after the entrance keeps the scroll position',
+        s.scrollY >= 2000, `before=${before} after=${s.scrollY}`);
+      check('[bfcache:event] a restore after the entrance re-ran nothing',
+        !/intro-active|intro-exit/.test(s.htmlClass) && s.htmlOverflow !== 'hidden'
+        && !s.introPresent && !s.inert,
+        `class="${s.htmlClass}" ovf=${s.htmlOverflow} intro=${s.introPresent} inert=${s.inert}`);
+      check('[bfcache:event] nothing invisible after the restore', s.hiddenInView === 0,
+        `${s.hiddenInView}: ${s.hiddenTags.join(',')}`);
+      check('[bfcache:event] no layer on top after the restore', s.covering.length === 0, s.covering.join(' '));
+      check('[bfcache:event] no console errors', errors.length === 0, errors.join(' | '));
+    } catch (e) { check('[bfcache:event] after the entrance ran', false, e.message); }
+    await ctx.close();
+  }
+  {
+    const { ctx, page, errors } = await newContext(browser, 'desktop');
+    try {
+      await page.goto(BASE, { waitUntil: 'domcontentloaded' });
+      await page.waitForFunction(() => document.documentElement.classList.contains('intro-active'), null, { timeout: 8000 }).catch(() => {});
+      await wait(400);
+      const during = await page.evaluate(() => document.documentElement.classList.contains('intro-active'));
+      await page.evaluate(() => window.dispatchEvent(new PageTransitionEvent('pageshow', { persisted: true })));
+      await page.waitForFunction(OVER, null, { timeout: 6000 }).catch(() => {});
+      /* `settle()` and the 1500ms are load-bearing, and they are load-bearing
+         everywhere else in this file for the same reason: measured without them
+         this state still reports 10 blocks under opacity 0.05, because the
+         handover event has been dispatched but the reveal cascade and its 420ms
+         ceiling have not finished. That is a measurement artefact, not a defect,
+         and the only honest answer is to wait for the thing to settle. */
+      await settle(page);
+      await wait(1500);
+      const s = await page.evaluate(probe);
+      check('[bfcache:event] mid-entrance the entrance really was running', during,
+        'intro-active was not set when the restore arrived');
+      check('[bfcache:event] mid-entrance the restore released the entrance',
+        !/intro-active|intro-exit/.test(s.htmlClass) && !s.introPresent,
+        `class="${s.htmlClass}" intro=${s.introPresent}`);
+      check('[bfcache:event] mid-entrance the scroll lock was released',
+        s.htmlOverflow !== 'hidden' && s.bodyOverflow !== 'hidden',
+        `html=${s.htmlOverflow} body=${s.bodyOverflow}`);
+      check('[bfcache:event] mid-entrance nothing was left inert', !s.inert, 'an inert element survived');
+      check('[bfcache:event] mid-entrance nothing invisible afterwards', s.hiddenInView === 0,
+        `${s.hiddenInView}: ${s.hiddenTags.join(',')}`);
+      check('[bfcache:event] mid-entrance <html> is not transparent', s.htmlOpacity >= 0.99, String(s.htmlOpacity));
+      check('[bfcache:event] mid-entrance no layer on top', s.covering.length === 0, s.covering.join(' '));
+      const px = await pixelStats(page);
+      check('[bfcache:event] mid-entrance the screenshot is not a flat fill', px.variance > 25, `var=${px.variance}`);
+      check('[bfcache:event] mid-entrance no console errors', errors.length === 0, errors.join(' | '));
+    } catch (e) { check('[bfcache:event] mid-entrance ran', false, e.message); }
+    await ctx.close();
+  }
+
   /* --- 5. a hidden tab during the entrance -------------------------------- */
   {
     const { ctx, page, errors } = await newContext(browser, 'desktop');
@@ -623,7 +741,8 @@ async function extras(browser) {
 const exe = ['/usr/bin/brave', '/usr/bin/brave-browser', '/usr/bin/chromium',
              '/usr/bin/google-chrome-stable', '/usr/bin/google-chrome'].find(Boolean);
 const browser = await chromium.launch({ headless: true, executablePath: exe || undefined });
-console.log(`check:intro-scroll — ${BASE}\n`);
+console.log(`check:intro-scroll — ${BASE}`);
+console.log(`mode: ${FULL ? 'FULL (all inputs, desktop + mobile, 4 timings)' : 'quick (4 inputs, desktop, 2 timings)'}\n`);
 
 if (!has('no-inputs')) await runInputMatrix(browser);
 await extras(browser);

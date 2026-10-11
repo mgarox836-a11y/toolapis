@@ -27,9 +27,15 @@ const SCENARIOS = [
     } },
   { name: 'scrollto',   mobile: false, run: (p) => p.evaluate(() => window.scrollTo(0, 900)) },
   { name: 'swipe',      mobile: true,  run: async (p) => {
-      await p.touchscreen.tap(195, 400).catch(() => {});
+      /* No warm-up tap. It used to be here, and it meant this scenario tested
+         nothing: a tap is pointerdown+pointerup, which js/intro.js `onPointerUp`
+         answers with `finish('tapped')` — measured, the entrance was over
+         `intro-active=false, intro-compressed=true` within 424ms of the tap. The
+         swipe then landed on a page that had already been handed over, so the
+         scroll lock was never the thing under test. CDP touch dispatch needs no
+         priming; the swipe reaches the document either way. */
       const cdp = await p.context().newCDPSession(p);
-      for (const dir of [1, 1]) {
+      for (let s = 0; s < 2; s++) {
         await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: 195, y: 700 }] });
         for (let y = 700; y > 100; y -= 60) {
           await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x: 195, y }] });
@@ -37,7 +43,6 @@ const SCENARIOS = [
         await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
         await p.waitForTimeout(60);
       }
-      void dir;
     } },
 ];
 
