@@ -1,384 +1,136 @@
 /* =============================================================================
-   BASE — reset, document, typography, layout rhythm
-   -----------------------------------------------------------------------------
-   DESIGN.md "Do's and Don'ts": the whole page lives in the dark spectrum, the
-   canvas is Void Canvas (#070707) and every surface stacks upward from it
-   (#0d0e12 -> #141418 -> #2e3038). Body copy never leaves the 14–18px reading
-   range.
-
-   TYPOGRAPHY: one family (Google Sans) for display, heading, body and UI, with
-   Google Sans Code for the mono surfaces. Display tracking is positive but
-   tighter than DESIGN.md's Calsans value — see the deviation note in
-   css/tokens.css for the measurement behind it.
+   BASE — reset, type, canvas, utilities
    ========================================================================== */
 
-/* ---------------------------------------------------------------- reset --- */
 *,
 *::before,
-*::after { box-sizing: border-box; }
+*::after {
+  box-sizing: border-box;
+}
 
 html {
-  /* The canvas is the canvas, and it matches the bottom stop of
-     --gradient-ground so the hero's ground has nowhere to end. */
-  background-color: var(--color-void-canvas);
-  scrollbar-width: thin;
-  scrollbar-color: var(--color-iron-edge) var(--color-void-canvas);
-  /* Stop iOS from inflating text in landscape, which would re-flow every
-     clamp() in the type scale on rotation. */
   -webkit-text-size-adjust: 100%;
   text-size-adjust: 100%;
-  /* Smooth scrolling is MOTION, so it belongs to the motion policy rather
-     than to the reset. css/animations.css sets it from `html.motion-on` /
-     `html.motion-reduced`, which js/motion.js and the footer toggle own.
-     Declaring it here as well would win on cascade for anyone whose class has
-     not been applied yet, which is exactly the visitor who asked for none. */
+  scroll-behavior: smooth;
+}
+
+/* Lenis's required base rules. `scroll-behavior: auto` under `.lenis-smooth`
+   is not optional: without it the browser smooths every frame Lenis writes,
+   and the two animations fight. */
+html.lenis,
+html.lenis body {
+  height: auto;
+}
+
+.lenis.lenis-smooth {
+  scroll-behavior: auto !important;
+}
+
+.lenis.lenis-smooth [data-lenis-prevent] {
+  overscroll-behavior: contain;
+}
+
+.lenis.lenis-stopped {
+  overflow: hidden;
+}
+
+.lenis.lenis-scrolling iframe {
+  pointer-events: none;
+}
+
+html.intro-active,
+html.menu-open {
+  overflow: hidden;
 }
 
 body {
   margin: 0;
-  /* `100%` was INERT and has been for the life of this rule: a percentage
-     height resolves against the parent's height, `<html>` declares none, so it
-     computed to auto and the floor never applied. `100svh` is what the rule
-     always meant — a body at least one screen tall, so a short page still fills
-     the viewport and the footer's bottom padding has something to sit on.
-
-     `svh` and not `dvh`: `dvh` moves under the reader's thumb as the mobile URL
-     bar retracts, and a body whose height changes mid-scroll reflows the whole
-     document on the way down. `svh` is the smallest stable viewport. */
-  min-height: 100svh;
-  /* min-width: 0, NOT the 320px floor this used to carry.
-
-     The floor was deliberate when it was written (the old comment said a 280px
-     device should "get a horizontal scroll, its own problem, visible to it,
-     instead of a silently zoomed-out page"). Measured, that trade did not work
-     out. A `min-width` on <body> inflates the WHOLE document, not just the
-     content that needs it, so at a 280px viewport the layout viewport became
-     320px while `clientWidth` stayed 280 — every element on the page measured
-     320px wide, 176 of them crossing the viewport edge, and the h1 ending 24px
-     past it. Because the inflation was on the root, a mobile browser also
-     reported an `innerWidth` (320) larger than the physical screen (280):
-     precisely the "layout viewport wider than the screen" failure the floor was
-     supposed to be avoiding, except silent.
-
-     With `0` the floor is gone and nothing needed one. At 280px: document and
-     viewport both 280, zero unclipped offenders, gutters symmetric at 16/16,
-     the h1 ending at 264. The navbar still fits (brand + share + hamburger end
-     at 264 of 280), the bento is one column, the mock tiles stay two-up at
-     102px and the terminal holds 12px. A narrower floor is only ever worth
-     putting back if something measures genuinely unable to fit. */
-  min-width: 0;
-  background-color: var(--color-void-canvas);
-  color: var(--color-pure-white);
-  font-family: var(--font-body);
+  background: var(--color-night-paper);
+  color: var(--color-cream-ink);
+  font-family: var(--font-inter);
+  font-weight: var(--font-weight-regular);
   font-size: var(--text-body);
   line-height: var(--leading-body);
-  font-weight: var(--weight-regular);
-  letter-spacing: var(--tracking-body);
-  /* Google Sans is a variable-capable face: let the browser pick the optical
-     size for the rendered px, and keep the standard ligatures on. */
-  font-optical-sizing: auto;
-  font-feature-settings: "liga" on;
   -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-  text-rendering: optimizeLegibility;
-
-  /* ---------------------------------------------------------------------------
-     NO `overflow-x: hidden` HERE, AND THAT IS THE POINT.
-
-     This declaration used to be on body, and it was the single most damaging
-     line in the stylesheet. It suppresses the horizontal scrollbar, so a
-     layout that genuinely does not fit LOOKS like one that does — which is
-     why `scrollWidth === clientWidth` measured true at every width from 320
-     to 1440 while elements were demonstrably being cut off at 200% zoom. It
-     also makes body a scroll container, which silently breaks
-     `position: sticky` for every descendant.
-
-     Every overflow on this page is now fixed at the element that causes it,
-     and the only remaining `overflow` declarations are `clip` on the specific
-     decorative wrappers that are supposed to bleed (the hero scene, the
-     marquee, the perspective floors). `clip` is used rather than `hidden`
-     because `hidden` would make each of those a scroll container too.
-     --------------------------------------------------------------------------- */
-  overflow-wrap: anywhere;
+  overflow-x: clip;
 }
 
-h1, h2, h3, h4, h5, h6, p, figure, blockquote, ul, ol, dl, dd { margin: 0; }
-ul, ol { padding: 0; list-style: none; }
+h1,
+h2,
+h3,
+h4,
+p,
+figure,
+blockquote {
+  margin: 0;
+}
 
-/* Every replaced element is bounded by its container. `height: auto` is what
-   keeps the aspect ratio when only one dimension is constrained — without it
-   a media element given `max-width: 100%` in a narrow column keeps its
-   intrinsic height and overflows vertically instead. */
-img, svg, video, canvas, picture {
+ul,
+ol {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+img,
+svg,
+video {
   display: block;
   max-width: 100%;
-  height: auto;
 }
-/* `height: auto` is the reset's half of the job: it keeps an <img>/<video>'s
-   aspect ratio when only `max-width` is constrained.
 
-   It does NOT need an opt-out for the inline SVG sprite or the icons. Both
-   carry an explicit box — `.icon-sprite` is a zero-size defs holder, `.icon` is
-   a 1em glyph — declared as CLASS selectors in components.css, and a class
-   beats this element selector on specificity no matter which file loads first.
-   An earlier version of this file tried to opt them out explicitly and that
-   only created a second, contradictory statement of the icon box; the box has
-   exactly one owner, components.css, which is where it is commented. */
-button, input, select, textarea { font: inherit; color: inherit; }
-button { background: none; border: 0; padding: 0; cursor: pointer; }
-a { color: inherit; text-decoration: none; }
-:where(ul, ol)[class] { list-style: none; }
-
-/* ------------------------------------------------------------ scrollbar --- */
-::-webkit-scrollbar { width: 8px; height: 8px; }
-::-webkit-scrollbar-track { background: var(--color-void-canvas); }
-::-webkit-scrollbar-thumb {
-  background: var(--color-iron-edge);
-  border-radius: var(--radius-badges);
+a {
+  color: inherit;
+  text-decoration: none;
 }
-::-webkit-scrollbar-thumb:hover { background: var(--color-slate-mute); }
 
-/* ----------------------------------------------------------- selection --- */
+button,
+input {
+  font: inherit;
+  color: inherit;
+}
+
+button {
+  cursor: pointer;
+}
+
 ::selection {
-  background: var(--color-phosphor-mint);
-  color: var(--color-void-canvas);
-}
-::-moz-selection {
-  background: var(--color-phosphor-mint);
-  color: var(--color-void-canvas);
+  background: var(--color-fresh-grass);
+  color: var(--color-on-accent);
 }
 
-/* ---------------------------------------------------------------- focus ---
-   DESIGN.md / brief: focus-visible is a 1px Deep Signal ring at 2px offset.
-   No glow ring — a sharp colour change, like every other signal here. */
-:focus { outline: none; }
 :focus-visible {
-  outline: 1px solid var(--color-deep-signal);
-  outline-offset: 2px;
-  border-radius: var(--radius-inputs);
+  outline: 2px solid var(--color-fresh-grass);
+  outline-offset: 3px;
+  border-radius: 4px;
 }
-a:focus-visible,
-button:focus-visible { border-radius: var(--radius-buttons); }
 
-/* --------------------------------------------------------- typography ---- */
-/* One family for every role. Display and heading sit at 400/500 with POSITIVE
-   tracking at every size: DESIGN.md "Don't" forbids negative-tracking the
-   display face, so the spread stays positive, just tuned down for Google
-   Sans. `text-wrap: balance` keeps a headline's rag even without changing
-   where it breaks by hand. */
-.display {
-  font-family: var(--font-display);
-  font-weight: var(--weight-light);
-  letter-spacing: var(--tracking-display-face);
-  line-height: var(--leading-heading);
-  color: var(--color-pure-white);
+h1,
+h2,
+h3 {
+  font-weight: var(--font-weight-medium);
   text-wrap: balance;
 }
 
-.t-display,
-.t-heading-lg,
-.t-heading,
-.t-heading-sm {
-  font-family: var(--font-display);
-  color: var(--color-pure-white);
-  margin: 0;
-  text-wrap: balance;
-}
-/* The `clamp()` now lives in the TOKEN (css/tokens.css), not here. Wrapping a
-   clamp in another clamp only adds a second place to change it, and the
-   previous floor of 44px here fought the 40px the brief asks for. A heading
-   that cannot break a long word also needs `overflow-wrap`, which body
-   already sets — stated again here so the rule survives on its own. */
-.t-display {
-  font-size: var(--text-display);
-  font-weight: var(--weight-light);
-  letter-spacing: var(--tracking-display-face);
-  line-height: var(--leading-display);
-  overflow-wrap: break-word;
-}
-.t-heading-lg {
-  font-size: var(--text-heading-lg);
-  font-weight: var(--weight-light);
-  letter-spacing: var(--tracking-heading-lg);
-  line-height: var(--leading-heading-lg);
-  overflow-wrap: break-word;
-}
-.t-heading {
-  font-size: var(--text-heading);
-  font-weight: 400;
-  letter-spacing: var(--tracking-heading);
-  line-height: var(--leading-heading);
-  overflow-wrap: break-word;
-}
-/* Card titles. 500 rather than 400 so a title reads as a label inside a card
-   rather than as another headline, and tracking stops at +0.01em — the earlier
-   Calsans value spread these too wide. */
-.t-heading-sm {
-  font-size: var(--text-heading-sm);
-  font-weight: var(--weight-medium);
-  letter-spacing: 0.01em;
-  line-height: var(--leading-heading-sm);
-  overflow-wrap: break-word;
-}
-.t-subheading {
-  font-size: var(--text-subheading);
-  line-height: var(--leading-subheading);
-  letter-spacing: var(--tracking-subheading);
-}
-.t-body {
-  font-size: var(--text-body);
-  line-height: var(--leading-body);
-}
-.t-body-sm {
-  font-size: var(--text-body-sm);
-  line-height: var(--leading-body-sm);
-}
-.t-caption {
-  font-size: var(--text-caption);
-  line-height: var(--leading-caption);
-  letter-spacing: var(--tracking-caption);
-}
-
-/* Body copy, per DESIGN.md's Components: 400 at #aeaeb7 / #c8cad0, with
-   `text-wrap: pretty` so a paragraph's last line is not left ragged. */
-.copy {
-  color: var(--color-graphite);
-  font-size: var(--text-body);
-  line-height: var(--leading-body);
-  font-weight: var(--weight-regular);
-  letter-spacing: var(--tracking-body);
-  text-wrap: pretty;
-}
-.copy-sm {
-  color: var(--color-graphite);
-  font-size: var(--text-body-sm);
-  line-height: var(--leading-body-sm);
-  letter-spacing: var(--tracking-body-sm);
-  text-wrap: pretty;
-}
-.muted { color: var(--color-ash); }
-.dim { color: var(--color-cinder); }
-
-/* Eyebrow — DESIGN.md "Section Header": 12px uppercase, wide tracking, quiet. */
-.eyebrow {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  font-family: var(--font-body);
-  font-size: var(--text-caption);
-  font-weight: var(--weight-medium);
-  line-height: 1;
-  letter-spacing: 0.094em;
-  text-transform: uppercase;
-  color: var(--color-ice-blue);
-}
-.eyebrow--iris { color: var(--color-steel-iris); }
-
-.mono {
-  font-family: var(--font-mono);
-  /* Was a hand-written 13px, duplicated by `.code` in components.css. Two
-     owners for one number is how a font size stops being a decision. */
-  font-size: var(--text-mono);
-  letter-spacing: 0.02em;
-  font-feature-settings: "liga" off, "calt" off;
-}
-
-/* --------------------------------------------------------------- layout --- */
-/* THE CONTAINER, and the one true definition of the page inset.
-
-   The brief's form is `width: min(100% - 2 * var(--gutter), 1200px)` rather
-   than `max-width` plus `padding-inline`, and the difference matters at small
-   widths: with max-width + padding, `box-sizing: border-box` makes the
-   CONTENT width `100% - 2 * padding`, which is correct — but only because
-   every element in the project opted into border-box. Expressing it as
-   `min(100% - 2 * gutter, max)` states the intent directly and cannot drift
-   if a box-sizing rule is ever missed.
-
-   `margin-inline: auto` centres it. No horizontal padding of its own, so
-   there is no second inset to keep in sync — the safe-area handling for the
-   nav and the footer is added where it is actually needed (a fixed bar and a
-   fixed bar's neighbour), not smeared across every container.
-
-   `.container` is an alias, because the brief names that class and the markup
-   says `.shell`; both resolve here so there is still exactly one definition. */
-.shell,
-.container {
-  width: min(100% - 2 * var(--gutter), var(--page-max-width));
-  margin-inline: auto;
-}
-
-/* Safe-area insets, for the two places that sit against a screen edge where a
-   notch or a home indicator lives: the fixed navbar and the footer. `max()`
-   takes the LARGER of the gutter and the inset, so on a notched phone in
-   landscape the content moves in to clear the notch, and on an unnotched one
-   nothing changes. */
-.navbar-shell,
-.site-footer .shell {
-  padding-inline: max(
-    var(--gutter),
-    env(safe-area-inset-left, 0px),
-    env(safe-area-inset-right, 0px)
-  );
+/* Layout shell */
+.shell {
   width: 100%;
-  max-width: calc(var(--page-max-width) + 2 * var(--gutter));
+  max-width: calc(var(--page-max) + var(--page-pad) * 2);
+  margin-inline: auto;
+  padding-inline: var(--page-pad);
 }
 
 .section {
-  padding-block: var(--section-gap);
   position: relative;
-  z-index: 1;
+  padding-block: var(--section-gap);
 }
-
-.section-head {
-  display: flex;
-  flex-direction: column;
-  /* The gap INSIDE the head — title to its intro paragraph. Fitted through
-     (1440, 16px) with a 10px floor, so it is 13px on a tablet and 18px on a
-     1920 screen rather than 16px everywhere. */
-  gap: clamp(0.625rem, calc(0.625rem + var(--fluid) * 0.004167), 1.25rem);
-  max-width: 720px;
-  /* Fluid rather than a fixed 56px: the gap below a heading should scale with
-     the section rhythm, not sit at one value on a phone and another on a
-     desktop. Fitted through (768, 30.7px) and (1440, 56px) — the two values
-     the old `clamp(28px, 4vw, 56px)` actually resolved to — so both survive
-     and the height axis can shrink it: 42px on a 567px-tall laptop, where the
-     old value gave 54.6px. */
-  margin-bottom: clamp(1.75rem, calc(0.1125rem + var(--fluid) * 0.037649), 4rem);
-}
-
-.grid {
-  display: grid;
-  gap: var(--spacing-24);
-}
-
-/* Anchor offset for the sticky navbar.
-
-   `--navbar-bar`, not `--navbar-height` and not a second `+ 24px`. The old
-   expression was `calc(var(--navbar-height) + 24px)` = 88px against a bar that
-   renders at 56-64px, so every anchor on this page landed 24-32px below the bar
-   it was written to clear — and would have landed 20px low even if the token
-   had been the real height, because the 24px was a guess at the breathing room
-   rather than a measurement of it.
-
-   The 12px now is not a guess either: it is half of the 24px line-height the
-   section heading starts with, so a section that scrolls to its top puts its
-   heading exactly one line-height clear of the bar. The bar and the offset now
-   come from one token and cannot drift apart again. */
-section[id] { scroll-margin-top: calc(var(--navbar-bar) + 12px); }
-
-/* ------------------------------------------------------------ utilities --- */
-/* Two state utilities the markup still uses by name (the mobile menu toggles
-   them in script.js). They used to come from the Tailwind CDN; with the CDN
-   gone they are declared here, and that is the whole point of the change —
-   a utility class on this site is defined in this project, not injected by a
-   third party after our sheets. */
-.pointer-events-none { pointer-events: none; }
-.pointer-events-auto { pointer-events: auto; }
 
 .sr-only {
   position: absolute;
-  width: 1px; height: 1px;
-  padding: 0; margin: -1px;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
   overflow: hidden;
   clip: rect(0 0 0 0);
   clip-path: inset(50%);
@@ -388,52 +140,150 @@ section[id] { scroll-margin-top: calc(var(--navbar-bar) + 12px); }
 
 .skip-link {
   position: fixed;
-  top: -100%;
-  left: var(--spacing-16);
-  z-index: 120;
-  background: var(--color-pure-white);
-  color: var(--color-void-canvas);
-  font-size: var(--text-body-sm);
-  font-weight: var(--weight-medium);
+  top: 8px;
+  left: 8px;
+  z-index: 2000;
   padding: 12px 20px;
-  border-radius: var(--radius-buttons);
-  transition: top var(--duration-fast) var(--ease-out-quint);
-}
-.skip-link:focus { top: var(--spacing-16); }
-
-/* The scroll progress hairline. Flat white: the fill IS the signal, and
-   DESIGN.md rations colour to one accent per viewport, which the hero already
-   spends on its eyebrow and headline phrase. A second chromatic bar here would
-   be a third thing asking to be looked at. */
-#scroll-progress {
-  position: fixed;
-  top: 0; left: 0; right: 0;
-  height: 2px;
-  z-index: 45;
-  transform-origin: 0 50%;
-  transform: scaleX(0);
-  background: var(--color-pure-white);
-  pointer-events: none;
+  border-radius: var(--radius-pill);
+  background: var(--color-cream-ink);
+  color: var(--color-night-deep);
+  font-size: var(--text-body-sm);
+  font-weight: var(--font-weight-medium);
+  transform: translateY(-160%);
+  transition: transform 0.2s ease;
 }
 
-/* The cursor spotlight that used to live here — a fixed, page-wide 600px
-   phosphor wash following the pointer — is gone. It was a full-viewport
-   overlay sitting above every surface, which meant a mint wash over whatever
-   the pointer happened to be near, including the accent card. The light is now
-   local to each bento card: `.spot-card::before` in css/sections.css reads
-   --mx/--my, written by js/widgets.js, at 6% white rather than 5% mint. It
-   lights the card under the cursor instead of tinting the whole page. */
-
-/* Film grain. Its only job is to stop #070707 from banding. */
-.grain {
-  position: fixed;
-  inset: 0;
-  z-index: 60;
-  pointer-events: none;
-  opacity: 0.02;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.5'/%3E%3C/svg%3E");
+.skip-link:focus {
+  transform: translateY(0);
 }
 
-/* No-JS resilience: without script.js nothing stays hidden. */
-html:not(.js) [data-reveal],
-html:not(.js) .reveal { opacity: 1; transform: none; filter: none; }
+/* Eyebrow */
+.eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  font-weight: var(--font-weight-medium);
+  letter-spacing: var(--tracking-eyebrow);
+  text-transform: uppercase;
+  color: var(--color-muted);
+}
+
+.eyebrow::before {
+  content: '';
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--color-fresh-grass);
+}
+
+.eyebrow--dark {
+  color: rgba(20, 21, 15, 0.7);
+}
+
+.eyebrow--dark::before {
+  background: var(--color-on-accent);
+}
+
+/* Type helpers */
+.t-display {
+  font-size: var(--text-display);
+  line-height: var(--leading-display);
+  letter-spacing: var(--tracking-display);
+  font-weight: var(--font-weight-medium);
+}
+
+.t-heading {
+  font-size: var(--text-heading);
+  line-height: var(--leading-heading);
+  letter-spacing: var(--tracking-heading);
+  font-weight: var(--font-weight-medium);
+}
+
+.t-heading-lg {
+  font-size: var(--text-heading-lg);
+  line-height: var(--leading-heading);
+  letter-spacing: var(--tracking-display);
+  font-weight: var(--font-weight-medium);
+}
+
+.t-heading-sm {
+  font-size: clamp(1.375rem, 2.4vw, var(--text-heading-sm));
+  line-height: var(--leading-heading-sm);
+  letter-spacing: var(--tracking-heading-sm);
+  font-weight: var(--font-weight-medium);
+}
+
+.copy {
+  max-width: 34ch;
+  color: var(--color-muted);
+  font-size: var(--text-body);
+}
+
+.copy-sm {
+  color: var(--color-muted);
+  font-size: var(--text-body-sm);
+  line-height: 1.6;
+}
+
+/* Section header */
+.section-head {
+  display: grid;
+  gap: var(--space-4);
+  max-width: 760px;
+  margin-bottom: clamp(36px, 5vw, 64px);
+}
+
+.section-head .copy {
+  max-width: 46ch;
+}
+
+/* Reveal system — script.js flips .is-visible */
+.reveal {
+  opacity: 0;
+  transform: translateY(24px);
+  transition: opacity 0.7s ease, transform 0.7s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.reveal.is-visible {
+  opacity: 1;
+  transform: none;
+}
+
+html:not(.js) .reveal,
+html.reveal-all .reveal {
+  opacity: 1;
+  transform: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  .reveal,
+  .reveal.is-visible {
+    opacity: 1;
+    transform: none;
+    transition: none;
+  }
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+}
+
+/* The visitor's own switch. It survives reloads and beats the OS query. */
+html.motion-reduced {
+  scroll-behavior: auto;
+}
+
+html.motion-reduced .reveal {
+  opacity: 1;
+  transform: none;
+  transition: none;
+}

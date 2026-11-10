@@ -40,8 +40,10 @@
      half of the page in agreement, since script.js is a classic script that
      runs before any module can land. */
   const motionPref = (() => { try { return localStorage.getItem('toolapis-motion') || ''; } catch (err) { return ''; } })();
-  const reduceMotion = motionPref === 'off';
+  const osReduce = !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+  const reduceMotion = motionPref === 'off' || (motionPref !== 'on' && osReduce);
   document.documentElement.classList.toggle('reduced-motion', reduceMotion);
+  document.documentElement.classList.toggle('motion-reduced', reduceMotion);
   const finePointer = window.matchMedia && window.matchMedia('(pointer: fine)').matches;
 
   /* ---------------------------------------------------------------------

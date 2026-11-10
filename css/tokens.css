@@ -1,522 +1,99 @@
 /* =============================================================================
-   TOKENS — TOOLAPIS
+   TOKENS — MindMarket dark
    -----------------------------------------------------------------------------
-   The single source of truth for the redesign. Every colour, size, radius and
-   timing on the site resolves here, so DESIGN.md is the only place a value is
-   ever written down.
-
-   SOURCE: DESIGN.md ("midnight mission control with phosphor-green accents").
-   Nothing in this file is invented: each entry is the token, value and role
-   exactly as DESIGN.md states it.
-
-   TYPOGRAPHY DEVIATION (deliberate, documented)
-   -----------------------------------------------------------------------------
-   DESIGN.md names Calsans for display and Geist for body. Google's static cut
-   of Google Sans has no weight 300 — `wght@300` returns HTTP 400, and inside a
-   multi-weight request it is silently dropped — while DESIGN.md's hero is
-   weight 300. The brief sanctions 400 as the fallback, so display runs at 400
-   and the airiness is recovered through tracking and line-height instead.
-
-   The tracking scale below is therefore SMALLER than DESIGN.md's 0.056em.
-   Google Sans is already narrower than Space Grotesk (measured: the hero
-   string at 56px is 926px at +0.02em vs 1034px for Space Grotesk at +0.056em),
-   so the wide Calsans tracking would push the display face into "friendly UI"
-   territory. --tracking-display-face stays a variable so it can be nudged
-   during visual verification without touching any rule that reads it.
+   The palette is DESIGN.md's MindMarket, inverted onto a night-paper canvas:
+   warm near-black surfaces instead of cream, cream ink instead of ink black.
+   The accent colours are unchanged and stay decorative: one accent per
+   component, never a status system.
    ========================================================================== */
 
 :root {
-  /* ---------------------------------------------------------------------
-     COLOUR — DESIGN.md "Tokens / Colors"
-     --------------------------------------------------------------------- */
-  --color-void-canvas: #070707;      /* page background, the floor      */
-  --color-carbon-plate: #0d0e12;     /* primary card surface            */
-  --color-obsidian: #141418;         /* nested cards, code surfaces     */
-  --color-iron-edge: #2e3038;        /* hover, dividers, active overlays */
-  --color-steel-border: #22222a;     /* structural borders, nav rules    */
-  --color-pure-white: #ffffff;       /* primary text, filled pill fill  */
-  --color-cloud-mist: #f0f0f0;       /* secondary text, soft fills      */
-  --color-fog: #d9dae5;              /* CARD HAIRLINE — light on dark   */
-  --color-ash: #c8cad0;              /* body secondary, muted copy       */
-  --color-graphite: #aeaeb7;         /* body tertiary, icon strokes      */
-  --color-slate-mute: #a2a4a9;       /* nav borders, inactive nav text   */
-  --color-cinder: #60606c;           /* low-priority text, placeholders  */
-  --color-phosphor-mint: #70dcd3;    /* THE accent — one card per view  */
-  --color-signal-blue: #0092e4;      /* link borders, focus accents      */
-  --color-ice-blue: #a6e5f2;         /* decorative soft borders, eyebrows*/
-  --color-current-blue: #00ade4;     /* active nav / current page       */
-  --color-deep-signal: #0677d4;      /* input focus border              */
-  --color-verdant-edge: #75ae4c;     /* success badge, light emphasis    */
-  --color-steel-iris: #929dbd;       /* cool-tinted card decorative edge */
+  color-scheme: dark;
 
-  /* Surfaces — DESIGN.md "Surfaces": four stacked levels on the dark spectrum */
-  --surface-void-canvas: var(--color-void-canvas);
-  --surface-carbon-plate: var(--color-carbon-plate);
-  --surface-obsidian: var(--color-obsidian);
-  --surface-iron-edge: var(--color-iron-edge);
+  /* Surfaces */
+  --color-night-paper: #1a1b17;
+  --color-night-card: #24261f;
+  --color-night-deep: #121310;
+  --color-forest: #1d3a1f;
+  --color-forest-deep: #162b18;
+  --color-sandstone: #2f3229;
 
-  /* The ground the hero's light-ribbon visual sits on. DESIGN.md "Imagery"
-     describes dark gradient grounds; every stop resolves onto a token so the
-     ribbon dissolves into the canvas instead of ending on a hard edge. */
-  --gradient-ground: linear-gradient(180deg, rgb(22, 48, 82) 0%, #0d0e12 60%, #070707 100%);
+  /* Ink */
+  --color-cream-ink: #f2efe2;
+  --color-muted: #a9ab9e;
+  --color-hairline-night: #3a3d33;
+  --color-on-accent: #14150f;
 
-  /* ---------------------------------------------------------------------
-     TYPOGRAPHY — DESIGN.md "Tokens / Typography", recalibrated for Google
-     Sans. One family for display, heading, body and UI; Google Sans Code for
-     the mono surfaces (terminal, code, chips, small metadata).
-     --------------------------------------------------------------------- */
-  --font-sans: 'Google Sans', 'Google Sans Flex', 'Outfit', ui-sans-serif,
-    system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  --font-display: var(--font-sans);
-  --font-body: var(--font-sans);
-  --font-mono: 'Google Sans Code', 'Geist Mono', 'JetBrains Mono', ui-monospace,
-    SFMono-Regular, Menlo, Consolas, monospace;
+  /* Accents — decorative, one per component */
+  --color-fresh-grass: #8ed462;
+  --color-sky-pop: #2ba0ff;
+  --color-coral-pop: #ff705d;
+  --color-sunshine-pop: #f5e211;
+  --color-lilac-pop: #b8a7ff;
 
-  /* DESIGN.md's own family names, aliased onto the variable above so a rule
-     still asking for --font-geist or --font-calsans resolves to Google Sans
-     instead of silently falling back to the system face. */
-  --font-geist: var(--font-sans);
-  --font-calsans: var(--font-display);
+  /* Type */
+  --font-inter: 'Inter', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
+    'Segoe UI', Roboto, sans-serif;
+  --font-weight-regular: 400;
+  --font-weight-medium: 500;
 
-  /* =====================================================================
-     --fluid — THE TWO-AXIS REFERENCE
-     =====================================================================
-     Everything below that is a `clamp()` is a function of THIS, not of `vw`.
+  --text-body-sm: 15px;
+  --text-body: 17px;
+  --text-body-lg: 18px;
+  --text-subheading: 20px;
+  --text-heading-sm: 30px;
+  --text-heading: clamp(2.5rem, 6vw, 5.0625rem); /* 40 → 81 */
+  --text-heading-lg: clamp(3rem, 8vw, 6.5rem);   /* 48 → 104 */
+  --text-display: clamp(2.9rem, 11.5vw, 9rem);   /* 46 → 144 */
 
-        --fluid: min(100vw, 190svh)
+  --leading-display: 0.95;
+  --leading-heading: 1.05;
+  --leading-heading-sm: 1.2;
+  --leading-body: 1.55;
 
-     WHY NOT `vw`. A `vw` ramp reads a window that is 1920×400 as a 1920px-wide
-     window and gives it a 1920px-worth of type, which is a headline taller than
-     a quarter of the screen is tall. The height arm is what makes a laptop with
-     DevTools docked along the bottom, or a phone in landscape, shrink instead of
-     shouting — and the brief asks for exactly that: sizes that follow BOTH axes.
+  --tracking-display: -0.06em;
+  --tracking-heading: -0.04em;
+  --tracking-heading-sm: -0.02em;
+  --tracking-eyebrow: 0.14em;
 
-     WHY 190svh AND NOT 140. At 140svh the height arm binds at every viewport
-     whose aspect ratio exceeds 1.4, which includes 1440×900 and every laptop
-     ever made, so the "reference" stops being a reference and the whole ramp
-     silently becomes height-driven. 190svh keeps the height arm for the cases it
-     is FOR — 1280×560, 1366×567, 1920×400, 2560×1080 — and leaves ordinary
-     desktop width-driven, where the numbers below are calibrated.
+  /* Space */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-10: 40px;
+  --space-12: 48px;
+  --space-16: 64px;
+  --space-20: 80px;
+  --space-24: 96px;
+  --space-30: 120px;
 
-     WHY `svh` AND NOT `vh`/`dvh`. `vh` is the tallest viewport a phone can
-     have, which on Safari is the URL bar collapsed; a page sized against it
-     grows when the bar is open. `dvh` moves under the reader's thumb mid-scroll.
-     `svh` is the smallest and it does not move.
+  --page-max: 1200px;
+  --page-pad: clamp(20px, 5vw, 60px);
+  --section-gap: clamp(72px, 9vw, 120px);
+  --element-gap: clamp(14px, 2vw, 21px);
+  --card-pad: clamp(20px, 3vw, 32px);
 
-     AT THE CALIBRATION POINT. 1440×900 → min(1440, 1710) = **1440**.
-     1920×1080 → 1920. 1366×567 → 1077. 1920×400 → 760. 390×844 → 390.
-     Every coefficient in the type scale below is chosen so that at
-     `--fluid: 1440` the scale resolves to the value it had before this file
-     was touched, to the pixel. */
-  --fluid: min(100vw, 190svh);
+  /* Radii — sticker-soft */
+  --radius-chip: 10px;
+  --radius-sm: 20px;
+  --radius-card: 50px;
+  --radius-illustration: 63.75px;
+  --radius-pill: 999px;
 
-  /* Type scale — DESIGN.md "Type Scale", with tracking restated for Google
-     Sans. Tracking is per-size, not global, and never negative.
-
-     FLUID ON BOTH AXES, AND CALIBRATED, NOT GUESSED.
-
-     Every coefficient here was fitted through the two points that matter: the
-     value the scale resolved to at 768px and the value it resolved to at
-     1440px. That is why the ramps are `rem + fluid` and not `fluid` alone — a
-     pure multiplier cannot pass through both points and still have a floor a
-     phone can read, and a ramp that has quietly dropped the tablet headline by
-     29% is a regression dressed as a feature.
-
-     RESOLVED VALUES, before → after:
-
-        role          @280    @390    @768    @1024   @1366×567  @1440   @1920
-        display       40      40      54.4    67.2    69.9       88      94
-        heading-lg    38      38      59.1    71.7    72         72      72
-        heading       32      34.9    42.5    47.6    48.7       56      60
-        heading-sm    24      24      27.6    30.5    31         32      32
-        subheading    17      17      17      17.1    17.2       17      19.5
-        body          15      15      15      15.1    15.2       16      16
-        body-sm       13      13      13      13.1    13.2       14      14
-        caption       11      11      11      11      11         12      12
-        mono          11      12      11.6    12.1    12.2       13      13
-
-     READ THE TWO RIGHT-HAND COLUMNS. Everything at and above 1440 is either
-     identical to what it was (heading-lg, heading-sm, subheading, body-sm,
-     caption, mono) or moves by exactly the amount the brief asked for and no
-     more: the two headline roles gain their cap at 1920 and at no smaller size.
-     That is the whole "desktop besar tidak berubah drastis" contract, and it is
-     a property of the numbers rather than a promise.
-
-     READ THE LEFT-HAND COLUMNS. The floors are where the design is protected:
-     15px body and 11px caption on a folded phone, 30px for a section heading,
-     40px for the hero. The mono floor is the one that is doing real work — the
-     terminal was 63px too wide for its own box at 280px, and 11px is what it
-     takes to fit.
-
-     WHAT "NAIK SEDIKIT AT ≥1920" MEANS HERE, EXACTLY: the two HEADLINE roles,
-     and only those two. --text-heading gains its 60px cap and --text-display
-     its 94px, both of which engage around 1650px of `--fluid` and so do not
-     touch anything below 1920. Body, body-sm and caption keep their current
-     ceilings at every width.
-
-     That restriction is measured, not stylistic. With body allowed to grow to
-     17px at 1920 the Features section went from 1359px to 1475px — 8.6%, over
-     the 6% the brief allows — because Features is mostly body copy and a 6%
-     larger body size is a 6% taller section. A 4px-larger headline is free; a
-     1px-larger body size is 116px of page. So the caps stay where they were for
-     the text and move only for the type that is doing the talking.
-
-     Body IS fluid now, which it was not: `--text-body` was a hard 16px and is
-     now 15px below ~1000px and 16px everywhere above it. The old comment
-     claimed a body size that moves with the viewport is a body size nobody can
-     reason about; the answer is to give it a floor and let the middle be
-     continuous, which is what every other role on this page has done since the
-     redesign. */
-  --text-caption: clamp(0.6875rem, calc(0.5625rem + var(--fluid) * 0.002083), 0.75rem);
-  --leading-caption: 1.22;   --tracking-caption: 0.05em;
-  --text-body-sm: clamp(0.8125rem, calc(0.6875rem + var(--fluid) * 0.002083), 0.875rem);
-  --leading-body-sm: 1.44;   --tracking-body-sm: 0.002em;
-  --text-body: clamp(0.9375rem, calc(0.802rem + var(--fluid) * 0.0022), 1rem);
-  --leading-body: 1.5;       --tracking-body: 0;
-  --text-subheading: clamp(1.0625rem, calc(0.5rem + var(--fluid) * 0.006), 1.25rem);
-  --leading-subheading: 1.5; --tracking-subheading: 0.002em;
-  --text-heading-sm: clamp(1.5rem, calc(1.2rem + var(--fluid) * 0.011), 2rem);
-  --leading-heading-sm: 1.1; --tracking-heading-sm: 0.014em;
-  --text-heading: clamp(1.875rem, calc(1.692rem + var(--fluid) * 0.020089), 3.75rem);
-  --leading-heading: 1.1;    --tracking-heading: 0.024em;
-  --text-heading-lg: clamp(2.375rem, calc(1.9rem + var(--fluid) * 0.034), 4.5rem);
-  --leading-heading-lg: 1;   --tracking-heading-lg: 0.028em;
-  --text-display: clamp(2.5rem, calc(1rem + var(--fluid) * 0.05), 5.875rem);
-  --leading-display: 0.96;   --tracking-display: 0.03em;
-
-  /* The mono size, tokenised.
-     There were two of these — `.mono` in base.css and `.code` in
-     components.css — both hand-written 13px, neither reading a token, and both
-     therefore frozen at every viewport. A terminal is the one surface on this
-     page whose content is WIDTH-CRITICAL: its lines are literal strings, so a
-     font that cannot shrink is a font that overflows. It now scales, and its
-     floor is 11px, which is what makes the terminal fit a 280px screen. */
-  --text-mono: clamp(0.6875rem, calc(0.625rem + var(--fluid) * 0.002083), 0.8125rem);
-  --leading-mono: 1.6;
-
-  /* THREE SIZES THAT DELIBERATELY DO NOT MOVE.
-
-     A wordmark is not body copy. It is the one piece of type on this page whose
-     job is to be the same size on every device a visitor might hold, and a
-     wordmark that grows with the viewport reads as a page zoomed rather than as
-     a brand. The same is true of a glyph inside a 44px touch target: the target
-     is fixed because 44px is an accessibility floor, so a fluid glyph inside it
-     would be a fluid letter in a fixed box.
-
-     They are tokens anyway, because they were three separate hand-written
-     literals in three places and the reason nothing had ever been able to move
-     them together was that there was nothing to move them together WITH. */
-  --text-brand: 18px;   /* .brand__word and .mobile-menu__brand */
-  --text-mark: 13px;    /* the "TL" disc */
-
-  /* Icon boxes. Three sizes, three owners each, no token — so a change to "the
-     18px icon" was a hunt across three files that had already drifted. */
-  --icon-sm: 18px;   /* share, toast, footer social, motion toggle glyphs */
-  --icon-md: 20px;   /* mobile-panel close and its chevrons */
-  --icon-lg: 24px;   /* card icon wells, feature list markers */
-
-  /* The tracking constant the display face uses at every size. Positive by
-     rule (DESIGN.md "Don't": never negatively track the display face) and
-     capped at 0.056em. Tuned down from DESIGN.md's own 0.056em because Google
-     Sans is the wider-bodied face; see the deviation note at the top.
-
-     Tracking tightens as the size drops, because the tracking is a share of
-     the font size: 0.03em of an 88px glyph is 2.6px of air, 0.03em of a 40px
-     glyph is 1.2px, and at the small end that air turns into wasted measure
-     that pushes the last word of a headline onto its own line. The floor is
-     0.012em, below DESIGN.md's 0.056em but still positive — the "never
-     negatively track the display face" rule is about the SIGN, not the size. */
-  --tracking-display-face: 0.03em;
-
-  /* Weights. DESIGN.md's display face runs light, but Google's static cut has
-     no 300, so the display role sits at 400 and nothing anywhere reaches 700. */
-  --weight-light: 400;
-  --weight-regular: 400;
-  --weight-medium: 500;
-  --weight-semibold: 600;
-
-  /* ---------------------------------------------------------------------
-     SPACING & SHAPES — DESIGN.md "Spacing & Shapes"
-     Base unit 8px, comfortable density.
-     --------------------------------------------------------------------- */
-  --spacing-unit: 8px;
-  --spacing-8: 8px;
-  --spacing-16: 16px;
-  --spacing-24: 24px;
-  --spacing-32: 32px;
-  --spacing-40: 40px;
-  --spacing-56: 56px;
-  --spacing-80: 80px;
-
-  /* The step scale above is NOT fluid, and it stays that way for now.
-
-     It is tempting to make these ramp too, and it would be wrong: these are the
-     eight named steps that ~40 rules reference by name, and a step scale whose
-     steps move is a scale where "the 16px gap" is no longer a thing you can say
-     out loud. What the fluid pass does instead is add the fluid tokens below
-     and move consumers onto them section by section, so the step scale drains
-     instead of smearing. Anything still reading --spacing-* after the last
-     stage is a leftover, and the audit in the final report names it.
-
-     `--spacing-80` is the top step and nothing reads it — it has been dead
-     since the redesign. It is left here rather than deleted because the scale
-     is documented as 8/16/24/32/40/56/80 and removing a rung is a different
-     decision from making the page fluid. */
-
-  /* Radius — DESIGN.md "Border Radius". Controls are pills; the only sharp
-     radius on the site is the 5px input.
-
-     The two card radii ramp on `--fluid`, fitted through the same two points as
-     everything else in this file: 16px flat before, 20px flat before, and now
-     16px below ~1024, 20px at 1440 and 22px from 1920. A card radius that never
-     moves is a card whose corners look heavy on a 280px screen and timid on a
-     3440px one — but a radius that scales from zero is a DIFFERENT design, and
-     that is what the first attempt produced. The nested radius moves with its
-     parent so a nested card never ends up visually equal to the card that
-     contains it.
-
-     Pills and the 5px input radius are NOT here and never will be: 800px means
-     "round", not "big", and a pill that stops being round is not a pill. */
-  --radius-cards: clamp(1rem, calc(0.6rem + var(--fluid) * 0.007222), 1.375rem);
-  --radius-nested-cards: clamp(0.75rem, calc(0.75rem + var(--fluid) * 0.002778), 1.125rem);
-  --radius-badges: 800px;
-  --radius-buttons: 800px;
-  --radius-inputs: 5px;
-
-  /* Legacy aliases (same values, old names) so nothing that referenced the
-     previous sheet's shape tokens silently falls back to a default. */
-  --r-card: var(--radius-cards);
-  --r-btn: var(--radius-buttons);
-  --r-control: var(--radius-inputs);
-  --r-pill: var(--radius-badges);
-
-  /* ---------------------------------------------------------------------
-     ELEVATION — DESIGN.md is shadowless by design.
-     Cards define themselves with a 1px LIGHT hairline, never a drop shadow.
-     The only sanctioned shadow is the inset lighting on the filled white pill,
-     which reads as an emboss rather than as elevation.
-     --------------------------------------------------------------------- */
-  --shadow-subtle: rgba(0, 0, 0, 0.05) 2px 2px 0px 0px;
-  --shadow-subtle-2:
-    rgb(255, 255, 255) 0px -1px 0px 0px inset,
-    rgb(255, 255, 255) 1px 0px 0px 0px inset,
-    rgb(255, 255, 255) -1px 0px 0px 0px inset,
-    rgb(255, 255, 255) 0px 1px 0px 0px inset;
-
-  /* ---------------------------------------------------------------------
-     LAYOUT — DESIGN.md "Layout"
-     --------------------------------------------------------------------- */
-  /* The measure cap, and it now breathes with the window.
-
-     A flat 1200px left 1120px of empty margin on each side of a 3440px screen
-     — 65% of the display empty, which reads as a page that has given up rather
-     than one that is composed. The clamp lets the content band widen to 1600px
-     on very wide windows while leaving everything at or below ~1714px exactly
-     where it was, because `70vw` there is still under the 1200px floor.
-
-     It is a LAYOUT cap only, not a measure one: the body copy is capped
-     separately and in `ch` (34ch on the hero subtitle, 48ch on feature copy,
-     56ch on the CTA band), so the line length is identical at 1440 and at 3440.
-     Widening the band moves cards and columns apart; it does not make anyone
-     read a longer line. */
-  --page-max-width: clamp(1200px, 72vw, 1680px);
-  /* `--element-gap`, capped at 18px rather than the 20px first attempt. A card's
-     internal gap is multiplied by its rows, and `#features` is a stack of
-     cards: 20px cost 8px there at 1920 and pushed the section to 6.7%, over the
-     6% the brief allows. 18px is 2px over the original 16 — still comfortable,
-     and the floor below 1440 is untouched. */
-  --element-gap: clamp(0.75rem, calc(0.75rem + var(--fluid) * 0.002778), 1.125rem);
-
-  /* ---------------------------------------------------------------------
-     RESPONSIVE FOUNDATION
-     -----------------------------------------------------------------------------
-     Every responsive decision in the project resolves to one of these four
-     numbers. They used to be scattered as literals — `clamp(20px, 4vw, 32px)`
-     appeared in three files and 640px/767px/899px/1099px/1279px each appeared
-     in exactly one rule, so a breakpoint change was a hunt. Now the scale is
-     declared once and read by name.
-
-     --gutter is the page inset. It is a `clamp()` rather than a step, so the
-     inset grows smoothly from 12px on a 280px phone to 56px on a wide desktop,
-     which is what stops the content from touching the bezel at one size and
-     floating in the middle at the next.
-
-     The floor moved 16px → 12px and the ceiling 40px → 56px, and BOTH ends were
-     measured rather than chosen. At 280px the old 16px floor took 11.4% of the
-     screen off the content; 12px gives the narrowest supported device 8px more
-     of the 280 it has, and 12px is still far enough from the bezel to read as
-     an inset. At the top, 56px at 1440 does NOT widen the content column: the
-     shell is `min(100% - 2 * gutter, --page-max-width)` and the 1200px max is
-     what binds there, so the extra gutter is spent on air rather than taken
-     out of the measure. The measure is capped in `ch` regardless, so the line
-     length is identical at 1440 and at 3440.
-
-     --section-gap and --card-padding are fluid for the same reason: section
-     rhythm that jumps from 56px to 80px between two adjacent breakpoints
-     reads as a layout bug on the device that lands on the wrong side of it.
-
-     --section-gap is the first token with a genuine `min()` in it, because it
-     is the one spacing value applied BLOCK-WISE to every section and therefore
-     the one that can be larger than the screen: `clamp(48px, 8vw, 80px)` put
-     160px of padding into a 400px-tall window. The `12svh` arm caps that, and
-     the `88px` cap keeps 1920×1080 near where it was rather than at the 107px a
-     pure `--fluid` term would give it.
-
-     All four spacing tokens are fitted through TWO POINTS rather than through
-     zero, which is the same method as the type scale and for the same reason.
-     A first attempt used a plain `fluid × k`, and the gate caught what that
-     does: a multiplier anchored at zero means anything below 1440 collapses
-     toward nothing, and the tablet lost 39% of its card padding and 30% of its
-     card radius — a redesign that had not been asked for and did not look like
-     one. Fitting through (768, old value) and (1440, old value) keeps the two
-     sizes anyone actually measures a design at exactly where they were, and
-     puts all the movement where the brief wants it: below 768 and in short
-     windows.
-
-        token             @768 was→is   @1440 was→is   @1920 was→is
-        --gutter            38.4 → 30.7   40 → 56       40 → 56
-        --section-gap      61.4 → 61.4   80 → 80       80 → 88
-        --card-padding     23.0 → 19.4   24 → 24       24 → 26
-        --element-gap      16.0 → 14.1   16 → 16       16 → 17.3
-        --radius-cards     20.0 → 16.0   20 → 20       20 → 22
-
-     The two "was" values in the `--gutter` row are the interesting ones: at
-     768 the old clamp gave 38.4px and at 1920 it gave its 40px cap, so the new
-     30.7px at 768 is the only place the gutter moves DOWN. That is a tablet
-     gaining 15px of content width, which is the same trade as the 12px floor at
-     280px, made for the same reason. */
-  --gutter: clamp(12px, 4vw, 56px);
-  /* Capped at 84px, not 88px: section padding is paid twice per section, and
-     88 pushed `#features` to 6.7% at 1920. 84 keeps every section inside the
-     6% band without touching the floor, the growth rate, or the `12svh` cap. */
-  --section-gap: clamp(40px, min(calc(2.5088rem + var(--fluid) * 0.02768), 12svh), 84px);
-  /* Capped at 26px, two over DESIGN.md's 24px, on purpose: padding is the one
-     value that should be allowed to open up a little on a large display.
-
-     An earlier attempt capped this at 25px, on the theory that card padding was
-     what pushed `#features` to 6.1% at 1920. Measuring `.feature` row by row
-     showed the theory was wrong — the rows are 273px at 1440 AND at 1920, the
-     mock is 175/213 at both, and the 83px of section growth is section padding
-     (+8) and the h2 ramp (56->60), nothing else. Trimming to 25px changed
-     `#features` by 0px and `#overview` by 2px, so it was reverted rather than
-     left in as an unexplained 1px. Measure before you trim. */
-  --card-padding: clamp(14px, calc(0.879rem + var(--fluid) * 0.006897), 1.625rem);
-
-  /* The four breakpoints, mobile-first. These are the ONLY numbers any media
-     query in css/ is allowed to name. Anything else is a layout bug waiting
-     for the next redesign.
-
-       600px  two columns become affordable for a simple card grid
-       768px  tablet: the primary nav fits, the hero starts to split
-       1024px desktop: 12-column bento, 50/50 hero, 4-column footer
-       1280px the 1200px max-width is reached and the page centres
-
-     Kept as custom properties rather than written into the queries, so a
-     grep for a breakpoint finds the definition and not forty uses. */
-  --bp-sm: 600px;
-  --bp-md: 768px;
-  --bp-lg: 1024px;
-  --bp-xl: 1280px;
-
-  /* The height of the sticky bar, and the minimum size of anything you can
-     put your finger on. DESIGN.md sets the bar at ~64px; the brief sets the
-     target at 44px, and both are floors rather than exact values.
-
-     `--navbar-height` is a `svh` clamp now, and that is not cosmetic. It used to
-     be a flat 64px, which is 11.4% of a 560px-tall window and 16% of a
-     landscape phone — a fixed bar that is a sixth of the screen on the screens
-     where a sixth of the screen matters. `8svh` gives 72px at a 900px-tall
-     window (capped at 68) and 52px at a 560px-tall one, so the bar takes a
-     roughly constant share of the viewport rather than a constant share of
-     nothing.
-
-     `--tap-target` is NOT fluid and never will be. It is an accessibility
-     floor: 44px is 44px whether the window is 280px wide or 3440. */
-  --navbar-height: clamp(52px, 8svh, 68px);
+  /* Chrome */
+  --nav-height: 64px;
+  --nav-top: 16px;
   --tap-target: 44px;
-
-  /* The height the bar ACTUALLY renders at, and the only place that is decided.
-
-     `--navbar-height` above is the CEILING. It was not the height, and three
-     things quietly assumed it was:
-
-       - `#navbar` wrote its own `clamp(56px, 4.5vw + 44px, var(--navbar-height))`,
-         so the bar's real height was a second, unrelated expression;
-       - `scroll-margin-top` was `calc(var(--navbar-height) + 24px)`, so every
-         anchor on the page landed 24-32px below the bar it was dodging;
-       - the outer clamp's 56px floor was UNREACHABLE whenever the ceiling
-         dropped below it, which is exactly what happened in every short window
-         once the ceiling became an `svh` value — a 400px-tall window asked for
-         a 52px ceiling and got the 56px floor instead, so the height axis
-         stopped working below ~700px tall.
-
-     One expression, read by all three:
-
-         min(4.5vw + 40px, 8svh)  the width term and the height term, competing
-         clamped 52 -> 68px
-
-       1440x900   min(104.8, 72)   = 72  -> 68   (unchanged from Stage 1)
-       1920x400   min(126.4, 32)   = 32  -> 52   (was 56 — the floor, not the axis)
-       1366x567   min(101.5, 45.4) = 45  -> 52   (was 56)
-        390x844   min(57.6,  67.5) = 58          (was 62)
-        280x560   min(52.6,  44.8) = 45  -> 52   (was 56)
-
-     The mobile numbers MOVE, and that is the fix rather than the cost: a bar
-     that is 52px on a 390px-tall phone is 13% of the screen instead of 14.4%,
-     and the anchors finally land where the bar actually is. */
-  --navbar-bar: clamp(52px, min(4.5vw + 40px, 8svh), 68px);
-
-  /* The largest horizontal inset a fixed element should use: the normal
-     gutter, floored at the safe-area inset so a fixed button never lands
-     under a rounded corner or a home indicator on a notched device. */
-  --edge-inset: max(16px, env(safe-area-inset-left, 0px));
-
-  /* Legacy aliases (same values, old names) */
-  --page-max: var(--page-max-width);
-  --card-pad: var(--card-padding);
-
-  /* ---------------------------------------------------------------------
-     MOTION — DESIGN.md does not define motion, so it is interpreted as
-     "instrument panel": precise, calm, never showy. One global easing curve,
-     200ms for state changes, 500-900ms for reveals. Only transform and opacity
-     are ever animated (compositor-only, so nothing shifts layout at 60fps).
-     --------------------------------------------------------------------- */
-  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
-  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
-  --dur-fast: 200ms;
-  --dur-base: 500ms;
-  --dur-slow: 900ms;
-  --stagger-step: 80ms;
-
-  /* Longer names the existing rules already read, mapped onto the same values
-     so no rule has to change to pick up the new scale. */
-  --ease-out-quint: var(--ease-out);
-  --duration-fast: var(--dur-fast);
-  --duration-reveal: var(--dur-base);
-  --duration-slow: var(--dur-slow);
-
-  /* Long names the existing rules already read, mapped onto the same values
-     so no rule has to change to pick up the new scale. */
 }
 
-/* -----------------------------------------------------------------------------
-   FLUID TYPE — no media queries
-   -----------------------------------------------------------------------------
-   This file used to end with two breakpoint blocks that rewrote --text-heading,
-   --text-heading-lg and --text-display to step down on small screens, and
-   rewrote --tracking-display-face alongside them. Both are gone.
-
-   The sizes are `clamp()`s now (see the type scale above), so the scale is a
-   continuous function of the viewport: there is no width at which the hero
-   headline is 34px and the width either side of it is 56px, and no step to
-   land between. The tracking follows the size through one `clamp()` on
-   --tracking-display-face for the same reason — positive everywhere, tighter
-   as the type gets smaller, never negative.
-   ========================================================================== */
-:root {
-  /* `--fluid` for the same reason as every other token here: the tracking share
-     of a headline should tighten on a phone and open up on a wide window, and
-     a `vw` arm cannot do the first half of that on a landscape phone. The cap
-     is unchanged, so 1440 and above are pixel-identical to before. */
-  --tracking-display-face: clamp(0.012em, calc(0.004em + var(--fluid) * 0.00021), 0.03em);
+@media (max-width: 600px) {
+  :root {
+    --radius-card: 30px;
+    --radius-illustration: 36px;
+    --nav-top: 10px;
+  }
 }
