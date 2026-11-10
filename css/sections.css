@@ -87,7 +87,7 @@
 .hero__art {
   position: absolute;
   right: clamp(-40px, 1vw, 24px);
-  bottom: -24px;
+  bottom: 8px;
   z-index: 1;
   width: min(46%, 560px);
   pointer-events: none;

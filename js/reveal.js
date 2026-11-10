@@ -127,10 +127,10 @@ const deferred = [];
  * ------------------------------------------------------------------ */
 
 /**
- * Is the five-second intro still holding the page?
+ * Is the ~2.5-second intro still holding the page?
  *
  * The entrance (css/intro.css, js/intro.js) covers the viewport for the first
- * 2.5 seconds and lifts at 2.5s. Anything this module reveals in that window
+ * 1.25 seconds and lifts at 1.25s. Anything this module reveals in that window
  * reveals BEHIND the overlay: the block finishes its fade and blur while nobody
  * can see it, and by the time the overlay moves the first screen has already
  * arrived flat, with none of the choreography the entrance exists to deliver.
@@ -140,7 +140,7 @@ const deferred = [];
  * a module that can fail, by a bootstrap that can fail, and a reveal system
  * that defers on a promise nobody kept would leave a page's content at opacity 0
  * indefinitely. So the hold expires on its own clock regardless: 14s is far past
- * the inline bootstrap's own 5.8s ceiling, which means this deadline is only
+ * the inline bootstrap's own 3.5s ceiling, which means this deadline is only
  * ever reached if the entire entrance has already been broken — and in that case
  * the right answer is to stop deferring and show the page, which is exactly what
  * this does. */

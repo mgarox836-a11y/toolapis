@@ -44,7 +44,7 @@
   --text-heading-sm: 30px;
   --text-heading: clamp(2.5rem, 6vw, 5.0625rem); /* 40 → 81 */
   --text-heading-lg: clamp(3rem, 8vw, 6.5rem);   /* 48 → 104 */
-  --text-display: clamp(2.9rem, 11.5vw, 9rem);   /* 46 → 144 */
+  --text-display: clamp(2.9rem, min(11.5vw, 14vh), 7rem); /* 46 → 112 */
 
   --leading-display: 0.95;
   --leading-heading: 1.05;

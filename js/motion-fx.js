@@ -55,12 +55,12 @@ function still() {
    transition-delays in css/animations.css that could not actually do the job —
    an animation (`tl-display-settle`) outranks a transition in the cascade, so
    every word began its animation the moment the class landed and the delays
-   only ever described the tail. The entrance is now a five-second schedule with
-   the words released at 2950ms, and it is expressed where it has to be, as
+   only ever described the tail. The entrance is now a ~2.5-second schedule with
+   the words released at 1475ms, and it is expressed where it has to be, as
    `animation-delay` on that animation: an animation's `both` fill holds the
    from-state through its whole delay, which is precisely the property that
    lets the class be added here at DOMContentLoaded and the word still not
-   appear for another three seconds.
+   appear for another ~1.5 seconds.
 
    That also means a visitor who presses Skip gets the compressed schedule for
    free — the same class, a `--intro-speed` multiplier, and a restart. Nothing

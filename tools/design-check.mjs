@@ -95,7 +95,7 @@ for (const vp of VIEWPORTS) {
 
   await page.goto(BASE, { waitUntil: 'domcontentloaded', timeout: 90000 });
   await page.waitForFunction(() => document.readyState === 'complete', null, { timeout: 150000 }).catch(() => {});
-  /* The intro runs 5s and the reveals settle behind it. */
+  /* The intro runs ~2.5s and the reveals settle behind it. */
   await page.waitForTimeout(6500);
 
   const r = await page.evaluate(() => {

@@ -92,7 +92,7 @@
    and css/hero.css already styles with `.is-visible`.
 
    THE STAGGER LIVES ON THE ANIMATION, NOT THE TRANSITION, and that is the whole
-   point. `tl-display-settle` is the same 900ms either way, but an `animation`
+   point. `tl-display-settle` is the same 400ms either way, but an `animation`
    carries a DELAY that its `both` fill holds the from-state through — so a word
    handed `.is-visible` at DOMContentLoaded still waits exactly as long as its
    delay says. A `transition-delay` could not do that: the transition starts the
@@ -116,7 +116,7 @@
 }
 .hero-title .word-reveal { animation: none; }
 .hero-title .word-reveal.is-visible {
-  animation: tl-display-settle var(--duration-slow) var(--ease-out-quint) both;
+  animation: tl-display-settle 400ms var(--ease-out-quint) both;
 }
 
 /* ---- LOAD REVEAL — the second half of the entrance -------------------------
@@ -133,24 +133,24 @@
 
    THE CLOCK. Delays are absolute milliseconds measured from FIRST PAINT, and
    they are authored against `--intro-total` in css/intro.css: the overlay owns
-   the first 2500ms, and these five blocks arrive underneath it so the handover
+   the first 1250ms, and these five blocks arrive underneath it so the handover
    is a change of focus rather than a cut. js/intro.js reads the page's real t=0
    back off this very animation, which is what keeps the two halves from
-   disagreeing about where 5 seconds starts.
+   disagreeing about where ~2.5 seconds starts.
 
-     2600  #navbar          ─┐
-     2700  .eyebrow           │
-     2750  .hero-title       │  all four land by 3.6s,
-     2950  the title's words ─┤  so the first screen is fully
-     3700  .hero-subtitle   ─┤  readable at 3.7s and the
-     4150  .hero-cta-row    ─┘  entrance finishes at 4950ms.
+     1300  #navbar          ─┐
+     1350  .eyebrow           │
+     1375  .hero-title       │  all four land by 1.8s,
+     1475  the title's words ─┤  so the first screen is fully
+     1850  .hero-subtitle   ─┤  readable at ~1.85s and the
+     2075  .hero-cta-row    ─┘  entrance finishes at ~2475ms.
 
    EVERY DELAY BELOW IS MULTIPLIED BY `--intro-speed`. That one multiplier is how
    a visitor who ends the entrance early still gets an arrival rather than a
    jump: js/intro.js sets it to 0.18 on an early exit, so the whole schedule
-   compresses to about 900ms from the moment they pressed Skip — answered at the
+   compresses to about 800ms from the moment they pressed Skip — answered at the
    speed of the gesture, not stopped dead and not re-run in full. At 1 it is the
-   authored five seconds. */
+   authored ~2.5 seconds. */
 :root {
   --load-blur: 14px;
   --intro-speed: 1;
@@ -180,16 +180,16 @@ html.intro-restart [data-load-reveal],
 html.intro-restart .word-reveal { animation: none !important; }
 
 [data-load-reveal] {
-  animation: load-rise 800ms var(--ease-out-quint) both;
+  animation: load-rise 400ms var(--ease-out-quint) both;
 }
-[data-load-reveal="1"] { animation-delay: calc(2700ms * var(--intro-speed)); }
-[data-load-reveal="2"] { animation-delay: calc(2700ms * var(--intro-speed)); }
-[data-load-reveal="3"] { animation-delay: calc(3700ms * var(--intro-speed)); }
-[data-load-reveal="4"] { animation-delay: calc(4150ms * var(--intro-speed)); }
-[data-load-reveal="5"] { animation-delay: calc(2600ms * var(--intro-speed)); }
+[data-load-reveal="1"] { animation-delay: calc(1350ms * var(--intro-speed)); }
+[data-load-reveal="2"] { animation-delay: calc(1350ms * var(--intro-speed)); }
+[data-load-reveal="3"] { animation-delay: calc(1850ms * var(--intro-speed)); }
+[data-load-reveal="4"] { animation-delay: calc(2075ms * var(--intro-speed)); }
+[data-load-reveal="5"] { animation-delay: calc(1300ms * var(--intro-speed)); }
 
 .hero-title[data-load-reveal] {
-  animation: load-fade 700ms var(--ease-out-quint) calc(2750ms * var(--intro-speed)) both;
+  animation: load-fade 350ms var(--ease-out-quint) calc(1375ms * var(--intro-speed)) both;
 }
 
 /* ---- the headline's words ------------------------------------------------
@@ -199,39 +199,39 @@ html.intro-restart .word-reveal { animation: none !important; }
    js/motion-fx.js runs and they will still not appear until their own delay has
    elapsed, with no timer in JavaScript holding them there.
 
-   Staggered per LINE (200ms) and, within a line, per word (120ms) — so the
+   Staggered per LINE (100ms) and, within a line, per word (60ms) — so the
    headline walks down the screen the way it reads, rather than all three lines
    arriving as one slab. `.hero-title-line` is the child index; `.word-reveal`
    is the child index inside it. Every term is multiplied by `--intro-speed` so
    a skip compresses the whole cascade, not just its first step. */
 .hero-title .word-reveal.is-visible {
-  animation-delay: calc(2950ms * var(--intro-speed));
+  animation-delay: calc(1475ms * var(--intro-speed));
 }
 .hero-title-line:nth-child(2) .word-reveal.is-visible {
-  animation-delay: calc((2950ms + 200ms) * var(--intro-speed));
+  animation-delay: calc((1475ms + 100ms) * var(--intro-speed));
 }
 .hero-title-line:nth-child(3) .word-reveal.is-visible {
-  animation-delay: calc((2950ms + 400ms) * var(--intro-speed));
+  animation-delay: calc((1475ms + 200ms) * var(--intro-speed));
 }
 .hero-title-line .word-reveal:nth-child(2).is-visible {
-  animation-delay: calc((2950ms + 120ms) * var(--intro-speed));
+  animation-delay: calc((1475ms + 60ms) * var(--intro-speed));
 }
 .hero-title-line:nth-child(2) .word-reveal:nth-child(2).is-visible {
-  animation-delay: calc((2950ms + 320ms) * var(--intro-speed));
+  animation-delay: calc((1475ms + 160ms) * var(--intro-speed));
 }
 .hero-title-line:nth-child(3) .word-reveal:nth-child(2).is-visible {
-  animation-delay: calc((2950ms + 520ms) * var(--intro-speed));
+  animation-delay: calc((1475ms + 260ms) * var(--intro-speed));
 }
 .hero-title-line:nth-child(3) .word-reveal:nth-child(3).is-visible {
-  animation-delay: calc((2950ms + 640ms) * var(--intro-speed));
+  animation-delay: calc((1475ms + 320ms) * var(--intro-speed));
 }
 /* The fourth word of the third line — "Place." — needs its own rule, because a
    `.word-reveal` with no `nth-child` of its own falls back to the LINE's delay
-   and therefore lands 240ms ahead of the two words before it. The headline was
+   and therefore lands 120ms ahead of the two words before it. The headline was
    arriving bottom-up inside one line, which is exactly the sort of thing that
    reads as "the animation is broken" rather than "the animation is designed". */
 .hero-title-line:nth-child(3) .word-reveal:nth-child(4).is-visible {
-  animation-delay: calc((2950ms + 760ms) * var(--intro-speed));
+  animation-delay: calc((1475ms + 380ms) * var(--intro-speed));
 }
 
 /* The transition that the same class also triggers, with no delay of its own:
@@ -262,7 +262,7 @@ html.reveal-all [data-load-reveal] {
   filter: none !important;
 }
 /* Reduced motion: no travel, no blur, no stagger — the hero is simply there.
-   The five seconds belong to css/intro.css, which skips the overlay entirely
+   The ~2.5 seconds belong to css/intro.css, which skips the overlay entirely
    under this class rather than shortening it. */
 html.motion-reduced [data-load-reveal] {
   animation: none !important;
@@ -496,7 +496,7 @@ html.reveal-all :is(.reveal, [data-reveal], .rv) {
    finishes inside the outer one rather than finishing after it, which would
    leave the header at 60% opacity for a frame longer than everything else. */
 html.js #navbar > .shell {
-  animation: tl-fade 600ms var(--ease-out-quint) calc(2600ms * var(--intro-speed)) both;
+  animation: tl-fade 300ms var(--ease-out-quint) calc(1300ms * var(--intro-speed)) both;
 }
 
 /* Mobile menu links cascade in. */

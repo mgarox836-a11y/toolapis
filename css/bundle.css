@@ -1064,7 +1064,7 @@ html:not(.js) .reveal { opacity: 1; transform: none; filter: none; }
    and css/hero.css already styles with `.is-visible`.
 
    THE STAGGER LIVES ON THE ANIMATION, NOT THE TRANSITION, and that is the whole
-   point. `tl-display-settle` is the same 900ms either way, but an `animation`
+   point. `tl-display-settle` is the same 400ms either way, but an `animation`
    carries a DELAY that its `both` fill holds the from-state through — so a word
    handed `.is-visible` at DOMContentLoaded still waits exactly as long as its
    delay says. A `transition-delay` could not do that: the transition starts the
@@ -1088,7 +1088,7 @@ html:not(.js) .reveal { opacity: 1; transform: none; filter: none; }
 }
 .hero-title .word-reveal { animation: none; }
 .hero-title .word-reveal.is-visible {
-  animation: tl-display-settle var(--duration-slow) var(--ease-out-quint) both;
+  animation: tl-display-settle 400ms var(--ease-out-quint) both;
 }
 
 /* ---- LOAD REVEAL — the second half of the entrance -------------------------
@@ -1105,24 +1105,24 @@ html:not(.js) .reveal { opacity: 1; transform: none; filter: none; }
 
    THE CLOCK. Delays are absolute milliseconds measured from FIRST PAINT, and
    they are authored against `--intro-total` in css/intro.css: the overlay owns
-   the first 2500ms, and these five blocks arrive underneath it so the handover
+   the first 1250ms, and these five blocks arrive underneath it so the handover
    is a change of focus rather than a cut. js/intro.js reads the page's real t=0
    back off this very animation, which is what keeps the two halves from
-   disagreeing about where 5 seconds starts.
+   disagreeing about where ~2.5 seconds starts.
 
-     2600  #navbar          ─┐
-     2700  .eyebrow           │
-     2750  .hero-title       │  all four land by 3.6s,
-     2950  the title's words ─┤  so the first screen is fully
-     3700  .hero-subtitle   ─┤  readable at 3.7s and the
-     4150  .hero-cta-row    ─┘  entrance finishes at 4950ms.
+     1300  #navbar          ─┐
+     1350  .eyebrow           │
+     1375  .hero-title       │  all four land by 1.8s,
+     1475  the title's words ─┤  so the first screen is fully
+     1850  .hero-subtitle   ─┤  readable at ~1.85s and the
+     2075  .hero-cta-row    ─┘  entrance finishes at ~2475ms.
 
    EVERY DELAY BELOW IS MULTIPLIED BY `--intro-speed`. That one multiplier is how
    a visitor who ends the entrance early still gets an arrival rather than a
    jump: js/intro.js sets it to 0.18 on an early exit, so the whole schedule
-   compresses to about 900ms from the moment they pressed Skip — answered at the
+   compresses to about 800ms from the moment they pressed Skip — answered at the
    speed of the gesture, not stopped dead and not re-run in full. At 1 it is the
-   authored five seconds. */
+   authored ~2.5 seconds. */
 :root {
   --load-blur: 14px;
   --intro-speed: 1;
@@ -1152,16 +1152,16 @@ html.intro-restart [data-load-reveal],
 html.intro-restart .word-reveal { animation: none !important; }
 
 [data-load-reveal] {
-  animation: load-rise 800ms var(--ease-out-quint) both;
+  animation: load-rise 400ms var(--ease-out-quint) both;
 }
-[data-load-reveal="1"] { animation-delay: calc(2700ms * var(--intro-speed)); }
-[data-load-reveal="2"] { animation-delay: calc(2700ms * var(--intro-speed)); }
-[data-load-reveal="3"] { animation-delay: calc(3700ms * var(--intro-speed)); }
-[data-load-reveal="4"] { animation-delay: calc(4150ms * var(--intro-speed)); }
-[data-load-reveal="5"] { animation-delay: calc(2600ms * var(--intro-speed)); }
+[data-load-reveal="1"] { animation-delay: calc(1350ms * var(--intro-speed)); }
+[data-load-reveal="2"] { animation-delay: calc(1350ms * var(--intro-speed)); }
+[data-load-reveal="3"] { animation-delay: calc(1850ms * var(--intro-speed)); }
+[data-load-reveal="4"] { animation-delay: calc(2075ms * var(--intro-speed)); }
+[data-load-reveal="5"] { animation-delay: calc(1300ms * var(--intro-speed)); }
 
 .hero-title[data-load-reveal] {
-  animation: load-fade 700ms var(--ease-out-quint) calc(2750ms * var(--intro-speed)) both;
+  animation: load-fade 350ms var(--ease-out-quint) calc(1375ms * var(--intro-speed)) both;
 }
 
 /* ---- the headline's words ------------------------------------------------
@@ -1171,39 +1171,39 @@ html.intro-restart .word-reveal { animation: none !important; }
    js/motion-fx.js runs and they will still not appear until their own delay has
    elapsed, with no timer in JavaScript holding them there.
 
-   Staggered per LINE (200ms) and, within a line, per word (120ms) — so the
+   Staggered per LINE (100ms) and, within a line, per word (60ms) — so the
    headline walks down the screen the way it reads, rather than all three lines
    arriving as one slab. `.hero-title-line` is the child index; `.word-reveal`
    is the child index inside it. Every term is multiplied by `--intro-speed` so
    a skip compresses the whole cascade, not just its first step. */
 .hero-title .word-reveal.is-visible {
-  animation-delay: calc(2950ms * var(--intro-speed));
+  animation-delay: calc(1475ms * var(--intro-speed));
 }
 .hero-title-line:nth-child(2) .word-reveal.is-visible {
-  animation-delay: calc((2950ms + 200ms) * var(--intro-speed));
+  animation-delay: calc((1475ms + 100ms) * var(--intro-speed));
 }
 .hero-title-line:nth-child(3) .word-reveal.is-visible {
-  animation-delay: calc((2950ms + 400ms) * var(--intro-speed));
+  animation-delay: calc((1475ms + 200ms) * var(--intro-speed));
 }
 .hero-title-line .word-reveal:nth-child(2).is-visible {
-  animation-delay: calc((2950ms + 120ms) * var(--intro-speed));
+  animation-delay: calc((1475ms + 60ms) * var(--intro-speed));
 }
 .hero-title-line:nth-child(2) .word-reveal:nth-child(2).is-visible {
-  animation-delay: calc((2950ms + 320ms) * var(--intro-speed));
+  animation-delay: calc((1475ms + 160ms) * var(--intro-speed));
 }
 .hero-title-line:nth-child(3) .word-reveal:nth-child(2).is-visible {
-  animation-delay: calc((2950ms + 520ms) * var(--intro-speed));
+  animation-delay: calc((1475ms + 260ms) * var(--intro-speed));
 }
 .hero-title-line:nth-child(3) .word-reveal:nth-child(3).is-visible {
-  animation-delay: calc((2950ms + 640ms) * var(--intro-speed));
+  animation-delay: calc((1475ms + 320ms) * var(--intro-speed));
 }
 /* The fourth word of the third line — "Place." — needs its own rule, because a
    `.word-reveal` with no `nth-child` of its own falls back to the LINE's delay
-   and therefore lands 240ms ahead of the two words before it. The headline was
+   and therefore lands 120ms ahead of the two words before it. The headline was
    arriving bottom-up inside one line, which is exactly the sort of thing that
    reads as "the animation is broken" rather than "the animation is designed". */
 .hero-title-line:nth-child(3) .word-reveal:nth-child(4).is-visible {
-  animation-delay: calc((2950ms + 760ms) * var(--intro-speed));
+  animation-delay: calc((1475ms + 380ms) * var(--intro-speed));
 }
 
 /* The transition that the same class also triggers, with no delay of its own:
@@ -1234,7 +1234,7 @@ html.reveal-all [data-load-reveal] {
   filter: none !important;
 }
 /* Reduced motion: no travel, no blur, no stagger — the hero is simply there.
-   The five seconds belong to css/intro.css, which skips the overlay entirely
+   The ~2.5 seconds belong to css/intro.css, which skips the overlay entirely
    under this class rather than shortening it. */
 html.motion-reduced [data-load-reveal] {
   animation: none !important;
@@ -1468,7 +1468,7 @@ html.reveal-all :is(.reveal, [data-reveal], .rv) {
    finishes inside the outer one rather than finishing after it, which would
    leave the header at 60% opacity for a frame longer than everything else. */
 html.js #navbar > .shell {
-  animation: tl-fade 600ms var(--ease-out-quint) calc(2600ms * var(--intro-speed)) both;
+  animation: tl-fade 300ms var(--ease-out-quint) calc(1300ms * var(--intro-speed)) both;
 }
 
 /* Mobile menu links cascade in. */
@@ -1611,12 +1611,12 @@ html.motion-reduced #page-transition { transition: opacity 150ms linear; }
 
 /* ===== intro.css ========================================================= */
 /* =============================================================================
-   INTRO OVERLAY — the five seconds before the page exists
+   INTRO OVERLAY — the ~2.5 seconds before the page exists
    -----------------------------------------------------------------------------
    THE SKIN ONLY. The timeline, the progress maths, the skip paths and the
    handover belong to js/intro.js. This file draws an instrument panel booting:
    a wordmark, a 2px phosphor rail, a tabular counter and a status line — which
-   is the page's own metaphor, and the reason the five seconds read as a system
+   is the page's own metaphor, and the reason the ~2.5 seconds read as a system
    coming up rather than as a spinner in front of a blank screen.
 
    WHY IT IS IN ITS OWN FILE. css/animations.css is the motion system's rulebook
@@ -1646,12 +1646,12 @@ html.motion-reduced #page-transition { transition: opacity 150ms linear; }
      about how long the entrance is. `--intro-total` is also what the module's
      hard failsafe waits on, so a page whose module never boots still releases
      on the same schedule the design says it should. */
-  --intro-total: 5000ms;
+  --intro-total: 2500ms;
   /* When the overlay starts lifting. The hero choreography is authored to begin
      just after this, so the page is already arriving underneath the last of
      the fade instead of appearing in a hard cut at the end of it. */
-  --intro-handover: 2500ms;
-  --intro-exit: 600ms;
+  --intro-handover: 1250ms;
+  --intro-exit: 300ms;
 
   /* Blur radii. The entrance blurs; nothing on this page blurs at rest. Kept
      modest on purpose — a large-radius blur on a full-viewport layer is a
@@ -1702,7 +1702,7 @@ html.motion-reduced #page-transition { transition: opacity 150ms linear; }
    stylesheet is even requested.
 
    `height: 100%` is deliberately NOT set here. The hero is sized in `svh`, so
-   pinning the root's height for five seconds re-resolves the hero's height twice
+   pinning the root's height for ~2.5 seconds re-resolves the hero's height twice
    — once at the lock, once at the handover — for a benefit (bouncing) that
    `overscroll-behavior: none` already covers. */
 
@@ -1833,20 +1833,7 @@ html.intro-done #intro-overlay,
   transform: translateY(10px) scale(0.96);
 }
 html.intro-active .intro-logo {
-  animation: intro-mark 900ms var(--ease-out-quint) 260ms both;
-}
-
-.intro-logo__dot {
-  width: 8px;
-  height: 8px;
-  flex: 0 0 8px;
-  border-radius: var(--radius-badges);
-  background: var(--color-phosphor-mint);
-  /* The one loop on this screen. It is 6s rather than the old 900ms: this is
-     the only motion visible for the whole five seconds, and a fast blink for
-     five seconds is exactly the thing the loop budget in animations.css exists
-     to prevent. */
-  animation: tl-pulse 6s var(--ease-in-out) infinite;
+   animation: intro-mark 450ms var(--ease-out-quint) 130ms both;
 }
 
 .intro-wordmark {
@@ -1877,7 +1864,7 @@ html.intro-active .intro-logo {
   transform: translateY(6px);
 }
 html.intro-active .intro-rail {
-  animation: intro-fade-up 600ms var(--ease-out-quint) 700ms both;
+   animation: intro-fade-up 300ms var(--ease-out-quint) 350ms both;
 }
 
 .intro-rail__fill {
@@ -1907,7 +1894,7 @@ html.intro-active .intro-rail {
   transform: translateY(6px);
 }
 html.intro-active .intro-meta {
-  animation: intro-fade-up 600ms var(--ease-out-quint) 900ms both;
+   animation: intro-fade-up 300ms var(--ease-out-quint) 450ms both;
 }
 
 .intro-counter {
@@ -1950,7 +1937,7 @@ html.intro-active .intro-meta {
               color var(--duration-fast) var(--ease-out-quint);
 }
 html.intro-active #intro-skip {
-  animation: intro-fade-up 600ms var(--ease-out-quint) 1300ms both;
+   animation: intro-fade-up 300ms var(--ease-out-quint) 650ms both;
 }
 #intro-skip:hover,
 #intro-skip:focus-visible {
@@ -2004,13 +1991,13 @@ html.intro-active #intro-skip {
    SKIPPED — the visitor's answer to the whole thing
    ----------------------------------------------------------------------------
    One multiplier, read by every delay in css/animations.css. At 1 it is the
-   authored five seconds; at 0.18 the hero's schedule is 468ms/486ms/495ms/
-   531ms…747ms with its own durations, which lands the whole first screen about
-   900ms after the press — long enough to still read as an arrival, short enough
+   authored ~2.5 seconds; at 0.18 the hero's schedule is 234ms/243ms/248ms/266ms…374ms
+   with its own durations, which lands the whole first screen about 800ms after
+   the press — long enough to still read as an arrival, short enough
    that the page is answering the gesture that was just made.
 
    It compresses rather than cancels because the hero has NOT started yet at that
-   point: every one of its delays is later than the overlay's handover at 2.5s,
+   point: every one of its delays is later than the overlay's handover at 1.25s,
    so while the overlay is up the hero is sitting in the from-state of its `both`
    fill and a shorter schedule simply means it begins sooner. js/intro.js checks
    exactly that window before applying it, and re-applying it after the hero is
@@ -2057,10 +2044,10 @@ html.intro-active #page-transition,
    There is no OS path to it. See css/animations.css for the full decision
    record.
 
-   THE WHOLE OVERLAY, INCLUDING THE FIVE SECONDS OF WAITING, IS REMOVED. Not
+   THE WHOLE OVERLAY, INCLUDING THE ~2.5 SECONDS OF WAITING, IS REMOVED. Not
    shortened, not faded — gone. A person who has said "less motion" has also
    been told, in plain terms, that this page shows them a loading screen for
-   five seconds every time they visit. Making them wait through a condensed
+   ~2.5 seconds every time they visit. Making them wait through a condensed
    version of the thing they declined is not respecting the preference.
 
    The inline <head> bootstrap also skips adding `intro-active` in that case, so
@@ -4489,11 +4476,22 @@ html.motion-reduced .hero-chip { transform: none; }
    clip-path (compositor-only, so dragging never janks), and the divider is a
    real <input type="range"> so it is keyboard-operable for free — the visible
    pill is a label for that input, not a drag handle. */
+/* Registers the comparison position so the one-time sweep can interpolate it.
+   Without @property a custom property animates as a discrete step, which is
+   the whole effect missing. Browsers without @property still get the slider;
+   they just skip the sweep. */
+@property --ba {
+  syntax: "<percentage>";
+  inherits: true;
+  initial-value: 52%;
+}
+
 /* `width: 100%` is explicit because `.ba` is a flex child of `.card`; flex
    items default to `align-self: stretch` on the cross axis but their MAIN size
    comes from `flex-basis: auto`, so without this a card narrower than the
    frame would shrink it. */
 .ba {
+  --ba: 52%;
   position: relative;
   width: 100%;
   max-width: 100%;
@@ -4510,20 +4508,42 @@ html.motion-reduced .hero-chip { transform: none; }
     linear-gradient(180deg, rgba(20, 20, 24, 0.4), rgba(20, 20, 24, 0.9)),
     repeating-linear-gradient(0deg, rgba(255, 255, 255, 0.028) 0 1px, transparent 1px 4px);
 }
-/* Both halves paint the same synthetic frame; only the filter differs, so the
-   comparison is honest about what changed. */
+/* Both halves paint the same image; only the filter differs, so the comparison
+   is honest about what changed. The gradients stay underneath as the frame's
+   ground while the WebP decodes. */
 .ba__layer {
   position: absolute;
   inset: 0;
+  pointer-events: none;
   background-image:
     radial-gradient(120% 90% at 30% 20%, #2a2f3d 0%, #13151b 55%, #0b0c10 100%),
     linear-gradient(115deg, transparent 38%, rgba(166, 229, 242, 0.14) 50%, transparent 62%);
 }
-.ba__before { filter: blur(2.4px) saturate(0.7) contrast(0.86); }
-.ba__after {
-  clip-path: inset(0 calc(100% - var(--ba, 50%)) 0 0);
-  filter: blur(0) saturate(1) contrast(1);
+.ba__img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: 50% 45%;
 }
+/* The left half is the upload as it arrived: softer, flatter, and scaled up a
+   little so the blur does not leave a transparent fringe at the frame edge. */
+.ba__before {
+  transform: scale(1.06);
+  filter: blur(clamp(5px, 1.2vw, 9px)) saturate(0.65) contrast(0.88) brightness(0.95);
+}
+/* BEFORE is left, AFTER is right. The old expression clipped from the right,
+   which put the sharp half on the left under the "Before" label. */
+.ba__after {
+  clip-path: inset(0 0 0 var(--ba, 50%));
+}
+/* One-time reveal when the card first arrives. The custom property is
+   registered above, so this is a real interpolation rather than a jump. */
+@keyframes ba-sweep {
+  from { --ba: 100%; }
+  to   { --ba: 52%; }
+}
+.ba.is-sweeping { animation: ba-sweep 900ms var(--ease-out-quint) both; }
 /* The labels are mono micro-type on the frame itself, as on a scope. */
 /* 12px floor (brief §7). The tags sit ON the frame, so the padding shrinks to
    keep the 12px glyphs from crowding the corners of a 16/10 frame that is only
@@ -4621,10 +4641,10 @@ html.motion-reduced .hero-chip { transform: none; }
   background: transparent;
 }
 
-/* Caption strip under the comparison: the resolution claim, as numbers. */
-/* 12px floor (brief §7); `wrap` so "540p in → 1080p out" cannot overflow a
-   narrow card — measured at 165px of content inside a 190px card at 320px,
-   which is a margin, not a guarantee. */
+/* Caption strip under the comparison: the ghost-frame claim, as numbers. */
+/* 12px floor (brief §7); `wrap` so "+10 ghost frames → less re-compression"
+   cannot overflow a narrow card — measured at 165px of content inside a 190px
+   card at 320px, which is a margin, not a guarantee. */
 .ba__stats {
   display: flex;
   flex-wrap: wrap;
@@ -6262,7 +6282,7 @@ html.motion-reduced .section-bg *::after { animation-play-state: paused !importa
   color: var(--color-ash);
 }
 .mock-hd__file { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-/* Both resolutions share one cell so the crossfade cannot move anything. */
+/* Both labels share one cell so the crossfade cannot move anything. */
 .mock-hd__label { position: relative; flex: none; display: grid; }
 .mock-hd__res {
   grid-area: 1 / 1;

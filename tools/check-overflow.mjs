@@ -141,7 +141,7 @@ async function measure(ctx, page, w, h) {
      `position: fixed` (so it is filtered out of the offender scan anyway) and it
      does not change a single box on the page. What it does change, now that the
      entrance holds a real scroll lock, is the sweep below — `window.scrollTo`
-     inside the first five seconds is cancelled, the unvisited sections stay
+     inside the first ~2.5 seconds is cancelled, the unvisited sections stay
      unvisited, and the measurement silently becomes a measurement of the first
      screen at every width. Waiting for the entrance instead would cost five
      seconds × 144 navigations, so `?intro=off` is the cheaper half of the same

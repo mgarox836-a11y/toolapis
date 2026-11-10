@@ -28,7 +28,7 @@
  *   - while the entrance still owns the screen, `scrollY` is 0 — the lock holds.
  *     A scrollbar drag is the one exception the spec allows: it may move the
  *     document, and it must come back and not blank.
- *   - the entrance is 5.0s ± 0.15s, CLS < 0.02, and zero console errors.
+ *   - the entrance is 2.5s ± 0.15s, CLS < 0.02, and zero console errors.
  *
  * It is validated against the defect, not only against the fix — see HANDOFF.md.
  * ==========================================================================*/
@@ -65,7 +65,7 @@ const wait = (ms) => new Promise((r) => setTimeout(r, ms));
    And it keeps the two timings this file already treats as the interesting ones
    (`worst`, below: the one before the entrance owns the screen, and the one
    immediately after it stops). `extras()` runs in BOTH modes — that is where the
-   invariants are: the 5.0s ± 0.15s entrance, all four Skip paths, both
+   invariants are: the 2.5s ± 0.15s entrance, all four Skip paths, both
    re-refreshes, bfcache, the hidden tab, `?intro=off`, a deep link and motion. */
 const FULL = has('full');
 const QUICK_INPUTS = ['wheel', 'space', 'end', 'dragscroll'];
@@ -221,7 +221,7 @@ async function newContext(browser, kind, extra) {
    Read from the animations themselves, not from "is the opacity over 0.99":
    `load-rise` is `ease-out-quint`, so it is visually indistinguishable from its
    end state while it is still running, and a threshold would have called a 4.0s
-   entrance a 5.0s one. An animation counts as done when it is not running, or
+   entrance a 2.5s one. An animation counts as done when it is not running, or
    when it is one of the page's deliberate infinite loops — those are motion, not
    a schedule, and they never finish. */
 const SETTLED = () => {
@@ -250,7 +250,7 @@ const OVER = () => document.documentElement.classList.contains('intro-done')
 
 /* The end of the *phase*, not the end of the teardown: the overlay has stopped
    owning the screen the moment `intro-active` comes off, and the exit fade that
-   follows is 600ms of decoration. "How fast does Skip work" is the first of
+   follows is 300ms of decoration. "How fast does Skip work" is the first of
    those two numbers; `OVER` is the second, and the guarantee the brief makes is
    about the first. */
 const HANDOVER = () => !document.documentElement.classList.contains('intro-active')
@@ -372,17 +372,17 @@ async function one(browser, kind, input, t, vw) {
 /* The scenarios that are not "an input at a time". Each is the whole point of
    one of the layers, so each gets its own assertions. */
 async function extras(browser) {
-  /* --- 1. the entrance, untouched: 5.0s ± 0.15s, and it lands ------------ */
+  /* --- 1. the entrance, untouched: 2.5s ± 0.15s, and it lands ------------ */
   {
     const { ctx, page, errors } = await newContext(browser, 'desktop');
     try {
       await page.goto(BASE, { waitUntil: 'domcontentloaded' });
       await page.waitForFunction(() => document.documentElement.classList.contains('intro-active'), null, { timeout: 6000 });
-      /* The entrance is 5 seconds END TO END, and the overlay is only the first
-         3.1 of them: the hero's own choreography is authored against the same
-         zero and its last block lands at 4950ms. So "did the entrance last five
+      /* The entrance is ~2.5 seconds END TO END, and the overlay is only the first
+         ~1.55 of them: the hero's own choreography is authored against the same
+         zero and its last block lands at ~2475ms. So "did the entrance last ~2.5
          seconds" is answered by the LAST HERO BLOCK, not by the overlay
-         disappearing — measuring the overlay would have called a 3.3s entrance
+         disappearing — measuring the overlay would have called a ~1.85s entrance
          a pass.
 
          And it is measured on the PAGE'S clock, not the tool's: `startTime` and
@@ -400,7 +400,7 @@ async function extras(browser) {
          `animation-delay`, and the animation is created by js/motion-fx.js when
          it boots — about 750ms after first paint. Their delays are therefore
          measured from there, not from the page's zero. The entrance's authored
-         clock is `--intro-total: 5000ms` and the five hero blocks run to 4950ms
+         clock is `--intro-total: 2500ms` and the five hero blocks run to ~2475ms
          of it; that is what is being asserted, and the words are separately
          required to have landed before any screenshot is taken (`SETTLED`). */
       const ms = await page.waitForFunction(() => {
@@ -423,7 +423,7 @@ async function extras(browser) {
         if (!Number.isFinite(first) || !Number.isFinite(last)) return false;
         return running ? false : Math.round(last - first);
       }, null, { timeout: 15000 }).then((h) => h.jsonValue()).catch(() => -1);
-      check('[intro] the entrance runs 5.0s ± 0.15s end to end', Math.abs(ms - 5000) <= 150, ms + 'ms');
+      check('[intro] the entrance runs 2.5s ± 0.15s end to end', Math.abs(ms - 2500) <= 150, ms + 'ms');
       const blocks = await page.evaluate(() => document.querySelectorAll('[data-load-reveal]').length);
       await page.waitForFunction(OVER, null, { timeout: 6000 }).catch(() => {});
       notes.push(`entrance ${ms}ms end to end on the page clock, ${blocks} hero blocks`);
@@ -443,8 +443,8 @@ async function extras(browser) {
       if (how === 'button') {
         /* `force: true` and the reason is worth writing down. Playwright's
            actionability check refuses to click anything whose box changes
-           between two frames, and this button is mid-`intro-fade-up` for 600ms
-           after a 1300ms delay — so a plain `.click()` here spends its whole
+           between two frames, and this button is mid-`intro-fade-up` for 300ms
+           after a 650ms delay — so a plain `.click()` here spends its whole
            budget retrying and reports a timeout that has nothing to do with the
            entrance. The gesture is what is under test, not Playwright's
            readiness heuristics, and `force` still dispatches a real press
@@ -509,7 +509,7 @@ async function extras(browser) {
   }
 
   /* --- 4. bfcache: Back, then Forward -------------------------------------
-     A restored page must not replay a five-second entrance in the middle of
+     A restored page must not replay a ~2.5-second entrance in the middle of
      itself, and must not come back with `intro-active` still on <html>. */
   {
     const { ctx, page, errors } = await newContext(browser, 'desktop');
@@ -675,7 +675,7 @@ async function extras(browser) {
   }
 
   /* --- 6. `?intro=off`, and a deep link ------------------------------------
-     Both skip the overlay; neither of them skips the hero's own 5s arrival,
+     Both skip the overlay; neither of them skips the hero's own ~2.5s arrival,
      which is authored on the same clock and is `both`-filled, so the page is
      deliberately not finished when the entrance panel would have been. The
      waits here are for the choreography, not for the panel — reading opacity

@@ -1,5 +1,5 @@
 /* ============================================================================
- * intro.js — TOOLAPIS · the five seconds before the page exists
+ * intro.js — TOOLAPIS · the ~2.5 seconds before the page exists
  * ----------------------------------------------------------------------------
  * js/intro.js is a TIMELINE. css/intro.css is the skin. Neither owns the other:
  * the numbers live in CSS custom properties on `:root` and this module reads
@@ -18,7 +18,7 @@
  *   that follows it — belongs to the inline <head> bootstrap in index.html,
  *   which exposes it as `window.__tlIntro.finishIntro`. That split is the whole
  *   safety argument: if this module never executes — CDN down, a syntax error,
- *   an exception during import — the bootstrap's own 5.8s timer still releases
+ *   an exception during import — the bootstrap's own ~3.5s timer still releases
  *   everything, because the failure mode of the alternative is a full-viewport
  *   layer over a page with a background that cannot be focused or clicked.
  *
@@ -32,7 +32,7 @@
  * ----------------------------------------------------------------------------
  * It is not waiting for anything. No asset is being fetched, no module is being
  * parsed, and the page behind it is already in the DOM and already laid out.
- * Those five seconds are choreography, and choreography that cannot be
+ * Those ~2.5 seconds are choreography, and choreography that cannot be
  * interrupted is a prison. So there is exactly one thing the visitor has to do
  * to end it early, and then everything else ends it too: pressing Esc, Enter or
  * Space, clicking the panel, tapping it, or pressing the Skip button. Somebody
@@ -48,7 +48,7 @@
  * gesture after it scrolled, since the same gesture is what releases the lock.
  * So the visitor got a document moving under a panel that was halfway out, with
  * the hero's schedule compressed underneath it. Scrolling is now locked, not
- * honoured: a visitor who scrolls during the entrance gets nothing for five
+ * honoured: a visitor who scrolls during the entrance gets nothing for ~2.5
  * seconds and a normal page afterwards, which is what "I pressed the key too
  * early" should mean. The Skip control is right there and says what it does.
  *
@@ -88,7 +88,7 @@
 /* The authored schedule, read off `:root` where css/intro.css keeps it. These
    are the fallbacks for an engine that will not hand back a computed custom
    property, and the only case in which the two halves could disagree. */
-const FALLBACK = { total: 5000, handover: 2500, exit: 600 };
+const FALLBACK = { total: 2500, handover: 1250, exit: 300 };
 
 function cssMs(name, fallback) {
   try {
@@ -100,7 +100,7 @@ function cssMs(name, fallback) {
   }
 }
 
-/* Read ONCE, at boot. A `getComputedStyle` call on every frame of a five-second
+/* Read ONCE, at boot. A `getComputedStyle` call on every frame of a ~2.5-second
    animation is 300 style resolutions spent on a number that cannot change. */
 const clock = {
   total: FALLBACK.total,
@@ -187,9 +187,9 @@ const el = {
 /**
  * THE READOUT'S WINDOW IS THE OVERLAY'S OWN, NOT THE WHOLE ENTRANCE.
  *
- * The rail and the counter are on the overlay, and the overlay is gone at 3.1s
- * while the entrance runs to 5s. Measuring them against `--intro-total` would
- * mean they stop dead at 62% with the rail half empty and the counter frozen —
+ * The rail and the counter are on the overlay, and the overlay is gone at ~1.55s
+ * while the entrance runs to ~2.5s. Measuring them against `--intro-total` would
+ * mean they stop dead at 50% with the rail half empty and the counter frozen —
  * which reads as a broken progress bar, not as a deliberate handover. So they
  * measure `--intro-handover`: the overlay's boot completes, the rail fills, the
  * counter reaches its end, and the panel lifts. The rail is full exactly when
@@ -202,7 +202,7 @@ function paint(now) {
   const p = span > 0 ? Math.min(1, Math.max(0, (now - t0) / span)) : 1;
 
   /* scaleX, not width: a width change relayouts the rail on every frame for
-     five seconds, and a transform is composited. */
+     ~2.5 seconds, and a transform is composited. */
   if (el.fill) {
     try { el.fill.style.transform = 'scaleX(' + p.toFixed(4) + ')'; } catch (e) {}
   }
@@ -337,7 +337,7 @@ function finish(reason, early) {
      flight, and rescaling their delays now would replay the arrival of the two
      that had finished.
 
-     Wrapped, because a page whose entrance is 900ms instead of 5s is a page
+     Wrapped, because a page whose entrance is ~800ms instead of ~2.5s is a page
      that works, and a page still wearing its loading panel is not. */
   if (early) {
     try {
@@ -381,7 +381,7 @@ function neverPainted() {
 }
 
 /**
- * Compress the hero's schedule to 18% — about 900ms — and restart it.
+ * Compress the hero's schedule to 18% — about 800ms — and restart it.
  *
  * Two steps, and the second is the one that matters. The class alone would
  * change `animation-delay` on an animation that has been running since first
@@ -530,7 +530,7 @@ function boot() {
   t0 = performance.now() - firstPaintOffset();
 
   /* A page restored mid-document is not an entrance, it is a restoration.
-     Landing the visitor 4000px down and then pinning them to the top for five
+     Landing the visitor 4000px down and then pinning them to the top for ~2.5
      seconds is precisely the behaviour this module exists to avoid. */
   try {
     if (window.scrollY > 0 || window.scrollX > 0) window.scrollTo(0, 0);
@@ -544,22 +544,22 @@ function boot() {
   /* THE SCHEDULE, in two beats.
 
      The handover at `--intro-handover` is the real one: the overlay starts
-     lifting at 2.5s and the hero is already arriving underneath it, which is
-     what makes the whole thing read as one continuous five seconds rather than
+     lifting at 1.25s and the hero is already arriving underneath it, which is
+     what makes the whole thing read as one continuous ~2.5 seconds rather than
      a splash screen followed by a page.
 
      It is scheduled against `elapsed()`, not against `clock.handover` flat,
      because this function runs some hundreds of milliseconds after the page's
      zero — a module is deferred, and everything above it on the page is
-     something the browser fetched first. Scheduling the raw 2500ms from here put
-     the handover at 3.0s and the finished entrance at five and a third, which
+     something the browser fetched first. Scheduling the raw 1250ms from here put
+     the handover at ~1.75s and the finished entrance at ~3s, which
      is not the number the design says and which nobody could have named as the
      cause. Subtracting what has already elapsed puts the handover back on the
      page's clock, where `firstPaintOffset` put it.
 
      The beat at `--intro-total` is the ceiling, and it exists because the
      handover is scheduled in JavaScript and JavaScript schedules are not
-     promises. It is two and a half seconds late on purpose: arriving late is
+     promises. It is 1.25 seconds late on purpose: arriving late is
      free, arriving early would be a bug. */
   scheduleId = setTimeout(() => finish('timed', false), Math.max(0, clock.handover - elapsed()));
 

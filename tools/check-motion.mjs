@@ -69,9 +69,9 @@ const settle = async (page, ms = 900) => {
 /**
  * Wait for the entrance to be over.
  *
- * The page now holds the screen for five seconds on every load: an overlay from
- * first paint, a scroll lock until 2.5s, and the hero's own blocks arriving on
- * a schedule that runs to ~5s. Any assertion that scrolls, clicks, or reads the
+ * The page now holds the screen for ~2.5 seconds on every load: an overlay from
+ * first paint, a scroll lock until 1.25s, and the hero's own blocks arriving on
+ * a schedule that runs to ~2.5s. Any assertion that scrolls, clicks, or reads the
  * hero's opacity has to say whether it is testing THAT or testing the page, and
  * this is how it says "the page" — without it, every one of those assertions is
  * really asserting that the entrance is over, and fails for the wrong reason on
@@ -177,7 +177,7 @@ for (const dev of DEVICES) {
     /* ---- THE ENTRANCE, part 1: it is on screen before anything else ----
        Sampled immediately, BEFORE `settle`. Every other assertion in this file
        runs after the entrance and therefore cannot see it; this one is the only
-       place the first 2.5 seconds of the page are observed at all, and the only
+       place the first 1.25 seconds of the page are observed at all, and the only
        thing it can honestly assert there is the one that matters to a visitor —
        there is a screen between them and the content, and it has an exit. */
     const opening = await page.evaluate(async () => {
@@ -263,7 +263,7 @@ for (const dev of DEVICES) {
       after.scrollY === 0, `scrollY=${after.scrollY}`);
 
     /* ---- THE ENTRANCE, part 3: the hero really landed ----
-       Polled, because the entrance runs to five seconds and this check fires
+       Polled, because the entrance runs to ~2.5 seconds and this check fires
        several seconds into the page's life by which time the hero is usually —
        but not always — finished. It used to be a single read of a value that
        used to settle inside 550ms; sampling it once is how this assertion ends
@@ -811,7 +811,7 @@ if (!SKIP_FPS) {
     await offC.ctx.close();
 
     const onC = await open(browser, { ...dev, reducedMotion: 'reduce' });
-    /* The entrance holds the scroll lock for the first 2.5 seconds, and
+    /* The entrance holds the scroll lock for the first 1.25 seconds, and
        `scrollFps` scrolls. Measuring it across a locked document measures the
        cost of not scrolling — a number that would look excellent and mean
        nothing. */
@@ -917,7 +917,7 @@ if (!SKIP_FPS) {
 
   /* The entrance, with motion off. This is the assertion that keeps the policy
      honest: the overlay is not shortened with motion off, it is ABSENT, because
-     someone who has been told this page shows them a five-second loading screen
+     someone who has been told this page shows them a ~2.5-second loading screen
      every visit does not want a faster one — they want none of it. The check is
      on the whole first three seconds, not on the end state, because the end
      state is identical either way and therefore proves nothing. */

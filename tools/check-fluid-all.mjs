@@ -47,7 +47,7 @@
  *
  * THE ENTRANCE
  *
- * The page holds a five-second panel over the viewport on every load, so every
+ * The page holds a ~2.5-second panel over the viewport on every load, so every
  * measurement here waits for `intro-done` — the terminal state, written by the
  * <head> bootstrap AND by js/intro.js, whichever survives. A page whose entrance
  * is broken still measures; it just measures early. The wait is bounded.

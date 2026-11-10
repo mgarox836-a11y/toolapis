@@ -742,7 +742,7 @@ html.motion-reduced .section-bg *::after { animation-play-state: paused !importa
   color: var(--color-ash);
 }
 .mock-hd__file { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-/* Both resolutions share one cell so the crossfade cannot move anything. */
+/* Both labels share one cell so the crossfade cannot move anything. */
 .mock-hd__label { position: relative; flex: none; display: grid; }
 .mock-hd__res {
   grid-area: 1 / 1;

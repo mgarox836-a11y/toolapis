@@ -1,10 +1,10 @@
 /* =============================================================================
-   INTRO OVERLAY — the five seconds before the page exists
+   INTRO OVERLAY — the ~2.5 seconds before the page exists
    -----------------------------------------------------------------------------
    THE SKIN ONLY. The timeline, the progress maths, the skip paths and the
    handover belong to js/intro.js. This file draws an instrument panel booting:
    a wordmark, a 2px phosphor rail, a tabular counter and a status line — which
-   is the page's own metaphor, and the reason the five seconds read as a system
+   is the page's own metaphor, and the reason the ~2.5 seconds read as a system
    coming up rather than as a spinner in front of a blank screen.
 
    WHY IT IS IN ITS OWN FILE. css/animations.css is the motion system's rulebook
@@ -34,12 +34,12 @@
      about how long the entrance is. `--intro-total` is also what the module's
      hard failsafe waits on, so a page whose module never boots still releases
      on the same schedule the design says it should. */
-  --intro-total: 5000ms;
+  --intro-total: 2500ms;
   /* When the overlay starts lifting. The hero choreography is authored to begin
      just after this, so the page is already arriving underneath the last of
      the fade instead of appearing in a hard cut at the end of it. */
-  --intro-handover: 2500ms;
-  --intro-exit: 600ms;
+  --intro-handover: 1250ms;
+  --intro-exit: 300ms;
 
   /* Blur radii. The entrance blurs; nothing on this page blurs at rest. Kept
      modest on purpose — a large-radius blur on a full-viewport layer is a
@@ -90,7 +90,7 @@
    stylesheet is even requested.
 
    `height: 100%` is deliberately NOT set here. The hero is sized in `svh`, so
-   pinning the root's height for five seconds re-resolves the hero's height twice
+   pinning the root's height for ~2.5 seconds re-resolves the hero's height twice
    — once at the lock, once at the handover — for a benefit (bouncing) that
    `overscroll-behavior: none` already covers. */
 
@@ -221,20 +221,7 @@ html.intro-done #intro-overlay,
   transform: translateY(10px) scale(0.96);
 }
 html.intro-active .intro-logo {
-  animation: intro-mark 900ms var(--ease-out-quint) 260ms both;
-}
-
-.intro-logo__dot {
-  width: 8px;
-  height: 8px;
-  flex: 0 0 8px;
-  border-radius: var(--radius-badges);
-  background: var(--color-phosphor-mint);
-  /* The one loop on this screen. It is 6s rather than the old 900ms: this is
-     the only motion visible for the whole five seconds, and a fast blink for
-     five seconds is exactly the thing the loop budget in animations.css exists
-     to prevent. */
-  animation: tl-pulse 6s var(--ease-in-out) infinite;
+   animation: intro-mark 450ms var(--ease-out-quint) 130ms both;
 }
 
 .intro-wordmark {
@@ -265,7 +252,7 @@ html.intro-active .intro-logo {
   transform: translateY(6px);
 }
 html.intro-active .intro-rail {
-  animation: intro-fade-up 600ms var(--ease-out-quint) 700ms both;
+   animation: intro-fade-up 300ms var(--ease-out-quint) 350ms both;
 }
 
 .intro-rail__fill {
@@ -295,7 +282,7 @@ html.intro-active .intro-rail {
   transform: translateY(6px);
 }
 html.intro-active .intro-meta {
-  animation: intro-fade-up 600ms var(--ease-out-quint) 900ms both;
+   animation: intro-fade-up 300ms var(--ease-out-quint) 450ms both;
 }
 
 .intro-counter {
@@ -338,7 +325,7 @@ html.intro-active .intro-meta {
               color var(--duration-fast) var(--ease-out-quint);
 }
 html.intro-active #intro-skip {
-  animation: intro-fade-up 600ms var(--ease-out-quint) 1300ms both;
+   animation: intro-fade-up 300ms var(--ease-out-quint) 650ms both;
 }
 #intro-skip:hover,
 #intro-skip:focus-visible {
@@ -392,13 +379,13 @@ html.intro-active #intro-skip {
    SKIPPED — the visitor's answer to the whole thing
    ----------------------------------------------------------------------------
    One multiplier, read by every delay in css/animations.css. At 1 it is the
-   authored five seconds; at 0.18 the hero's schedule is 468ms/486ms/495ms/
-   531ms…747ms with its own durations, which lands the whole first screen about
-   900ms after the press — long enough to still read as an arrival, short enough
+   authored ~2.5 seconds; at 0.18 the hero's schedule is 234ms/243ms/248ms/266ms…374ms
+   with its own durations, which lands the whole first screen about 800ms after
+   the press — long enough to still read as an arrival, short enough
    that the page is answering the gesture that was just made.
 
    It compresses rather than cancels because the hero has NOT started yet at that
-   point: every one of its delays is later than the overlay's handover at 2.5s,
+   point: every one of its delays is later than the overlay's handover at 1.25s,
    so while the overlay is up the hero is sitting in the from-state of its `both`
    fill and a shorter schedule simply means it begins sooner. js/intro.js checks
    exactly that window before applying it, and re-applying it after the hero is
@@ -445,10 +432,10 @@ html.intro-active #page-transition,
    There is no OS path to it. See css/animations.css for the full decision
    record.
 
-   THE WHOLE OVERLAY, INCLUDING THE FIVE SECONDS OF WAITING, IS REMOVED. Not
+   THE WHOLE OVERLAY, INCLUDING THE ~2.5 SECONDS OF WAITING, IS REMOVED. Not
    shortened, not faded — gone. A person who has said "less motion" has also
    been told, in plain terms, that this page shows them a loading screen for
-   five seconds every time they visit. Making them wait through a condensed
+   ~2.5 seconds every time they visit. Making them wait through a condensed
    version of the thing they declined is not respecting the preference.
 
    The inline <head> bootstrap also skips adding `intro-active` in that case, so

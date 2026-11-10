@@ -10,6 +10,7 @@
     "check:hero-edge": "node tools/hero-edge-check.mjs",
     "check:intro-scroll": "node tools/check-intro-scroll.mjs",
     "check:intro-scroll:full": "node tools/check-intro-scroll.mjs --full",
+    "optimize:images": "node tools/optimize-images.mjs",
     "check": "npm run build:css && npm run check:css && npm run check:motion && npm run check:fluid && npm run check:hero-edge && npm run check:intro-scroll"
   },
   "dependencies": {

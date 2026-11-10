@@ -120,22 +120,50 @@ document.querySelectorAll('[data-ba]').forEach((input) => {
   if (!frame) return;
 
   const paint = () => {
-    frame.style.setProperty('--ba', input.value + '%');
+    const value = Number(input.value);
+    frame.style.setProperty('--ba', value + '%');
+    input.setAttribute('aria-valuetext', `${value}% before, ${100 - value}% after`);
   };
 
   /* `input` fires on every drag step; `change` only on release. */
-  input.addEventListener('input', paint);
+  input.addEventListener('input', () => {
+    frame.classList.remove('is-sweeping');
+    paint();
+  });
   paint();
 
   /* No transition while dragging: a lag between the thumb and the split point
      is what makes a comparison slider feel broken. */
   input.addEventListener('pointerdown', () => {
+    frame.classList.remove('is-sweeping');
     frame.classList.add('is-dragging');
   });
   const release = () => frame.classList.remove('is-dragging');
   input.addEventListener('pointerup', release);
   input.addEventListener('pointercancel', release);
   input.addEventListener('blur', release);
+
+  /* One-time reveal when the card first arrives. The CSS animation only works
+     where the custom property is registered; older browsers keep the static
+     split instead of jumping. */
+  const canSweep = window.CSS && typeof CSS.registerProperty === 'function';
+  let swept = false;
+  if (!reduceMotion && canSweep) {
+    whenVisible(frame, (visible) => {
+      if (!visible || swept || !motionAllowed()) return;
+      swept = true;
+      frame.classList.add('is-sweeping');
+      after(950, () => frame.classList.remove('is-sweeping'));
+    });
+  }
+
+  /* Motion off is the finished state: default split, no sweep. */
+  onMotionChange((allowed) => {
+    if (allowed) return;
+    frame.classList.remove('is-sweeping', 'is-dragging');
+    input.value = '52';
+    paint();
+  });
 });
 
 /* ==========================================================================
@@ -250,14 +278,14 @@ document.querySelectorAll('[data-terminal]').forEach((term) => {
    interrupt a screen reader forever.
    ========================================================================== */
 const FEED_ITEMS = [
-  { title: 'clip_0412.mp4 → 1080p', meta: 'HD Enhancer · just now',     status: 'pass', tag: 'TK' },
+  { title: 'clip_0412.mp4 +10 frames', meta: 'HD Enhancer · just now', status: 'pass', tag: 'TK' },
   { title: 'usb0 connected',        meta: 'Tethering · moments ago',     status: 'done', tag: 'USB' },
   { title: 'link shared',           meta: 'Social Hub · moments ago',    status: 'pass', tag: 'SM' },
   { title: 'clip_0388.mp4 queued',  meta: 'Enhancer · moments ago',      status: 'warn', tag: 'HD' },
   { title: 'batch of 12 clipped',   meta: 'HD Enhancer · moments ago',   status: 'pass', tag: 'TK' },
   { title: 'rndis0 detached',       meta: 'Tethering · moments ago',     status: 'warn', tag: 'USB' },
   { title: 'short link copied',     meta: 'Social Hub · moments ago',    status: 'done', tag: 'SM' },
-  { title: 'clip_0391.mp4 → 1080p', meta: 'HD Enhancer · moments ago',   status: 'pass', tag: 'TK' }
+  { title: 'clip_0391.mp4 +10 frames', meta: 'HD Enhancer · moments ago', status: 'pass', tag: 'TK' }
 ];
 
 /* How many rows are visible. Matches the four seeded in the markup, so the
