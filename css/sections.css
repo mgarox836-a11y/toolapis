@@ -140,6 +140,26 @@
   color: var(--color-fresh-grass);
 }
 
+/* Fit the visible screen.
+   On a short window the three display lines plus the eyebrow, subtitle and CTA
+   row are taller than .hero__inset's `100svh` floor, so the CTAs drop below the
+   fold and the inset's bottom corners never come into view. The headline is the
+   only part with room to give, and the block padding is the next biggest cost,
+   so both are bound to the visible height: `100svh - 470px` is what is left for
+   type once the navbar, the inset padding and the fixed copy are subtracted,
+   and the 40px floor keeps the value positive on very short windows. Tall
+   windows are untouched — there the token and the 72px padding win the
+   `clamp`/`min`. */
+@media (min-width: 901px) {
+  .hero__inset {
+    padding: min(clamp(28px, 5vw, 72px), 9svh);
+  }
+
+  .hero__title {
+    font-size: clamp(40px, (100svh - 470px) / 3.35, var(--text-display));
+  }
+}
+
 @media (max-width: 900px) {
   .hero__inset {
     min-height: auto;
