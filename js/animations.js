@@ -3,7 +3,8 @@
    -----------------------------------------------------------------------------
    Transform, opacity and the two effects the brief names explicitly (the
    squiggle's stroke and the clarity word colour). No pin, no parallax below
-   1024px, nothing at all under `prefers-reduced-motion: reduce`.
+   1024px, nothing at all while the visitor's own `.motion-reduced` switch is on
+   (js/main.js). The OS `prefers-reduced-motion` setting is not consulted.
 
    Every tween is tracked so turning motion off can undo it cleanly.
    ========================================================================== */

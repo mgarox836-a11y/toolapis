@@ -256,28 +256,10 @@ html.reveal-all .reveal {
   transform: none;
 }
 
-@media (prefers-reduced-motion: reduce) {
-  html {
-    scroll-behavior: auto;
-  }
-
-  .reveal,
-  .reveal.is-visible {
-    opacity: 1;
-    transform: none;
-    transition: none;
-  }
-
-  *,
-  *::before,
-  *::after {
-    animation-duration: 0.001ms !important;
-    animation-iteration-count: 1 !important;
-    transition-duration: 0.001ms !important;
-  }
-}
-
-/* The visitor's own switch. It survives reloads and beats the OS query. */
+/* The visitor's own switch. It survives reloads, is written by the footer
+   button, and is the ONLY thing that turns motion off: the OS
+   "prefers-reduced-motion" setting is not honoured (see the note at the top of
+   index.html), so the animation reaches every client. */
 html.motion-reduced {
   scroll-behavior: auto;
 }

@@ -10,7 +10,6 @@ import { initAnimations } from './animations.js';
 
 const doc = document.documentElement;
 const STORAGE_KEY = 'toolapis-motion';
-const reduceQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
 
 let lenis = null;
 let animations = null;
@@ -19,10 +18,6 @@ let resolveIntro = () => {};
 const introPromise = new Promise((resolve) => { resolveIntro = resolve; });
 
 const isReduced = () => doc.classList.contains('motion-reduced');
-
-function readPref() {
-  try { return localStorage.getItem(STORAGE_KEY); } catch (e) { return null; }
-}
 
 function writePref(value) {
   try { localStorage.setItem(STORAGE_KEY, value); } catch (e) {}
@@ -154,14 +149,6 @@ function initToggle() {
   btn.addEventListener('click', () => {
     applyMotion(!isReduced(), true);
   });
-
-  /* The OS preference only has a say while the visitor has not chosen. */
-  const onChange = (event) => {
-    if (readPref()) return;
-    applyMotion(event.matches, false);
-  };
-  if (reduceQuery.addEventListener) reduceQuery.addEventListener('change', onChange);
-  else if (reduceQuery.addListener) reduceQuery.addListener(onChange);
 }
 
 /* ---------------------------------------------------------------------------

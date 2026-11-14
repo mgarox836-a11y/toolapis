@@ -19,17 +19,16 @@
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='16' fill='%238ed462'/%3E%3Ctext x='16' y='21.5' font-family='Arial,sans-serif' font-size='12.5' font-weight='700' text-anchor='middle' fill='%2314150f'%3ETL%3C/text%3E%3C/svg%3E">
 
   <!-- Motion policy, decided before the first stylesheet is applied so there is
-       never a frame with the wrong state. Resolution order: the visitor's own
-       switch (localStorage) wins, then the OS preference. -->
+       never a frame with the wrong state. The visitor's own switch
+       (localStorage, the footer "Reduce motion" button) is the ONLY vote: the
+       OS "prefers-reduced-motion" setting is deliberately not consulted, so the
+       animation plays for every client. -->
   <script>
     (function () {
       var d = document.documentElement;
       var stored = null;
       try { stored = localStorage.getItem('toolapis-motion'); } catch (e) {}
-      var osReduce = false;
-      try { osReduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (e) {}
-      var reduced = stored === 'off' || (stored !== 'on' && osReduce);
-      d.classList.toggle('motion-reduced', reduced);
+      d.classList.toggle('motion-reduced', stored === 'off');
       d.classList.add('js');
     })();
   </script>
